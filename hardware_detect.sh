@@ -80,8 +80,14 @@ aplicar_entorno_hardware() {
         export WINEDLLOVERRIDES="winemenubuilder.exe=d;dxgi=n;d3d11=n;d3d10core=n;d3d9=n;${WINEDLLOVERRIDES}"
     fi
 
-    # 7. Reducir latencia de memoria compartida en Wine Staging
+    # 7. Reducir latencia de memoria compartida en Wine Staging y aumentar cache de shaders
     export STAGING_SHARED_MEMORY=1
+    export DXVK_ASYNC=1
+    export __GL_SHADER_DISK_CACHE=1
+    export __GL_SHADER_DISK_CACHE_SKIP_CLEANUP=1
+    export __GL_SHADER_DISK_CACHE_SIZE=10737418240
+    export MESA_DISK_CACHE_SINGLE_FILE=1
+    export mesa_glthread=true
 
     # 8. Renderizado según la GPU detectada
     if [ "$HAS_NVIDIA" = true ]; then
@@ -91,7 +97,7 @@ aplicar_entorno_hardware() {
         export DRI_PRIME=1
     elif [ "$HAS_AMD_DEDICATED" = true ]; then
         export DRI_PRIME=1
-        export RADV_PERFTEST=aco
+        export RADV_PERFTEST=aco,sam,dcc
     fi
 
     # 9. Puentes y compatibilidad para Anti-Cheat (EAC / BattlEye en juegos con soporte Linux)

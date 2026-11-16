@@ -17,45 +17,24 @@ source "${DIR}/hardware_detect.sh"
 # 2. Aplicar optimizaciones dinámicas para el hardware real del equipo
 aplicar_entorno_hardware
 
-# 3. Procesar banderas opcionales de prefijo
-CUSTOM_PREFIX=""
+# 3. Procesar banderas opcionales (compatibilidad)
 if [ "$1" = "--prefix" ]; then
     shift
-    CUSTOM_PREFIX="$1"
-    shift
+    shift || true
 fi
 
 if [ $# -eq 0 ]; then
-    echo "Uso: $0 [--prefix nombre_o_ruta] /ruta/al/programa.exe [argumentos]"
+    echo "Uso: $0 /ruta/al/programa.exe [argumentos]"
     exit 1
 fi
 
 TARGET="$1"
 shift || true
 
-# 4. Comprobar si el programa tiene un prefijo dedicado asignado en la base de datos
-if [ -z "$CUSTOM_PREFIX" ] && [ -f "$DB_FILE" ]; then
-    while IFS='|' read -r db_name db_path db_prefix; do
-        if [ "$db_path" = "$TARGET" ] && [ -n "$db_prefix" ] && [ "$db_prefix" != "DEFAULT" ] && [ "$db_prefix" != "compartido" ]; then
-            CUSTOM_PREFIX="$db_prefix"
-            break
-        fi
-    done < "$DB_FILE"
-fi
+# 4. Definir la ruta del WINEPREFIX unificado
+export WINEPREFIX="${DIR}/wineprefix"
 
-# 5. Definir la ruta del WINEPREFIX (compartido o aislado)
-if [ -n "$CUSTOM_PREFIX" ]; then
-    if [[ "$CUSTOM_PREFIX" = /* ]]; then
-        export WINEPREFIX="$CUSTOM_PREFIX"
-    else
-        export WINEPREFIX="${DIR}/prefixes/${CUSTOM_PREFIX}"
-    fi
-    echo "[*] Usando Prefijo Aislado: ${WINEPREFIX}"
-else
-    export WINEPREFIX="${DIR}/wineprefix"
-fi
-
-# 5.1 Resolver accesos directos de Windows (.lnk o .ink) al ejecutable real
+# 4.1 Resolver accesos directos de Windows (.lnk o .ink) al ejecutable real
 if [[ "$TARGET" =~ \.([lL][nN][kK]|[iI][nN][kK])$ ]] && [ -f "$TARGET" ]; then
     echo "[*] Acceso directo detectado: $(basename "$TARGET"). Resolviendo ejecutable real..."
     if [ -f "${DIR}/resolver_lnk.py" ]; then
@@ -69,20 +48,13 @@ if [[ "$TARGET" =~ \.([lL][nN][kK]|[iI][nN][kK])$ ]] && [ -f "$TARGET" ]; then
     fi
 fi
 
-# 6. Auto-inicialización del prefijo si es nuevo
+# 5. Auto-inicialización del prefijo si es nuevo
 if [ ! -f "${WINEPREFIX}/system.reg" ]; then
-    echo "[*] Configurando nuevo entorno de Windows para este juego..."
+    echo "[*] Configurando nuevo entorno de Windows unificado..."
     mkdir -p "$WINEPREFIX"
     wineboot -u
     if command -v dxvk-setup &>/dev/null && [ "$RENDERER_IN_USE" != "WineD3D (OpenGL Compatibilidad)" ]; then
         dxvk-setup install -y 2>/dev/null || true
-    fi
-    # Clonar librerías comunes de compatibilidad desde el prefijo base si existen
-    if [ -d "${DIR}/wineprefix/drive_c/windows/syswow64" ] && [ "${WINEPREFIX}" != "${DIR}/wineprefix" ]; then
-        mkdir -p "${WINEPREFIX}/drive_c/windows/syswow64"
-        cp -n "${DIR}/wineprefix/drive_c/windows/syswow64"/mfc42* "${WINEPREFIX}/drive_c/windows/syswow64/" 2>/dev/null || true
-        cp -n "${DIR}/wineprefix/drive_c/windows/syswow64"/msvcr* "${WINEPREFIX}/drive_c/windows/syswow64/" 2>/dev/null || true
-        cp -n "${DIR}/wineprefix/drive_c/windows/syswow64"/msvcp* "${WINEPREFIX}/drive_c/windows/syswow64/" 2>/dev/null || true
     fi
 fi
 

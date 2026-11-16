@@ -10,13 +10,13 @@ LAUNCHER="${DIR}/launch-win-app.sh"
 DXVK_CONF="${DIR}/dxvk.conf"
 CONFIG_USER="${DIR}/config_rendimiento.cfg"
 
-# Cargar módulo de hardware y preferencias
+# Cargar preferencias y módulo de hardware
 [ -f "$CONFIG_USER" ] && source "$CONFIG_USER"
 source "${DIR}/hardware_detect.sh"
 
-# Asegurar que la base de datos de programas y carpeta de prefijos existan
+# Asegurar que la base de datos de programas y el prefijo de Wine existan
 touch "$DB_FILE"
-mkdir -p "${DIR}/prefixes"
+mkdir -p "${DIR}/wineprefix"
 
 # ==============================================================================
 # PALETA DE COLORES ANSI
@@ -33,6 +33,114 @@ C_WHITE="\033[1;37m"
 C_GRAY="\033[0;90m"
 
 # ==============================================================================
+# 1. ACTUALIZACIÓN AUTOMÁTICA DESDE GITHUB (AL ABRIR EL PROGRAMA)
+# ==============================================================================
+verificar_actualizacion_github() {
+    if [ ! -d "${DIR}/.git" ] || ! command -v git &>/dev/null; then
+        return
+    fi
+
+    local remote_url
+    remote_url=$(git -C "${DIR}" config --get remote.origin.url 2>/dev/null || true)
+    [ -z "$remote_url" ] && return
+
+    echo -e "${C_CYAN}🔄 Comprobando actualizaciones en GitHub...${C_RESET}"
+
+    # Fetch rápido con timeout de 3 segundos
+    if timeout 4 git -C "${DIR}" fetch origin main --quiet 2>/dev/null || timeout 4 git -C "${DIR}" fetch origin --quiet 2>/dev/null; then
+        local local_hash
+        local remote_hash
+        local_hash=$(git -C "${DIR}" rev-parse HEAD 2>/dev/null)
+        remote_hash=$(git -C "${DIR}" rev-parse origin/main 2>/dev/null || git -C "${DIR}" rev-parse @{u} 2>/dev/null)
+
+        if [ -n "$local_hash" ] && [ -n "$remote_hash" ] && [ "$local_hash" != "$remote_hash" ]; then
+            echo ""
+            echo -e "${C_GREEN}⚡ ¡Nueva versión encontrada en GitHub! Actualizando automáticamente...${C_RESET}"
+            if git -C "${DIR}" pull --quiet origin main 2>/dev/null || git -C "${DIR}" pull --quiet 2>/dev/null; then
+                chmod +x "${DIR}"/*.sh "${DIR}"/*.py 2>/dev/null || true
+                echo -e "${C_GREEN}✔ ¡Vessel actualizado con éxito a la última versión! Reiniciando menú...${C_RESET}"
+                sleep 1.2
+                exec "$0" "$@"
+            fi
+        else
+            echo -e "${C_GREEN}✔ Vessel está en la última versión de GitHub.${C_RESET}"
+            sleep 0.5
+        fi
+    fi
+}
+
+# ==============================================================================
+# 2. CONFIGURACIÓN INICIAL / SELECCIÓN DE DISTRIBUCIÓN LINUX
+# ==============================================================================
+seleccionar_distribucion_interactiva() {
+    clear 2>/dev/null || true
+    echo -e "${C_CYAN}╔══════════════════════════════════════════════════════════════════════╗${C_RESET}"
+    echo -e "${C_CYAN}║${C_RESET}             ${C_GREEN}🐧  SELECCIONA TU DISTRIBUCIÓN DE LINUX  🐧${C_RESET}              ${C_CYAN}║${C_RESET}"
+    echo -e "${C_CYAN}║${C_RESET}       ${C_WHITE}Para configurar los comandos y paquetes exactos sin errores${C_RESET}     ${C_CYAN}║${C_RESET}"
+    echo -e "${C_CYAN}╚══════════════════════════════════════════════════════════════════════╝${C_RESET}"
+    echo ""
+    echo -e "  ${C_GRAY}Elige cuál de estas distribuciones estás utilizando en tu equipo:${C_RESET}"
+    echo ""
+    echo -e "  ${C_BOLD}${C_CYAN}[1]${C_RESET} ${C_WHITE}🍥 Debian${C_RESET} ${C_GRAY}(Debian 11, 12 Bookworm, 13 Trixie, Sid, Devuan)${C_RESET}"
+    echo -e "  ${C_BOLD}${C_CYAN}[2]${C_RESET} ${C_WHITE}🟠 Ubuntu / Linux Mint${C_RESET} ${C_GRAY}(Pop!_OS, Zorin OS, KDE Neon, Elementary)${C_RESET}"
+    echo -e "  ${C_BOLD}${C_CYAN}[3]${C_RESET} ${C_WHITE}🎩 Fedora / Nobara${C_RESET} ${C_GRAY}(RHEL, CentOS, AlmaLinux, Rocky Linux)${C_RESET}"
+    echo -e "  ${C_BOLD}${C_CYAN}[4]${C_RESET} ${C_WHITE}🏹 Arch Linux / Manjaro${C_RESET} ${C_GRAY}(EndeavourOS, Garuda, SteamOS Holo)${C_RESET}"
+    echo -e "  ${C_BOLD}${C_CYAN}[5]${C_RESET} ${C_WHITE}🦎 openSUSE${C_RESET} ${C_GRAY}(Tumbleweed, Leap, MicroOS)${C_RESET}"
+    echo ""
+    read -p "$(echo -e "${C_BOLD}Selecciona tu sistema (1-5) [Por defecto: 1]: ${C_RESET}")" sel_distro
+
+    case "$sel_distro" in
+        2)
+            SISTEMA_LINUX="ubuntu"
+            DISTRO_NAME="Ubuntu / Linux Mint"
+            ;;
+        3)
+            SISTEMA_LINUX="fedora"
+            DISTRO_NAME="Fedora / Nobara"
+            ;;
+        4)
+            SISTEMA_LINUX="arch"
+            DISTRO_NAME="Arch Linux / Manjaro"
+            ;;
+        5)
+            SISTEMA_LINUX="opensuse"
+            DISTRO_NAME="openSUSE"
+            ;;
+        *)
+            SISTEMA_LINUX="debian"
+            DISTRO_NAME="Debian"
+            ;;
+    esac
+
+    guardar_configuracion_distro
+
+    echo ""
+    echo -e "${C_GREEN}✔ Sistema configurado exitosamente:${C_RESET} ${C_BOLD}${DISTRO_NAME}${C_RESET}"
+    sleep 1
+}
+
+guardar_configuracion_distro() {
+    touch "$CONFIG_USER"
+    if grep -q "^SISTEMA_LINUX=" "$CONFIG_USER" 2>/dev/null; then
+        sed -i "s/^SISTEMA_LINUX=.*/SISTEMA_LINUX=\"$SISTEMA_LINUX\"/" "$CONFIG_USER"
+    else
+        echo "SISTEMA_LINUX=\"$SISTEMA_LINUX\"" >> "$CONFIG_USER"
+    fi
+    if grep -q "^DISTRO_NAME=" "$CONFIG_USER" 2>/dev/null; then
+        sed -i "s/^DISTRO_NAME=.*/DISTRO_NAME=\"$DISTRO_NAME\"/" "$CONFIG_USER"
+    else
+        echo "DISTRO_NAME=\"$DISTRO_NAME\"" >> "$CONFIG_USER"
+    fi
+}
+
+comprobar_configuracion_inicial_distro() {
+    [ -f "$CONFIG_USER" ] && source "$CONFIG_USER"
+    if [ -z "$SISTEMA_LINUX" ]; then
+        seleccionar_distribucion_interactiva
+    fi
+}
+
+# ==============================================================================
 # ENCABEZADO DINÁMICO SEGÚN EL EQUIPO
 # ==============================================================================
 mostrar_banner() {
@@ -42,12 +150,13 @@ mostrar_banner() {
     aplicar_entorno_hardware
 
     local motor_mostrar="${RENDERER_IN_USE:-DXVK (Vulkan)}"
+    local distro_mostrar="${DISTRO_NAME:-Debian}"
 
     echo -e "${C_CYAN}╔══════════════════════════════════════════════════════════════════════╗${C_RESET}"
     echo -e "${C_CYAN}║${C_RESET}                   ${C_MAGENTA}🚀  M E N U   W I N   ( U N I V E R S A L )  🚀${C_RESET}     ${C_CYAN}║${C_RESET}"
     echo -e "${C_CYAN}║${C_RESET}           ${C_WHITE}Gestor y Optimizador de Juegos y Programas de Windows${C_RESET}      ${C_CYAN}║${C_RESET}"
     echo -e "${C_CYAN}╠══════════════════════════════════════════════════════════════════════╣${C_RESET}"
-    echo -e "${C_CYAN}║${C_RESET} ${C_YELLOW}CPU:${C_RESET} ${CPU_MODEL:0:40} (${CPU_CORES} Hilos) | ${C_YELLOW}RAM:${C_RESET} ${RAM_TOTAL_MB} MB"
+    echo -e "${C_CYAN}║${C_RESET} ${C_YELLOW}Sistema:${C_RESET} ${distro_mostrar:0:22} | ${C_YELLOW}CPU:${C_RESET} ${CPU_MODEL:0:25} (${CPU_CORES} Hilos)"
     echo -e "${C_CYAN}║${C_RESET} ${C_GREEN}GPU:${C_RESET} ${DETECTED_GPU:0:55}"
     echo -e "${C_CYAN}║${C_RESET} ${C_CYAN}Motor:${C_RESET} [${motor_mostrar}] | ${C_CYAN}Perfil:${C_RESET} [${PERFIL_RENDIMIENTO:-maximo}] | ${C_CYAN}FPS:${C_RESET} ${LIMITE_FPS:-60}"
     echo -e "${C_CYAN}║${C_RESET} ${C_CYAN}FSR:${C_RESET} $([ "$ACTIVAR_FSR" = "1" ] && echo -e "${C_GREEN}Activo (x${FSR_STRENGTH:-2})${C_RESET}" || echo -e "${C_RED}Apagado${C_RESET}") | ${C_CYAN}HUD FPS:${C_RESET} $([ "$MOSTRAR_HUD_FPS" = "1" ] && echo -e "${C_GREEN}Activo${C_RESET}" || echo -e "${C_RED}Apagado${C_RESET}")"
@@ -81,18 +190,12 @@ iniciar_programa() {
         local i=1
         declare -a nombres
         declare -a rutas
-        declare -a prefijos
 
         while IFS='|' read -r nombre ruta prefijo; do
             [ -z "$nombre" ] && continue
             nombres[i]="$nombre"
             rutas[i]="$ruta"
-            prefijos[i]="${prefijo:-compartido}"
-            local pref_badge="${C_BLUE}[Compartido]${C_RESET}"
-            if [ -n "$prefijo" ] && [ "$prefijo" != "DEFAULT" ] && [ "$prefijo" != "compartido" ]; then
-                pref_badge="${C_MAGENTA}[Aislado: ${prefijo}]${C_RESET}"
-            fi
-            echo -e "  ${C_BOLD}${C_CYAN}[$i]${C_RESET} ${C_WHITE}${nombre}${C_RESET} ${pref_badge}"
+            echo -e "  ${C_BOLD}${C_CYAN}[$i]${C_RESET} ${C_WHITE}${nombre}${C_RESET}"
             echo -e "      ${C_GRAY}↳ ${ruta}${C_RESET}"
             ((i++))
         done < "$DB_FILE"
@@ -110,7 +213,6 @@ iniciar_programa() {
         if [[ "$seleccion" =~ ^[0-9]+$ ]] && [ "$seleccion" -ge 1 ] && [ "$seleccion" -le "$total" ]; then
             local prog_nombre="${nombres[$seleccion]}"
             local prog_ruta="${rutas[$seleccion]}"
-            local prog_prefijo="${prefijos[$seleccion]}"
 
             echo ""
             echo -e "${C_GREEN}🚀 Iniciando: ${C_BOLD}${prog_nombre}${C_RESET}..."
@@ -118,11 +220,7 @@ iniciar_programa() {
             sleep 1
 
             if [ -x "$LAUNCHER" ]; then
-                if [ -n "$prog_prefijo" ] && [ "$prog_prefijo" != "compartido" ] && [ "$prog_prefijo" != "DEFAULT" ]; then
-                    "$LAUNCHER" --prefix "$prog_prefijo" "$prog_ruta"
-                else
-                    "$LAUNCHER" "$prog_ruta"
-                fi
+                "$LAUNCHER" "$prog_ruta"
             else
                 echo -e "${C_RED}❌ Error: No se encontró el lanzador en ${LAUNCHER}${C_RESET}"
             fi
@@ -327,28 +425,11 @@ agregar_programa_portable() {
     read -p "$(echo -e "${C_GRAY}[Sugerido: ${nombre_sugerido}] (Presiona Enter para usar sugerido o escribe otro):${C_RESET}\n${C_BOLD}➤ ${C_RESET}")" nombre_prog
     [ -z "$nombre_prog" ] && nombre_prog="$nombre_sugerido"
 
-    # Selección de Tipo de Prefijo de Wine
-    echo ""
-    echo -e "${C_WHITE}Tipo de Prefijo de Windows:${C_RESET}"
-    echo -e "  ${C_BOLD}[1]${C_RESET} ${C_GREEN}🌐 Compartido (Recomendado)${C_RESET} ${C_GRAY}- Ahorra espacio en disco, usa la configuración global${C_RESET}"
-    echo -e "  ${C_BOLD}[2]${C_RESET} ${C_MAGENTA}🔒 Aislado / Dedicado${C_RESET} ${C_GRAY}- Crea una instalación limpia de Windows exclusiva para este juego${C_RESET}"
-    read -p "$(echo -e "${C_BOLD}Elegir tipo de prefijo (1 o 2) [Por defecto: 1]: ${C_RESET}")" pref_tipo_sel
-
-    local tipo_prefijo="compartido"
-    if [ "$pref_tipo_sel" = "2" ]; then
-        local safe_prefix
-        safe_prefix=$(echo "$nombre_prog" | tr -dc 'a-zA-Z0-9_-' | tr '[:upper:]' '[:lower:]')
-        [ -z "$safe_prefix" ] && safe_prefix="juego_$(date +%s)"
-        tipo_prefijo="$safe_prefix"
-        echo -e "${C_MAGENTA}✔ Se asignará el prefijo dedicado: ${C_BOLD}prefixes/${tipo_prefijo}${C_RESET}"
-    fi
-
-    echo "${nombre_prog}|${ruta_prog}|${tipo_prefijo}" >> "$DB_FILE"
+    echo "${nombre_prog}|${ruta_prog}|compartido" >> "$DB_FILE"
     echo ""
     echo -e "${C_GREEN}✅ ¡Programa portable registrado exitosamente!${C_RESET}"
-    echo -e "   ${C_BOLD}Nombre:${C_RESET}  ${nombre_prog}"
-    echo -e "   ${C_BOLD}Ruta:${C_RESET}    ${ruta_prog}"
-    echo -e "   ${C_BOLD}Prefijo:${C_RESET} ${tipo_prefijo}"
+    echo -e "   ${C_BOLD}Nombre:${C_RESET} ${nombre_prog}"
+    echo -e "   ${C_BOLD}Ruta:${C_RESET}   ${ruta_prog}"
     echo ""
 
     # Opción de crear acceso directo en el Escritorio
@@ -356,7 +437,7 @@ agregar_programa_portable() {
     case "$crear_desktop" in
         [nN]*) ;;
         *)
-            crear_archivo_desktop "$nombre_prog" "$ruta_prog" "$tipo_prefijo"
+            crear_archivo_desktop "$nombre_prog" "$ruta_prog"
             ;;
     esac
 
@@ -367,11 +448,7 @@ agregar_programa_portable() {
             echo ""
             echo -e "${C_GREEN}🚀 Iniciando programa...${C_RESET}"
             sleep 1
-            if [ "$tipo_prefijo" != "compartido" ]; then
-                "$LAUNCHER" --prefix "$tipo_prefijo" "$ruta_prog"
-            else
-                "$LAUNCHER" "$ruta_prog"
-            fi
+            "$LAUNCHER" "$ruta_prog"
             pausar
             ;;
         *)
@@ -447,24 +524,7 @@ agregar_programa_instalable() {
     read -p "$(echo -e "${C_GRAY}[Sugerido: ${nombre_sugerido}] (Presiona Enter para usar sugerido o escribe otro):${C_RESET}\n${C_BOLD}➤ ${C_RESET}")" nombre_prog
     [ -z "$nombre_prog" ] && nombre_prog="$nombre_sugerido"
 
-    # Prefijo
-    echo ""
-    echo -e "${C_WHITE}¿Dónde deseas instalarlo?${C_RESET}"
-    echo -e "  ${C_BOLD}[1]${C_RESET} ${C_GREEN}🌐 Prefijo Compartido (Recomendado)${C_RESET} ${C_GRAY}- Usa la misma unidad C: global${C_RESET}"
-    echo -e "  ${C_BOLD}[2]${C_RESET} ${C_MAGENTA}🔒 Prefijo Aislado / Dedicado${C_RESET} ${C_GRAY}- Instalación limpia de Windows exclusiva para este programa${C_RESET}"
-    read -p "$(echo -e "${C_BOLD}Elegir opción (1 o 2) [Por defecto: 1]: ${C_RESET}")" pref_tipo_sel
-
-    local tipo_prefijo="compartido"
     local target_prefix="${DIR}/wineprefix"
-    if [ "$pref_tipo_sel" = "2" ]; then
-        local safe_prefix
-        safe_prefix=$(echo "$nombre_prog" | tr -dc 'a-zA-Z0-9_-' | tr '[:upper:]' '[:lower:]')
-        [ -z "$safe_prefix" ] && safe_prefix="prog_$(date +%s)"
-        tipo_prefijo="$safe_prefix"
-        target_prefix="${DIR}/prefixes/${tipo_prefijo}"
-        mkdir -p "$target_prefix"
-        echo -e "${C_MAGENTA}✔ Se usará el prefijo dedicado: ${C_BOLD}prefixes/${tipo_prefijo}${C_RESET}"
-    fi
 
     # Ejecutar el instalador
     echo ""
@@ -477,11 +537,7 @@ agregar_programa_instalable() {
     local time_start
     time_start=$(date +%s)
 
-    if [ "$tipo_prefijo" != "compartido" ]; then
-        "$LAUNCHER" --prefix "$tipo_prefijo" "$ruta_setup" || true
-    else
-        "$LAUNCHER" "$ruta_setup" || true
-    fi
+    "$LAUNCHER" "$ruta_setup" || true
 
     # Pequeña pausa por si el instalador dejó subprocesos finalizando
     sleep 2
@@ -611,12 +667,11 @@ agregar_programa_instalable() {
         return
     fi
 
-    echo "${nombre_prog}|${exe_instalado}|${tipo_prefijo}" >> "$DB_FILE"
+    echo "${nombre_prog}|${exe_instalado}|compartido" >> "$DB_FILE"
     echo ""
     echo -e "${C_GREEN}✅ ¡Programa instalado y registrado exitosamente en el Menú Win!${C_RESET}"
     echo -e "   ${C_BOLD}Nombre:${C_RESET}     ${nombre_prog}"
     echo -e "   ${C_BOLD}Ejecutable:${C_RESET} ${exe_instalado}"
-    echo -e "   ${C_BOLD}Prefijo:${C_RESET}    ${tipo_prefijo}"
     echo ""
 
     # Crear acceso directo en el Escritorio
@@ -624,7 +679,7 @@ agregar_programa_instalable() {
     case "$crear_desk" in
         [nN]*) ;;
         *)
-            crear_archivo_desktop "$nombre_prog" "$exe_instalado" "$tipo_prefijo"
+            crear_archivo_desktop "$nombre_prog" "$exe_instalado"
             ;;
     esac
 
@@ -635,11 +690,7 @@ agregar_programa_instalable() {
             echo ""
             echo -e "${C_GREEN}🚀 Iniciando programa...${C_RESET}"
             sleep 1
-            if [ "$tipo_prefijo" != "compartido" ]; then
-                "$LAUNCHER" --prefix "$tipo_prefijo" "$exe_instalado"
-            else
-                "$LAUNCHER" "$exe_instalado"
-            fi
+            "$LAUNCHER" "$exe_instalado"
             pausar
             ;;
         *)
@@ -651,17 +702,11 @@ agregar_programa_instalable() {
 crear_archivo_desktop() {
     local nombre="$1"
     local ruta="$2"
-    local prefijo="$3"
     local desktop_path="/home/plumst/Escritorio/${nombre}.desktop"
     local carpeta_juego
     carpeta_juego="$(dirname "$ruta")"
 
-    local exec_cmd
-    if [ -n "$prefijo" ] && [ "$prefijo" != "compartido" ] && [ "$prefijo" != "DEFAULT" ]; then
-        exec_cmd="\"${LAUNCHER}\" --prefix \"${prefijo}\" \"${ruta}\""
-    else
-        exec_cmd="\"${LAUNCHER}\" \"${ruta}\""
-    fi
+    local exec_cmd="\"${LAUNCHER}\" \"${ruta}\""
 
     cat <<EOF > "$desktop_path"
 [Desktop Entry]
@@ -725,7 +770,7 @@ crear_acceso_escritorio_interactivo() {
     fi
 
     if [[ "$sel_d" =~ ^[0-9]+$ ]] && [ "$sel_d" -ge 1 ] && [ "$sel_d" -le "$total" ]; then
-        crear_archivo_desktop "${nombres_d[$sel_d]}" "${rutas_d[$sel_d]}" "${prefijos_d[$sel_d]}"
+        crear_archivo_desktop "${nombres_d[$sel_d]}" "${rutas_d[$sel_d]}"
     else
         echo -e "${C_RED}❌ Opción inválida.${C_RESET}"
     fi
@@ -853,10 +898,8 @@ listar_programas() {
         local i=1
         while IFS='|' read -r nombre ruta prefijo; do
             [ -z "$nombre" ] && continue
-            local pref="${prefijo:-compartido}"
             echo -e "  ${C_CYAN}[$i]${C_RESET} ${C_BOLD}${C_WHITE}${nombre}${C_RESET}"
-            echo -e "      ${C_GRAY}Ruta:${C_RESET}    ${ruta}"
-            echo -e "      ${C_GRAY}Prefijo:${C_RESET} ${pref}"
+            echo -e "      ${C_GRAY}↳ Ubicación:${C_RESET} ${ruta}"
             echo ""
             ((i++))
         done < "$DB_FILE"
@@ -1182,123 +1225,164 @@ comprobar_compatibilidad_anticheat() {
 }
 
 # ==============================================================================
-# 5) INSTALAR RECURSOS Y ACTUALIZAR
+# 5) INSTALAR RECURSOS Y OPTIMIZAR AUTOMÁTICAMENTE
 # ==============================================================================
 instalar_recursos_actualizar() {
-    while true; do
-        mostrar_banner
-        echo -e "${C_CYAN}📦 [ INSTALAR RECURSOS Y ACTUALIZAR ]${C_RESET}"
-        echo -e "${C_GRAY}Mantén al día tus drivers, librerías de DirectX, C++ y componentes de Windows:${C_RESET}"
-        echo ""
-        echo -e "  ${C_BOLD}${C_GREEN}[1]${C_RESET} ${C_WHITE}🚀 Instalar Paquete Completo Todo-en-Uno (DirectX, VC++, Fuentes, DXVK)${C_RESET}"
-        echo -e "  ${C_BOLD}${C_CYAN}[2]${C_RESET} ${C_WHITE}🌐 Instalar Wine-Gecko (Motor HTML/Navegador para Launchers y Tiendas)${C_RESET}"
-        echo -e "  ${C_BOLD}${C_YELLOW}[3]${C_RESET} ${C_WHITE}⚡ Reinstalar / Sincronizar DXVK (Traductor DirectX a Vulkan)${C_RESET}"
-        echo -e "  ${C_BOLD}${C_MAGENTA}[4]${C_RESET} ${C_WHITE}🔄 Actualizar Sistema y Drivers de tu distribución${C_RESET}"
-        echo ""
-        echo -e "  ${C_BOLD}${C_RED}[0]${C_RESET} ${C_YELLOW}Volver al menú principal${C_RESET}"
-        echo ""
-        read -p "$(echo -e "${C_BOLD}Elegir opción: ${C_RESET}")" rec_opc
+    mostrar_banner
+    echo -e "${C_CYAN}📦 [ INSTALACIÓN Y OPTIMIZACIÓN AUTOMÁTICA DE RECURSOS ]${C_RESET}"
+    echo -e "${C_GRAY}Comprobación inteligente: Solo instala o actualiza lo que falte en tu equipo.${C_RESET}"
+    echo ""
+    echo -e "  ${C_BOLD}Distribución configurada:${C_RESET} ${C_YELLOW}${DISTRO_NAME:-Debian}${C_RESET}"
+    echo ""
+    echo -e "  ${C_WHITE}¿Deseas ejecutar la comprobación automática o cambiar de distribución?${C_RESET}"
+    echo -e "    ${C_BOLD}[Enter]${C_RESET} Ejecutar comprobación y optimización automática para ${DISTRO_NAME:-Debian}"
+    echo -e "    ${C_BOLD}[C]${C_RESET}     Cambiar distribución de Linux"
+    echo -e "    ${C_BOLD}[0]${C_RESET}     Volver al menú principal"
+    echo ""
+    read -p "$(echo -e "${C_BOLD}Opción: ${C_RESET}")" opt_c
 
-        case "$rec_opc" in
-            1)
-                mostrar_banner
-                echo -e "${C_GREEN}🚀 [ INSTALANDO PAQUETE COMPLETO DE COMPATIBILIDAD ]${C_RESET}"
-                echo -e "${C_GRAY}Instalando librerías clave de Windows en el entorno...${C_RESET}"
-                echo ""
-                echo -e "${C_CYAN}[1/5] Instalando Fuentes oficiales de Windows (corefonts)...${C_RESET}"
-                WINEPREFIX="${DIR}/wineprefix" winetricks -q corefonts
-                echo -e "${C_GREEN}✔ Fuentes listas.${C_RESET}"
-                echo ""
-                echo -e "${C_CYAN}[2/5] Instalando Visual C++ (2010, 2015-2022 y MFC42)...${C_RESET}"
-                WINEPREFIX="${DIR}/wineprefix" winetricks -q vcrun2022 vcrun2010 mfc42
-                echo -e "${C_GREEN}✔ Librerías Visual C++ y MFC listas.${C_RESET}"
-                echo ""
-                echo -e "${C_CYAN}[3/5] Instalando DirectX Runtimes (d3dcompiler_47 y d3dx9)...${C_RESET}"
-                WINEPREFIX="${DIR}/wineprefix" winetricks -q d3dcompiler_47 d3dx9
-                echo -e "${C_GREEN}✔ DirectX listo.${C_RESET}"
-                echo ""
-                echo -e "${C_CYAN}[4/5] Verificando DXVK en el entorno...${C_RESET}"
-                WINEPREFIX="${DIR}/wineprefix" dxvk-setup install -y
-                echo -e "${C_GREEN}✔ DXVK verificado e instalado.${C_RESET}"
-                echo ""
-                echo -e "${C_CYAN}[5/5] Sincronizando librerías en prefijos aislados...${C_RESET}"
-                if [ -d "${DIR}/prefixes" ]; then
-                    for pref in "${DIR}/prefixes"/*; do
-                        if [ -d "$pref/drive_c/windows/syswow64" ]; then
-                            cp -n "${DIR}/wineprefix/drive_c/windows/syswow64"/mfc42* "$pref/drive_c/windows/syswow64/" 2>/dev/null || true
-                            cp -n "${DIR}/wineprefix/drive_c/windows/syswow64"/msvc* "$pref/drive_c/windows/syswow64/" 2>/dev/null || true
-                        fi
-                    done
-                fi
-                echo -e "${C_GREEN}✔ Prefijos sincronizados.${C_RESET}"
-                echo ""
-                echo -e "${C_BOLD}${C_GREEN}✅ ¡Todos los recursos para juegos quedaron instalados y actualizados!${C_RESET}"
-                pausar
+    case "$opt_c" in
+        0) return ;;
+        [cC]*)
+            seleccionar_distribucion_interactiva
+            ;;
+        *) ;;
+    esac
+
+    echo ""
+    echo -e "${C_CYAN}══════════════════════════════════════════════════════════════════════${C_RESET}"
+    echo -e "${C_GREEN}🚀 INICIANDO ANÁLISIS Y OPTIMIZACIÓN AUTOMÁTICA...${C_RESET}"
+    echo -e "${C_CYAN}══════════════════════════════════════════════════════════════════════${C_RESET}"
+    echo ""
+
+    # 1. Paquetes del Sistema Operativo
+    echo -e "${C_BOLD}[1/4] Comprobando paquetes del sistema para ${DISTRO_NAME:-Debian}...${C_RESET}"
+    local faltan_paquetes=false
+    local cmds_requeridos=(wine winetricks dxvk-setup gamemoderun cabextract curl 7z python3)
+    local faltantes=()
+
+    for c in "${cmds_requeridos[@]}"; do
+        if ! command -v "$c" &>/dev/null; then
+            faltan_paquetes=true
+            faltantes+=("$c")
+        fi
+    done
+
+    if [ "$SISTEMA_LINUX" = "debian" ] || [ "$SISTEMA_LINUX" = "ubuntu" ]; then
+        if command -v dpkg &>/dev/null; then
+            if ! dpkg -s libnss-resolve:i386 &>/dev/null || ! dpkg -s libnss-mdns:i386 &>/dev/null; then
+                faltan_paquetes=true
+                faltantes+=("libnss-resolve:i386" "libnss-mdns:i386")
+            fi
+        fi
+    fi
+
+    if [ "$faltan_paquetes" = false ]; then
+        echo -e "${C_GREEN}  ✔ Todos los paquetes del sistema ya están instalados y al día (Omitido).${C_RESET}"
+    else
+        echo -e "${C_YELLOW}  ⬇️ Faltan componentes (${faltantes[*]}). Instalando automáticamente...${C_RESET}"
+        case "$SISTEMA_LINUX" in
+            debian|ubuntu)
+                sudo apt-get update && sudo apt-get install -y wine winetricks dxvk gamemode cabextract curl p7zip-full mesa-utils vulkan-tools zenity python3 libnss-resolve:i386 libnss-mdns:i386
                 ;;
-            2)
-                mostrar_banner
-                echo -e "${C_CYAN}🌐 [ INSTALANDO WINE-GECKO ]${C_RESET}"
-                echo -e "${C_GRAY}Descargando motor web oficial de Wine para interfaces y launchers...${C_RESET}"
-                echo ""
-                echo -e "${C_YELLOW}Descargando e instalando Gecko en el sistema...${C_RESET}"
-                sudo mkdir -p /usr/share/wine/gecko 2>/dev/null || true
-                sudo curl -L -o /usr/share/wine/gecko/wine-gecko-2.47.4-x86_64.msi https://dl.winehq.org/wine/wine-gecko/2.47.4/wine-gecko-2.47.4-x86_64.msi
-                sudo curl -L -o /usr/share/wine/gecko/wine-gecko-2.47.4-x86.msi https://dl.winehq.org/wine/wine-gecko/2.47.4/wine-gecko-2.47.4-x86.msi
-                echo -e "${C_CYAN}Registrando en el entorno de Wine...${C_RESET}"
-                WINEPREFIX="${DIR}/wineprefix" wine msiexec /i /usr/share/wine/gecko/wine-gecko-2.47.4-x86_64.msi /qn
-                WINEPREFIX="${DIR}/wineprefix" wine msiexec /i /usr/share/wine/gecko/wine-gecko-2.47.4-x86.msi /qn
-                echo ""
-                echo -e "${C_GREEN}✅ ¡Wine-Gecko instalado correctamente!${C_RESET}"
-                pausar
+            fedora)
+                sudo dnf install -y wine winetricks dxvk gamemode cabextract curl p7zip mesa-demos vulkan-tools zenity python3
                 ;;
-            3)
-                mostrar_banner
-                echo -e "${C_YELLOW}⚡ [ REINSTALANDO / ACTUALIZANDO DXVK ]${C_RESET}"
-                echo ""
-                WINEPREFIX="${DIR}/wineprefix" dxvk-setup install -y
-                echo ""
-                echo -e "${C_GREEN}✅ DXVK sincronizado con éxito.${C_RESET}"
-                pausar
+            arch)
+                sudo pacman -Sy --noconfirm --needed wine winetricks dxvk gamemode cabextract curl p7zip mesa-utils vulkan-tools zenity python
                 ;;
-            4)
-                mostrar_banner
-                echo -e "${C_MAGENTA}🔄 [ ACTUALIZAR SISTEMA Y CONTROLADORES ]${C_RESET}"
-                echo -e "${C_GRAY}Se buscarán actualizaciones de paquetes y drivers...${C_RESET}"
-                echo ""
-                if command -v apt-get &> /dev/null; then
-                    sudo apt-get update && sudo apt-get upgrade -y
-                elif command -v pacman &> /dev/null; then
-                    sudo pacman -Syu --noconfirm
-                elif command -v dnf &> /dev/null; then
-                    sudo dnf upgrade -y
-                elif command -v zypper &> /dev/null; then
-                    sudo zypper update -y
-                fi
-                echo ""
-                echo -e "${C_GREEN}✅ Sistema y controladores actualizados.${C_RESET}"
-                pausar
-                ;;
-            0|"")
-                return
+            opensuse)
+                sudo zypper install -y wine winetricks dxvk gamemode cabextract curl p7zip mesa-utils vulkan-tools zenity python3
                 ;;
             *)
-                echo -e "${C_RED}❌ Opción inválida.${C_RESET}"
-                sleep 1.2
+                echo -e "${C_RED}  ⚠️ Distribución desconocida. Instala Wine y DXVK con tu gestor habitual.${C_RESET}"
                 ;;
         esac
-    done
+        echo -e "${C_GREEN}  ✔ Paquetes del sistema completados.${C_RESET}"
+    fi
+    echo ""
+
+    # 2. Parámetros del Kernel de Linux (Memoria y Red)
+    echo -e "${C_BOLD}[2/4] Comprobando optimizaciones del Kernel (Memoria y Multijugador)...${C_RESET}"
+    local max_map
+    max_map=$(cat /proc/sys/vm/max_map_count 2>/dev/null || echo 0)
+    if [ "$max_map" -ge 2147483640 ] && [ -f /etc/sysctl.d/99-win-gaming.conf ]; then
+        echo -e "${C_GREEN}  ✔ Parámetros del Kernel (vm.max_map_count = 2.1M y puertos): Ya optimizados (Omitido).${C_RESET}"
+    else
+        echo -e "${C_YELLOW}  ⚙️ Aplicando optimizaciones permanentes en /etc/sysctl.d/99-win-gaming.conf...${C_RESET}"
+        if [ -w /etc/sysctl.d ] || sudo -n true 2>/dev/null || [ "$EUID" -eq 0 ]; then
+            sudo bash -c 'cat <<EOF > /etc/sysctl.d/99-win-gaming.conf
+# Optimizaciones de memoria y red para juegos pesados y multiplayer
+vm.max_map_count = 2147483642
+net.ipv4.ping_group_range = 0 2147483647
+net.ipv4.ip_unprivileged_port_start = 0
+fs.file-max = 2097152
+EOF'
+            sudo /sbin/sysctl --system > /dev/null 2>&1 || true
+            echo -e "${C_GREEN}  ✔ Parámetros del Kernel aplicados con éxito.${C_RESET}"
+        fi
+    fi
+    echo ""
+
+    # 3. Librerías de Windows en Wine (MFC, Visual C++, DirectX, Fuentes)
+    echo -e "${C_BOLD}[3/4] Comprobando entorno de Windows (MFC, Visual C++, DirectX, Fuentes)...${C_RESET}"
+    local sys32="${DIR}/wineprefix/drive_c/windows/syswow64"
+    local fonts="${DIR}/wineprefix/drive_c/windows/Fonts"
+    local faltan_win=()
+
+    [ ! -f "$sys32/mfc42.dll" ] && faltan_win+=("mfc42")
+    [ ! -f "$sys32/msvcr100.dll" ] && faltan_win+=("vcrun2010")
+    [ ! -f "$sys32/vcruntime140.dll" ] && faltan_win+=("vcrun2022")
+    [ ! -f "$sys32/d3dcompiler_47.dll" ] && faltan_win+=("d3dcompiler_47")
+    [ ! -f "$fonts/arial.ttf" ] && faltan_win+=("corefonts")
+
+    if [ ${#faltan_win[@]} -eq 0 ]; then
+        echo -e "${C_GREEN}  ✔ Librerías esenciales de Windows (MFC42, VC++ 2010-2022, DirectX, Fuentes): Ya instaladas (Omitido).${C_RESET}"
+    else
+        echo -e "${C_YELLOW}  ⬇️ Instalando librerías de Windows faltantes: ${faltan_win[*]}...${C_RESET}"
+        WINEPREFIX="${DIR}/wineprefix" winetricks -q "${faltan_win[@]}" 2>/dev/null || true
+        echo -e "${C_GREEN}  ✔ Librerías de Windows instaladas con éxito.${C_RESET}"
+    fi
+
+    # Verificar DXVK en el prefijo
+    if [ ! -f "$sys32/d3d11.dll" ]; then
+        echo -e "${C_CYAN}  ⚡ Sincronizando DXVK en el prefijo de Wine...${C_RESET}"
+        WINEPREFIX="${DIR}/wineprefix" dxvk-setup install -y 2>/dev/null || true
+    fi
+    echo ""
+
+    # 4. Afinación de DXVK y Shaders
+    echo -e "${C_BOLD}[4/4] Optimizando motor DXVK y caché de shaders para ${CPU_CORES} hilos de CPU...${C_RESET}"
+    if [ -x "${DIR}/generar_dxvk_conf.sh" ]; then
+        "${DIR}/generar_dxvk_conf.sh"
+        echo -e "${C_GREEN}  ✔ Configuración dxvk.conf generada para ${CPU_CORES} hilos y Shaders Asíncronos.${C_RESET}"
+    fi
+    echo ""
+
+    echo -e "${C_CYAN}══════════════════════════════════════════════════════════════════════${C_RESET}"
+    echo -e "${C_BOLD}${C_GREEN}🎉 ¡OPTIMIZACIÓN AUTOMÁTICA COMPLETADA CON ÉXITO! 🎉${C_RESET}"
+    echo -e "${C_WHITE}Tu PC (${DISTRO_NAME:-Debian}) está lista al 100% para correr cualquier juego o programa.${C_RESET}"
+    echo -e "${C_CYAN}══════════════════════════════════════════════════════════════════════${C_RESET}"
+    pausar
 }
 
 # ==============================================================================
 # BUCLE PRINCIPAL
 # ==============================================================================
+
+# 1. Comprobar actualización desde GitHub al abrir
+verificar_actualizacion_github
+
+# 2. Comprobar configuración inicial de la distribución Linux
+comprobar_configuracion_inicial_distro
+
 while true; do
     mostrar_banner
     echo -e "  ${C_BOLD}${C_GREEN}[1]${C_RESET} ${C_WHITE}Iniciar programa o juego${C_RESET}"
-    echo -e "  ${C_BOLD}${C_YELLOW}[2]${C_RESET} ${C_WHITE}Configurar Programa Win${C_RESET} ${C_GRAY}(Añadir, accesos de escritorio, prefijos)${C_RESET}"
+    echo -e "  ${C_BOLD}${C_YELLOW}[2]${C_RESET} ${C_WHITE}Configurar Programa Win${C_RESET} ${C_GRAY}(Añadir, accesos de escritorio, mods)${C_RESET}"
     echo -e "  ${C_BOLD}${C_MAGENTA}[3]${C_RESET} ${C_WHITE}Configuración de Rendimiento y Motor Gráfico${C_RESET} ${C_GRAY}(FPS, FSR, Vulkan/OpenGL)${C_RESET}"
     echo -e "  ${C_BOLD}${C_BLUE}[4]${C_RESET} ${C_WHITE}Herramientas de Windows y Reparación${C_RESET} ${C_GRAY}(winecfg, regedit, taskmgr, anticheat)${C_RESET}"
-    echo -e "  ${C_BOLD}${C_CYAN}[5]${C_RESET} ${C_WHITE}Instalar Recursos y Actualizar${C_RESET} ${C_GRAY}(DirectX, VC++, fuentes, drivers)${C_RESET}"
+    echo -e "  ${C_BOLD}${C_CYAN}[5]${C_RESET} ${C_WHITE}Instalar Recursos y Optimizar Automáticamente${C_RESET} ${C_GRAY}(Verificación por distro)${C_RESET}"
     echo ""
     echo -e "  ${C_BOLD}${C_RED}[0]${C_RESET} ${C_GRAY}Salir${C_RESET}"
     echo ""

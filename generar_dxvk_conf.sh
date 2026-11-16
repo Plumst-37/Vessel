@@ -21,7 +21,7 @@ esac
 # Generar archivo dxvk.conf
 cat <<EOF > "$CONF_FILE"
 # ==============================================================================
-# DXVK CONFIGURACIÓN GENERADA AUTOMÁTICAMENTE
+# DXVK CONFIGURACIÓN GENERADA AUTOMÁTICAMENTE PARA MÁXIMO RENDIMIENTO
 # CPU: ${CPU_MODEL} (${CPU_CORES} Hilos) | RAM: ${RAM_TOTAL_MB} MB
 # Perfil: ${PERFIL_RENDIMIENTO:-maximo}
 # ==============================================================================
@@ -32,15 +32,22 @@ dxvk.numCompilerThreads = ${CPU_CORES}
 # Control de Tasa de Refresco / FPS
 dxgi.maxFrameRate = ${FPS_VAL}
 
-# Reducción de tirones y tartamudeos (Shaders Asíncronos / GPL)
+# Reducción drástica de tirones y stuttering (Shaders Asíncronos / GPL)
 dxvk.enableAsync = true
 dxvk.gpl = True
+dxvk.useRawSsbo = True
 
-# Optimización de teselación
+# Optimización de latencia y throughput de GPU
+d3d11.relaxedBarriers = True
 d3d11.maxTessellationFactor = 16
-
-# Filtro anisotrópico
 d3d11.samplerAnisotropy = 4
+
+# Optimización para juegos DirectX 9 y DirectX 11 con Mods / ReShade
+d3d9.deferSurfaceCreation = True
+d3d9.maxFrameLatency = 1
+dxgi.maxFrameLatency = 1
+dxgi.syncInterval = 0
+dxgi.deferSurfaceCreation = True
 EOF
 
 # Si el HUD de FPS está activado

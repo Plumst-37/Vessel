@@ -60,10 +60,15 @@ El instalador:
 - **Soporte ASI Loader, ReShade y ENB:** Pega tus scripts (`.asi`, carpetas `scripts/`, `CLEO`, ScriptHook, Cyber Engine Tweaks) directamente desde el gestor de archivos de Linux y se cargarán solos al iniciar el juego.
 - **Permisos de Escritura Automáticos:** Asegura que mods y parches puedan escribir logs, configuraciones `.ini` y partidas guardadas sin problemas de permisos.
 
-### 🔒 6. Prefijos Aislados vs. Compartidos (Multi-Prefix)
-- Permite elegir si un juego comparte la unidad `C:` global (para ahorrar espacio) o si tiene un **prefijo de Windows 100% aislado**, evitando conflictos de versiones de librerías o parches.
+### 🔄 6. Auto-Actualización desde GitHub en Tiempo Real
+- Cada vez que abres el menú, Vessel consulta silenciosamente el repositorio oficial en GitHub (`Plumst-37/Vessel`).
+- Si hay nuevas mejoras, parches de compatibilidad o correcciones, **se actualiza e instala automáticamente sin intervención**.
 
-### 🛠️ 7. Centro de Herramientas de Windows
+### 📦 7. Optimización Inteligente y Automática de Recursos (Opción 5)
+- **Configuración Inicial por Distribución:** Detecta y te permite seleccionar si usas **Debian**, **Ubuntu/Mint**, **Fedora**, **Arch Linux** u **openSUSE** para ejecutar los comandos exactos de tu sistema.
+- **Comprobación Inteligente:** Comprueba herramientas de sistema, parámetros del kernel y librerías de Windows (MFC42, VC++, DirectX, fuentes). **Si ya están instaladas, las omite; si falta algo, lo instala automáticamente.**
+
+### 🛠️ 8. Centro de Herramientas de Windows
 - Acceso directo con 1 clic a:
   - 🍷 **winecfg:** Configura versión de Windows (Win 7, 10, 11), DPI y escritorio virtual.
   - 📝 **regedit:** Editor del registro de Windows.
@@ -72,7 +77,9 @@ El instalador:
   - 🧹 **wineserver -k:** Cierra procesos congelados y libera la memoria RAM al instante.
   - 🛡️ **Comprobador de Compatibilidad Anti-Cheat:** Consulta de antemano el soporte de títulos online.
 
-### 🌐 8. Internet, Wi-Fi y Multijugador
+### 🌐 9. Internet, Wi-Fi y Multijugador
+- Conexión de red nativa optimizada (DNS 32-bit/64-bit multiarch, soporte para puertos UDP y ICMP ping).
+- Compatible con servidores comunitarios, clientes multijugador (GameRanger, FiveM, etc.) y puentes para **Easy Anti-Cheat** y **BattlEye** en Linux.
 - Conexión de red nativa optimizada (DNS 32-bit/64-bit multiarch, soporte para puertos UDP y ICMP ping).
 - Compatible con servidores comunitarios, clientes multijugador (GameRanger, FiveM, etc.) y puentes para **Easy Anti-Cheat** y **BattlEye** en Linux.
 
