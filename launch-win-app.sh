@@ -102,15 +102,32 @@ cd "$TARGET_DIR"
 [ -w "$TARGET_DIR" ] || chmod -R u+w "$TARGET_DIR" 2>/dev/null || true
 
 # ==============================================================================
-# AUTO-OPTIMIZACIÓN PARA JUEGOS PESADOS Y CAPCOM MT FRAMEWORK (Resident Evil, etc.)
-# Soluciona permanentemente el error 'Fatal error. ERR09: Unsupported function'
-# asegurando modo ventana/borderless nativo antes de la inicialización de Direct3D
+# AUTO-OPTIMIZACIÓN UNIVERSAL DE GRÁFICOS 3D, RESOLUCIÓN Y CERO TEARING
+# - Adapta automáticamente la resolución nativa del monitor en cualquier PC
+# - Elimina tirones y desgarro horizontal (VSync activo y frame pacing suave)
+# - Elimina desenfoque de movimiento molesto (Motion Blur desactivado)
+# - Fuerza máxima nitidez de texturas 3D en ángulos (Filtrado Anisotrópico 16x)
+# - Optimiza Capcom MT Framework, Rockstar Games, Unreal Engine y motores 3D
 # ==============================================================================
-corregir_config_capcom() {
+auto_optimizar_juegos_3d() {
+    # 1. Detectar resolución óptima del monitor principal en cualquier PC (Intel, AMD, NVIDIA)
+    local best_res
+    if command -v xrandr &>/dev/null; then
+        best_res=$(xrandr 2>/dev/null | grep -E '\bconnected\b' | grep -oE '[0-9]{3,4}x[0-9]{3,4}' | sort -rn -t 'x' -k1 -k2 | head -n 1)
+    fi
+    if [ -z "$best_res" ]; then
+        best_res=$(cat /sys/class/drm/*/modes 2>/dev/null | grep -oE '^[0-9]{3,4}x[0-9]{3,4}' | sort -rn -t 'x' -k1 -k2 | head -n 1)
+    fi
+    [ -z "$best_res" ] && best_res="1920x1080"
+
+    local best_w best_h
+    best_w=$(echo "$best_res" | cut -dx -f1)
+    best_h=$(echo "$best_res" | cut -dx -f2)
+
+    # 2. CAPCOM MT FRAMEWORK (Resident Evil 4/5/6, Revelations, DMC4, etc.)
     local capcom_dir="$HOME/Documentos/CAPCOM"
     [ ! -d "$capcom_dir" ] && capcom_dir="${WINEPREFIX}/drive_c/users/${USER}/Documents/CAPCOM"
 
-    # Si es Resident Evil 6 o similar, asegurar carpeta y config.ini inicial
     if [[ "$TARGET" =~ (Resident\ Evil|BH6|re6|RE6) ]] || [[ "$TARGET_DIR" =~ (Resident\ Evil|BH6|re6|RE6) ]]; then
         mkdir -p "${capcom_dir}/RESIDENT EVIL 6"
         local re6_cfg="${capcom_dir}/RESIDENT EVIL 6/config.ini"
@@ -120,44 +137,88 @@ corregir_config_capcom() {
 MouseBaseSpeed=2.000000
 [GRAPHICS]
 HDR=DEFAULT
-AntiAlias=NONE
+AntiAlias=FXAA3HQ
 AltAntiAlias=FXAA3HQ
 DeferredLightingLight=APPROXIMATE_SPECULAR
 ScreenQuality=HIGH
 SLI=OFF
 Stereo=OFF
-MotionBlurEnabled=ON
+MotionBlurEnabled=OFF
 ShadowsQuality=HIGH
 FrameRate=VARIABLE
 TextureDetail=HIGH
 TextureMipLimite=2
 [DISPLAY]
-Resolution=1280x720
-Aspect=DEFAULT
+Resolution=${best_res}
+Aspect=16:9
 RefreshRate=60.00Hz
 FullScreen=OFF
-VSYNC=OFF
+VSYNC=ON
 [SOUNDS]
 SeVoiceNum=128
 [CPU]
 JobThread=7
 RenderingThread=ON
+[Window]
+MainX=0
+MainY=0
 EOF
-            echo "[+] Configuración inicial generada para Resident Evil 6 (FullScreen=OFF)."
+            echo "[+] Configuración de alta fidelidad 3D generada para Resident Evil 6 (${best_res}, VSYNC=ON)."
         fi
     fi
 
-    # Corregir cualquier config.ini de Capcom que tenga FullScreen=ON para evitar ERR09
     if [ -d "$capcom_dir" ]; then
         find "$capcom_dir" -name "config.ini" 2>/dev/null | while read -r cini; do
-            if grep -q "FullScreen=ON" "$cini" 2>/dev/null; then
-                sed -i 's/FullScreen=ON/FullScreen=OFF/' "$cini" 2>/dev/null || true
-                echo "[+] Previendo ERR09: Ajustado FullScreen=OFF en $(basename "$(dirname "$cini")")/config.ini."
+            sed -i 's/^FullScreen=ON/FullScreen=OFF/' "$cini" 2>/dev/null || true
+            sed -i 's/^VSYNC=OFF/VSYNC=ON/' "$cini" 2>/dev/null || true
+            sed -i 's/^MotionBlurEnabled=ON/MotionBlurEnabled=OFF/' "$cini" 2>/dev/null || true
+            sed -i "s/^Resolution=[0-9]*x[0-9]*/Resolution=${best_res}/" "$cini" 2>/dev/null || true
+            sed -i 's/^AntiAlias=NONE/AntiAlias=FXAA3HQ/' "$cini" 2>/dev/null || true
+            sed -i 's/^AltAntiAlias=NONE/AltAntiAlias=FXAA3HQ/' "$cini" 2>/dev/null || true
+            sed -i 's/^ShadowsDisable=ON/ShadowsDisable=OFF/' "$cini" 2>/dev/null || true
+            sed -i 's/^TextureDetail=LOWEST/TextureDetail=HIGH/' "$cini" 2>/dev/null || true
+            sed -i 's/^ScreenQuality=LOW/ScreenQuality=HIGH/' "$cini" 2>/dev/null || true
+            sed -i 's/^Aspect=DEFAULT/Aspect=16:9/' "$cini" 2>/dev/null || true
+        done
+    fi
+
+    # 3. ROCKSTAR GAMES (GTA V, GTA IV, Max Payne 3, etc.)
+    local rsg_dir="$HOME/Documentos/Rockstar Games"
+    [ ! -d "$rsg_dir" ] && rsg_dir="${WINEPREFIX}/drive_c/users/${USER}/Documents/Rockstar Games"
+    if [ -d "$rsg_dir" ]; then
+        find "$rsg_dir" -name "settings.xml" 2>/dev/null | while read -r sxml; do
+            sed -i "s/<ScreenWidth value=\"[0-9]*\"/<ScreenWidth value=\"${best_w}\"/" "$sxml" 2>/dev/null || true
+            sed -i "s/<ScreenHeight value=\"[0-9]*\"/<ScreenHeight value=\"${best_h}\"/" "$sxml" 2>/dev/null || true
+            sed -i 's/<VSync value="[0-9]*"/<VSync value="1"/' "$sxml" 2>/dev/null || true
+            sed -i 's/<AnisotropicFiltering value="[0-9]*"/<AnisotropicFiltering value="16"/' "$sxml" 2>/dev/null || true
+            sed -i 's/<FXAA_Enabled value="false"/<FXAA_Enabled value="true"/' "$sxml" 2>/dev/null || true
+            sed -i 's/<LodScale value="0.000000"/<LodScale value="1.000000"/' "$sxml" 2>/dev/null || true
+            if [ -n "$GPU_NAME" ]; then
+                sed -i "s|<VideoCardDescription>.*</VideoCardDescription>|<VideoCardDescription>${GPU_NAME}</VideoCardDescription>|" "$sxml" 2>/dev/null || true
             fi
         done
     fi
+
+    # 4. UNREAL ENGINE 1/2/2.5 (SWAT 4, Deus Ex, Bioshock, etc.)
+    local target_system_dir="$TARGET_DIR"
+    [ -d "${TARGET_DIR}/System" ] && target_system_dir="${TARGET_DIR}/System"
+    [ -d "${TARGET_DIR}/Content/System" ] && target_system_dir="${TARGET_DIR}/Content/System"
+    find "$target_system_dir" -maxdepth 1 -name "*.ini" 2>/dev/null | while read -r ueini; do
+        if grep -q "\[WinDrv.WindowsClient\]" "$ueini" 2>/dev/null; then
+            sed -i "s/^FullscreenViewportX=[0-9]*/FullscreenViewportX=${best_w}/" "$ueini" 2>/dev/null || true
+            sed -i "s/^FullscreenViewportY=[0-9]*/FullscreenViewportY=${best_h}/" "$ueini" 2>/dev/null || true
+            sed -i "s/^WindowedViewportX=[0-9]*/WindowedViewportX=${best_w}/" "$ueini" 2>/dev/null || true
+            sed -i "s/^WindowedViewportY=[0-9]*/WindowedViewportY=${best_h}/" "$ueini" 2>/dev/null || true
+        fi
+        if grep -q "\[D3DDrv.D3DRenderDevice\]" "$ueini" 2>/dev/null; then
+            sed -i 's/^UseVSync=False/UseVSync=True/' "$ueini" 2>/dev/null || true
+            sed -i 's/^LevelOfAnisotropy=[0-9]*/LevelOfAnisotropy=16/' "$ueini" 2>/dev/null || true
+            sed -i 's/^Use16bit=True/Use16bit=False/' "$ueini" 2>/dev/null || true
+            sed -i 's/^Use16bitTextures=True/Use16bitTextures=False/' "$ueini" 2>/dev/null || true
+        fi
+    done
 }
-corregir_config_capcom
+auto_optimizar_juegos_3d
 
 # ==============================================================================
 # AUTO-ACTIVACIÓN DE MODS, ASI LOADERS, RESHADE, ENB Y TRADUCCIONES
@@ -177,8 +238,9 @@ done
 CANT_ASI=$(ls -1 *.asi scripts/*.asi plugins/*.asi 2>/dev/null | wc -l)
 
 # Detección de resolución para modo Escritorio Virtual
-RES_PRIMARIA=$(xrandr 2>/dev/null | grep -E ' connected primary| connected' | head -n 1 | grep -oE '[0-9]+x[0-9]+' | head -n 1)
-[ -z "$RES_PRIMARIA" ] && RES_PRIMARIA="1280x720"
+RES_PRIMARIA=$(xrandr 2>/dev/null | grep -E '\bconnected\b' | grep -oE '[0-9]{3,4}x[0-9]{3,4}' | sort -rn -t 'x' -k1 -k2 | head -n 1)
+[ -z "$RES_PRIMARIA" ] && RES_PRIMARIA=$(cat /sys/class/drm/*/modes 2>/dev/null | grep -oE '^[0-9]{3,4}x[0-9]{3,4}' | sort -rn -t 'x' -k1 -k2 | head -n 1)
+[ -z "$RES_PRIMARIA" ] && RES_PRIMARIA="1920x1080"
 DESKTOP_RES="${RESOLUCION_ESCRITORIO:-$RES_PRIMARIA}"
 
 RUN_PREFIX=""

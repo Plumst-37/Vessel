@@ -32,8 +32,9 @@ cat <<EOF > "$CONF_FILE"
 # Compilación de Shaders en paralelo con todos los hilos del CPU
 dxvk.numCompilerThreads = ${CPU_CORES}
 
-# Control de Tasa de Refresco / FPS
+# Control de Tasa de Refresco / FPS (D3D9 y D3D11/DXGI)
 dxgi.maxFrameRate = ${FPS_VAL}
+d3d9.maxFrameRate = ${FPS_VAL}
 
 # Reducción drástica de tirones y stuttering (Shaders Asíncronos / GPL)
 dxvk.enableAsync = true
@@ -43,12 +44,21 @@ dxvk.useRawSsbo = True
 # Optimización de latencia y throughput de GPU
 d3d11.relaxedBarriers = True
 d3d11.maxTessellationFactor = 16
-d3d11.samplerAnisotropy = 4
 
-# Buffer de fotogramas para eliminar tirones (2 cuadros suavizan el frametime en cualquier GPU)
-d3d9.maxFrameLatency = 2
-dxgi.maxFrameLatency = 2
-d3d9.samplerAnisotropy = 4
+# Calidad y definición ultra-nítida de texturas 3D en cualquier ángulo (Filtrado Anisotrópico 16x)
+d3d11.samplerAnisotropy = 16
+d3d9.samplerAnisotropy = 16
+d3d9.textureLodBias = 0
+
+# Cero Desgarro de Pantalla (Tearing) y Cámara Fluida 1:1 sin Lag
+# Latencia 1 cuadro elimina el retraso y movimiento pesado de la cámara 3D
+d3d9.maxFrameLatency = 1
+dxgi.maxFrameLatency = 1
+d3d9.presentInterval = 1
+dxgi.syncInterval = 1
+
+# Compatibilidad con cambios de resolución y modo ventana/borde
+d3d9.deferSurfaceCreation = True
 EOF
 
 # Si el HUD de FPS está activado
