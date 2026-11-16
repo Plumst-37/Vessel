@@ -127,8 +127,18 @@ echo "    - AMD FSR Upscaling: $([ "$ACTIVAR_FSR" = "1" ] && echo "Activado" || 
 echo "    - GameMode: $([ -n "$GAMEMODE" ] && echo "Activo" || echo "Inactivo")"
 echo "    - Prefijo Wine: ${WINEPREFIX}"
 
+# Función para limpiar procesos colgados al cerrar la ventana con [X] o Ctrl+C
+limpiar_procesos_al_salir() {
+    wineserver -k 2>/dev/null || true
+}
+trap limpiar_procesos_al_salir EXIT INT TERM
+
 if [[ "$TARGET_FILE" =~ \.(msi|MSI)$ ]]; then
     $GAMEMODE "$WINE_CMD" msiexec /i "$TARGET_FILE" "$@"
 else
     $GAMEMODE "$WINE_CMD" "$TARGET_FILE" "$@"
 fi
+EXIT_STATUS=$?
+
+limpiar_procesos_al_salir
+exit $EXIT_STATUS
