@@ -19,10 +19,10 @@ C_RED="\033[1;31m"
 # Si se ejecuta mediante pipe (curl ... | bash), clonar automáticamente el repositorio
 if [ ! -f "${DIR}/menu-win.sh" ]; then
     echo -e "${C_CYAN}╔══════════════════════════════════════════════════════════════════════╗${C_RESET}"
-    echo -e "${C_CYAN}║${C_RESET}             ${C_GREEN}📦  INSTALADOR REMOTO DIRECTO - WINDOWS PIRATA 📦${C_RESET}       ${C_CYAN}║${C_RESET}"
+    echo -e "${C_CYAN}║${C_RESET}             ${C_GREEN}📦  INSTALADOR REMOTO DIRECTO - VESSEL 📦${C_RESET}               ${C_CYAN}║${C_RESET}"
     echo -e "${C_CYAN}╚══════════════════════════════════════════════════════════════════════╝${C_RESET}"
     echo ""
-    TARGET_DIR="$HOME/WindowsPirata"
+    TARGET_DIR="$HOME/Vessel"
 
     if ! command -v git &>/dev/null; then
         echo -e "${C_YELLOW}Instalando 'git' necesario para descargar el proyecto...${C_RESET}"
@@ -34,7 +34,7 @@ if [ ! -f "${DIR}/menu-win.sh" ]; then
 
     if [ ! -d "$TARGET_DIR/.git" ]; then
         echo -e "${C_GREEN}Clonando repositorio en: ${C_BOLD}${TARGET_DIR}${C_RESET}..."
-        git clone https://github.com/Plumst-37/WindowsPirata.git "$TARGET_DIR"
+        git clone https://github.com/Plumst-37/Vessel.git "$TARGET_DIR"
     else
         echo -e "${C_GREEN}Actualizando repositorio en: ${C_BOLD}${TARGET_DIR}${C_RESET}..."
         (cd "$TARGET_DIR" && git pull || true)
@@ -67,7 +67,7 @@ else
     if command -v apt-get &> /dev/null; then
         PKG_MGR="apt"
         INSTALL_CMD="sudo apt-get update && sudo apt-get install -y"
-        PKGS="wine winetricks dxvk gamemode cabextract curl p7zip-full mesa-utils vulkan-tools zenity"
+        PKGS="wine winetricks dxvk gamemode cabextract curl p7zip-full mesa-utils vulkan-tools zenity libnss-resolve:i386 libnss-mdns:i386"
     elif command -v pacman &> /dev/null; then
         PKG_MGR="pacman"
         INSTALL_CMD="sudo pacman -Sy --noconfirm --needed"
@@ -98,9 +98,10 @@ echo ""
 echo -e "${C_CYAN}[2/5] Optimizando parámetros del Kernel (memoria y multijugador)...${C_RESET}"
 if [ -w /etc/sysctl.d ] || sudo -n true 2>/dev/null || [ "$EUID" -eq 0 ]; then
     sudo bash -c 'cat <<EOF > /etc/sysctl.d/99-win-gaming.conf
-# Optimizaciones de memoria para juegos pesados y multiplayer
+# Optimizaciones de memoria y red para juegos pesados y multiplayer
 vm.max_map_count = 2147483642
 net.ipv4.ping_group_range = 0 2147483647
+net.ipv4.ip_unprivileged_port_start = 0
 fs.file-max = 2097152
 EOF'
     sudo /sbin/sysctl --system > /dev/null 2>&1 || true

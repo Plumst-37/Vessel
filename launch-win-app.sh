@@ -112,10 +112,9 @@ TARGET_FILE="$(basename "$TARGET")"
 # Moverse al directorio donde reside el juego (vital para rutas relativas y DLLs)
 cd "$TARGET_DIR"
 
-# Detección especial de estructura gta_data si existe
-if [ -d "gta_data" ] && [ -f "gta_data/PlayGTAV.exe" ]; then
-    cd "gta_data"
-    TARGET_FILE="PlayGTAV.exe"
+# Si el juego incluye un dinput8.dll local (ASI loaders/mods), activar el override nativo
+if [ -f "dinput8.dll" ]; then
+    export WINEDLLOVERRIDES="dinput8=n,b;${WINEDLLOVERRIDES}"
 fi
 
 echo "[+] Ejecutando con Perfil [${PERFIL_RENDIMIENTO:-maximo}]..."

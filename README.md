@@ -1,4 +1,4 @@
-# 🚀 WindowsPirata (Menu Win - Universal Edition)
+# 🚀 Vessel (Menu Win - Universal Edition)
 
 > **El gestor y optimizador definitivo de juegos y aplicaciones de Windows para cualquier distribución de Linux.**  
 > *Máximo rendimiento, cero consumo en segundo plano, instalación en 1 clic y compatibilidad universal.*
@@ -10,21 +10,21 @@
 Abre cualquier terminal y pega este comando:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/Plumst-37/WindowsPirata/main/instalar.sh | bash
+curl -fsSL https://raw.githubusercontent.com/Plumst-37/Vessel/main/instalar.sh | bash
 ```
 
 O si prefieres clonar manualmente:
 
 ```bash
-git clone https://github.com/Plumst-37/WindowsPirata.git
-cd WindowsPirata
+git clone https://github.com/Plumst-37/Vessel.git
+cd Vessel
 ./instalar.sh
 ```
 
 El instalador:
 1. Detecta automáticamente tu distribución (**Debian / Ubuntu / Linux Mint**, **Arch Linux / Manjaro**, **Fedora / RHEL** o **openSUSE**).
-2. Comprueba e instala dependencias (**Wine, DXVK, GameMode, Winetricks, Zenity**).
-3. Optimiza parámetros del kernel del sistema (`vm.max_map_count` para juegos pesados como GTA V).
+2. Comprueba e instala dependencias (**Wine, DXVK, GameMode, Winetricks, Zenity, librerías DNS 32-bit/64-bit**).
+3. Optimiza parámetros del kernel del sistema (`vm.max_map_count`, `ip_unprivileged_port_start=0` y `ping_group_range` para multijugador y conexión total).
 4. Genera una configuración `dxvk.conf` ajustada a la cantidad exacta de núcleos e hilos de tu CPU.
 5. Crea el acceso directo **Menu Win (PC)** en tu **Escritorio** y en tu menú de aplicaciones listo para usar.
 
@@ -50,7 +50,7 @@ El instalador:
 
 ### 📂 4. Gestión Cómoda de Juegos Portables e Instaladores
 - **➕ Añadir programa portable:** Para juegos o programas ya listos en carpetas (repacks, portables, discos externos).
-- **➕ Añadir programa instalable:** Ejecuta instaladores (`Setup.exe`, `Installer.exe`, `.msi`), los instala en Wine y **auto-detecta el ejecutable principal recién creado** en `C:\Program Files`, registrándolo automáticamente.
+- **➕ Añadir programa instalable:** Ejecuta instaladores (`Setup.exe`, `Installer.exe`, `.msi`), los instala en Wine y **auto-detecta el ejecutable principal recién creado** leyendo accesos `.lnk` o inodos, registrándolo automáticamente.
 - **🖱️ Selector Gráfico con Ratón:** Puedes buscar tus ejecutables navegando con carpetas y ratón (**KDialog / Zenity**) o por terminal.
 - **🖥️ Accesos Directos al Escritorio (1-Clic):** Crea accesos directos validados y ejecutables en tu Escritorio para abrir cualquier juego directamente sin abrir la terminal.
 
@@ -67,15 +67,15 @@ El instalador:
   - 🛡️ **Comprobador de Compatibilidad Anti-Cheat:** Consulta de antemano el soporte de títulos online.
 
 ### 🌐 7. Internet, Wi-Fi y Multijugador
-- Conexión de red nativa para juegos multijugador por Wi-Fi o cable.
-- Compatible con servidores comunitarios, mods multijugador (GTA V Co-Op, FiveM, etc.) y puentes para **Easy Anti-Cheat** y **BattlEye** en Linux.
+- Conexión de red nativa optimizada (DNS 32-bit/64-bit multiarch, soporte para puertos UDP y ICMP ping).
+- Compatible con servidores comunitarios, clientes multijugador (GameRanger, FiveM, etc.) y puentes para **Easy Anti-Cheat** y **BattlEye** en Linux.
 
 ---
 
 ## 📋 Estructura del Proyecto
 
 ```text
-WindowsPirata/
+Vessel/
 ├── menu-win.sh            # Panel principal interactivo con paleta ANSI
 ├── launch-win-app.sh      # Lanzador con GameMode, PRIME GPU y multi-prefijos
 ├── hardware_detect.sh     # Detector universal de CPU, GPU, Vulkan y Fsync

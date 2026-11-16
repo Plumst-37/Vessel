@@ -73,11 +73,11 @@ aplicar_entorno_hardware() {
         # Modo Compatibilidad OpenGL (para tarjetas sin Vulkan o PCs antiguas)
         export PROTON_USE_WINED3D=1
         export RENDERER_IN_USE="WineD3D (OpenGL Compatibilidad)"
-        export WINEDLLOVERRIDES="winemenubuilder.exe=d;dinput8=n,b;dxgi=b;d3d11=b;d3d10core=b;d3d9=b;${WINEDLLOVERRIDES}"
+        export WINEDLLOVERRIDES="winemenubuilder.exe=d;dxgi=b;d3d11=b;d3d10core=b;d3d9=b;${WINEDLLOVERRIDES}"
     else
         # Modo Máximo Rendimiento Vulkan con DXVK
         export RENDERER_IN_USE="DXVK (Vulkan)"
-        export WINEDLLOVERRIDES="winemenubuilder.exe=d;dinput8=n,b;dxgi=n;d3d11=n;d3d10core=n;d3d9=n;${WINEDLLOVERRIDES}"
+        export WINEDLLOVERRIDES="winemenubuilder.exe=d;dxgi=n;d3d11=n;d3d10core=n;d3d9=n;${WINEDLLOVERRIDES}"
     fi
 
     # 7. Reducir latencia de memoria compartida en Wine Staging
