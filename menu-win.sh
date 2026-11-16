@@ -413,22 +413,56 @@ agregar_programa_instalable() {
         "$LAUNCHER" "$ruta_setup" || true
     fi
 
+    # Pequeña pausa por si el instalador dejó subprocesos finalizando
+    sleep 2
+
     echo ""
     echo -e "${C_GREEN}✔ El proceso del instalador ha terminado.${C_RESET}"
     echo -e "${C_CYAN}Buscando automáticamente el ejecutable principal recién instalado...${C_RESET}"
 
     local exe_instalado=""
     local candidatos=()
+    declare -A vistos
 
+    # 1. ESTRATEGIA .LNK: Buscar accesos directos creados por el instalador en Start Menu y Escritorio
+    if [ -d "${target_prefix}/drive_c/users" ]; then
+        while IFS= read -r lnk_file; do
+            [ -z "$lnk_file" ] && continue
+            local target_in_lnk
+            target_in_lnk=$(strings "$lnk_file" 2>/dev/null | grep -iE '^[a-zA-Z]:\\.*\.exe$' | head -n 1)
+            if [ -n "$target_in_lnk" ]; then
+                local rel_path
+                rel_path=$(echo "$target_in_lnk" | sed -E 's/^[a-zA-Z]:[\\\/]+//' | tr '\\' '/')
+                local full_cand="${target_prefix}/drive_c/${rel_path}"
+                if [ -f "$full_cand" ]; then
+                    local base_cand
+                    base_cand=$(basename "$full_cand" | tr '[:upper:]' '[:lower:]')
+                    if [[ ! "$base_cand" =~ (unins|uninstall|setup|installer|dxsetup|vcredist|crashpad) ]] && [ -z "${vistos[$full_cand]}" ]; then
+                        candidatos+=("$full_cand")
+                        vistos["$full_cand"]=1
+                    fi
+                fi
+            fi
+        done < <(find "${target_prefix}/drive_c/users" -type f -iname "*.lnk" -newerct "@$((time_start - 30))" 2>/dev/null)
+    fi
+
+    # 2. ESTRATEGIA -NEWERCT: Buscar archivos .exe creados en disco (verificando tiempo de creación de inodo)
     if [ -d "${target_prefix}/drive_c" ]; then
         while IFS= read -r f; do
+            [ -z "$f" ] && continue
             local fname
             fname=$(basename "$f" | tr '[:upper:]' '[:lower:]')
-            if [[ "$fname" =~ (unins|uninstall|setup|installer|dxsetup|vcredist|crashpad) ]]; then
+            if [[ "$fname" =~ (unins|uninstall|setup|installer|dxsetup|vcredist|vc_redist|crashpad|helper|crash_reporter|update|updater) ]]; then
                 continue
             fi
-            candidatos+=("$f")
-        done < <(find "${target_prefix}/drive_c" -type f \( -iname "*.exe" \) -newermt "@$((time_start - 30))" 2>/dev/null | head -n 10)
+            if [[ "$f" =~ /windows/ ]]; then
+                continue
+            fi
+            if [ -z "${vistos[$f]}" ]; then
+                candidatos+=("$f")
+                vistos["$f"]=1
+            fi
+        done < <(find "${target_prefix}/drive_c" -type f \( -iname "*.exe" \) -newerct "@$((time_start - 30))" 2>/dev/null | head -n 15)
     fi
 
     if [ ${#candidatos[@]} -gt 0 ]; then
@@ -452,9 +486,9 @@ agregar_programa_instalable() {
         echo ""
         echo -e "${C_YELLOW}Selecciona el archivo ejecutable (.exe) que se instaló en el disco C: de Wine:${C_RESET}"
         if command -v kdialog &>/dev/null && [ -n "$DISPLAY$WAYLAND_DISPLAY" ]; then
-            exe_instalado=$(kdialog --title "Seleccionar Ejecutable Instalado (.exe)" --getopenfilename "${target_prefix}/drive_c/Program Files" "*.exe *.EXE | Ejecutables de Windows (*.exe)" 2>/dev/null)
+            exe_instalado=$(kdialog --title "Seleccionar Ejecutable Instalado (.exe)" --getopenfilename "${target_prefix}/drive_c" "*.exe *.EXE | Ejecutables de Windows (*.exe)" 2>/dev/null)
         elif command -v zenity &>/dev/null && [ -n "$DISPLAY$WAYLAND_DISPLAY" ]; then
-            exe_instalado=$(zenity --file-selection --filename="${target_prefix}/drive_c/Program Files/" --title="Seleccionar Ejecutable Instalado (.exe)" --file-filter="Ejecutables (*.exe) | *.exe *.EXE" 2>/dev/null)
+            exe_instalado=$(zenity --file-selection --filename="${target_prefix}/drive_c/" --title="Seleccionar Ejecutable Instalado (.exe)" --file-filter="Ejecutables (*.exe) | *.exe *.EXE" 2>/dev/null)
         fi
 
         if [ -z "$exe_instalado" ]; then
@@ -992,21 +1026,32 @@ instalar_recursos_actualizar() {
                 echo -e "${C_GREEN}🚀 [ INSTALANDO PAQUETE COMPLETO DE COMPATIBILIDAD ]${C_RESET}"
                 echo -e "${C_GRAY}Instalando librerías clave de Windows en el entorno...${C_RESET}"
                 echo ""
-                echo -e "${C_CYAN}[1/4] Instalando Fuentes oficiales de Windows (corefonts)...${C_RESET}"
+                echo -e "${C_CYAN}[1/5] Instalando Fuentes oficiales de Windows (corefonts)...${C_RESET}"
                 WINEPREFIX="${DIR}/wineprefix" winetricks -q corefonts
                 echo -e "${C_GREEN}✔ Fuentes listas.${C_RESET}"
                 echo ""
-                echo -e "${C_CYAN}[2/4] Instalando Visual C++ 2015-2022 (x86 y x64)...${C_RESET}"
-                WINEPREFIX="${DIR}/wineprefix" winetricks -q vcrun2022
-                echo -e "${C_GREEN}✔ Visual C++ listo.${C_RESET}"
+                echo -e "${C_CYAN}[2/5] Instalando Visual C++ (2010, 2015-2022 y MFC42)...${C_RESET}"
+                WINEPREFIX="${DIR}/wineprefix" winetricks -q vcrun2022 vcrun2010 mfc42
+                echo -e "${C_GREEN}✔ Librerías Visual C++ y MFC listas.${C_RESET}"
                 echo ""
-                echo -e "${C_CYAN}[3/4] Instalando DirectX Runtimes (d3dcompiler_47 y d3dx9)...${C_RESET}"
+                echo -e "${C_CYAN}[3/5] Instalando DirectX Runtimes (d3dcompiler_47 y d3dx9)...${C_RESET}"
                 WINEPREFIX="${DIR}/wineprefix" winetricks -q d3dcompiler_47 d3dx9
                 echo -e "${C_GREEN}✔ DirectX listo.${C_RESET}"
                 echo ""
-                echo -e "${C_CYAN}[4/4] Verificando DXVK en el entorno...${C_RESET}"
+                echo -e "${C_CYAN}[4/5] Verificando DXVK en el entorno...${C_RESET}"
                 WINEPREFIX="${DIR}/wineprefix" dxvk-setup install -y
                 echo -e "${C_GREEN}✔ DXVK verificado e instalado.${C_RESET}"
+                echo ""
+                echo -e "${C_CYAN}[5/5] Sincronizando librerías en prefijos aislados...${C_RESET}"
+                if [ -d "${DIR}/prefixes" ]; then
+                    for pref in "${DIR}/prefixes"/*; do
+                        if [ -d "$pref/drive_c/windows/syswow64" ]; then
+                            cp -n "${DIR}/wineprefix/drive_c/windows/syswow64"/mfc42* "$pref/drive_c/windows/syswow64/" 2>/dev/null || true
+                            cp -n "${DIR}/wineprefix/drive_c/windows/syswow64"/msvc* "$pref/drive_c/windows/syswow64/" 2>/dev/null || true
+                        fi
+                    done
+                fi
+                echo -e "${C_GREEN}✔ Prefijos sincronizados.${C_RESET}"
                 echo ""
                 echo -e "${C_BOLD}${C_GREEN}✅ ¡Todos los recursos para juegos quedaron instalados y actualizados!${C_RESET}"
                 pausar

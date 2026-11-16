@@ -122,6 +122,13 @@ if [ -f "${DIR}/generar_dxvk_conf.sh" ]; then
     "${DIR}/generar_dxvk_conf.sh"
     echo -e "${C_GREEN}✔ Archivo dxvk.conf generado a medida.${C_RESET}"
 fi
+
+# 4.1 Asegurar librerías esenciales para instaladores (MFC, Visual C++, Fuentes)
+if command -v winetricks &>/dev/null && [ ! -f "${DIR}/wineprefix/drive_c/windows/syswow64/mfc42.dll" ]; then
+    echo -e "${C_CYAN}      Instalando librerías base para instaladores (MFC, VC++, Corefonts)...${C_RESET}"
+    WINEPREFIX="${DIR}/wineprefix" winetricks -q corefonts vcrun2022 vcrun2010 mfc42 2>/dev/null || true
+    echo -e "${C_GREEN}✔ Entorno base optimizado para cualquier instalador.${C_RESET}"
+fi
 echo ""
 
 # 5. Crear accesos directos universales (Escritorio y Menú del Sistema)

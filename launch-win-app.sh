@@ -63,6 +63,13 @@ if [ ! -f "${WINEPREFIX}/system.reg" ]; then
     if command -v dxvk-setup &>/dev/null && [ "$RENDERER_IN_USE" != "WineD3D (OpenGL Compatibilidad)" ]; then
         dxvk-setup install -y 2>/dev/null || true
     fi
+    # Clonar librerías comunes de compatibilidad desde el prefijo base si existen
+    if [ -d "${DIR}/wineprefix/drive_c/windows/syswow64" ] && [ "${WINEPREFIX}" != "${DIR}/wineprefix" ]; then
+        mkdir -p "${WINEPREFIX}/drive_c/windows/syswow64"
+        cp -n "${DIR}/wineprefix/drive_c/windows/syswow64"/mfc42* "${WINEPREFIX}/drive_c/windows/syswow64/" 2>/dev/null || true
+        cp -n "${DIR}/wineprefix/drive_c/windows/syswow64"/msvcr* "${WINEPREFIX}/drive_c/windows/syswow64/" 2>/dev/null || true
+        cp -n "${DIR}/wineprefix/drive_c/windows/syswow64"/msvcp* "${WINEPREFIX}/drive_c/windows/syswow64/" 2>/dev/null || true
+    fi
 fi
 
 # 7. Generar archivo DXVK optimizado según la CPU y límite de FPS configurado
@@ -121,4 +128,8 @@ echo "    - AMD FSR Upscaling: $([ "$ACTIVAR_FSR" = "1" ] && echo "Activado" || 
 echo "    - GameMode: $([ -n "$GAMEMODE" ] && echo "Activo" || echo "Inactivo")"
 echo "    - Prefijo Wine: ${WINEPREFIX}"
 
-$GAMEMODE "$WINE_CMD" "$TARGET_FILE" "$@"
+if [[ "$TARGET_FILE" =~ \.(msi|MSI)$ ]]; then
+    $GAMEMODE "$WINE_CMD" msiexec /i "$TARGET_FILE" "$@"
+else
+    $GAMEMODE "$WINE_CMD" "$TARGET_FILE" "$@"
+fi
