@@ -1,0 +1,13 @@
+# Prefijos y entornos de Wine generados localmente
+wineprefix/
+prefixes/
+wine-tkg-git/
+wine-tkg-build/
+
+# Base de datos local de juegos del usuario
+programas.db
+
+# Archivos temporales y registros
+*.log
+*.tmp
+*.bak

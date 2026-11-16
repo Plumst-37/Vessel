@@ -1,0 +1,5 @@
+# Base de datos de juegos y programas de Windows (Plantilla)
+# Formato: Nombre del Programa|/ruta/al/ejecutable.exe|tipo_de_prefijo
+# Ejemplo:
+# Grand Theft Auto V|/home/usuario/Juegos/GTA V/PlayGTAV.exe|compartido
+# Need for Speed|/home/usuario/Juegos/NFS/speed.exe|aislado
