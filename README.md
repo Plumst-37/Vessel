@@ -51,13 +51,19 @@ El instalador:
 ### 📂 4. Gestión Cómoda de Juegos Portables e Instaladores
 - **➕ Añadir programa portable:** Para juegos o programas ya listos en carpetas (repacks, portables, discos externos). Admite ejecutables directos (`.exe`, `.bat`, `.cmd`) y **accesos directos de Windows (`.lnk` y `.ink`)**, resolviendo automáticamente el ejecutable real dentro de la carpeta o prefijo.
 - **➕ Añadir programa instalable:** Ejecuta instaladores (`Setup.exe`, `Installer.exe`, `.msi`), los instala en Wine y **auto-detecta el ejecutable principal recién creado** leyendo accesos `.lnk` o inodos, registrándolo automáticamente.
+- **📂 Acceso Directo a Archivos del Juego:** Opción dedicada en el menú para abrir en 1 clic la carpeta de cualquier juego en tu gestor de archivos (Dolphin / Nautilus).
 - **🖱️ Selector Gráfico con Ratón:** Puedes buscar tus ejecutables navegando con carpetas y ratón (**KDialog / Zenity**) o por terminal.
-- **🖥️ Accesos Directos al Escritorio (1-Clic):** Crea accesos directos validados y ejecutables en tu Escritorio para abrir cualquier juego directamente sin abrir la terminal.
+- **🖥️ Accesos Directos al Escritorio (1-Clic):** Crea accesos directos validados en tu Escritorio con acción de clic derecho integrada: **"📂 Abrir carpeta del juego (Instalar Mods / Archivos)"**.
 
-### 🔒 5. Prefijos Aislados vs. Compartidos (Multi-Prefix)
+### 🧩 5. Soporte Total para Mods, Shaders y Parches (Zero-Config)
+- **Auto-Detección de Hooks y DLLs:** Detecta automáticamente cualquier librería de mod pegada en la carpeta del juego (`dinput8.dll`, `dxgi.dll`, `version.dll`, `dsound.dll`, `winmm.dll`, `xinput*.dll`, `bink*.dll`, `dbghelp.dll`, etc.) y aplica los overrides nativos de Wine al instante.
+- **Soporte ASI Loader, ReShade y ENB:** Pega tus scripts (`.asi`, carpetas `scripts/`, `CLEO`, ScriptHook, Cyber Engine Tweaks) directamente desde el gestor de archivos de Linux y se cargarán solos al iniciar el juego.
+- **Permisos de Escritura Automáticos:** Asegura que mods y parches puedan escribir logs, configuraciones `.ini` y partidas guardadas sin problemas de permisos.
+
+### 🔒 6. Prefijos Aislados vs. Compartidos (Multi-Prefix)
 - Permite elegir si un juego comparte la unidad `C:` global (para ahorrar espacio) o si tiene un **prefijo de Windows 100% aislado**, evitando conflictos de versiones de librerías o parches.
 
-### 🛠️ 6. Centro de Herramientas de Windows
+### 🛠️ 7. Centro de Herramientas de Windows
 - Acceso directo con 1 clic a:
   - 🍷 **winecfg:** Configura versión de Windows (Win 7, 10, 11), DPI y escritorio virtual.
   - 📝 **regedit:** Editor del registro de Windows.
@@ -66,7 +72,7 @@ El instalador:
   - 🧹 **wineserver -k:** Cierra procesos congelados y libera la memoria RAM al instante.
   - 🛡️ **Comprobador de Compatibilidad Anti-Cheat:** Consulta de antemano el soporte de títulos online.
 
-### 🌐 7. Internet, Wi-Fi y Multijugador
+### 🌐 8. Internet, Wi-Fi y Multijugador
 - Conexión de red nativa optimizada (DNS 32-bit/64-bit multiarch, soporte para puertos UDP y ICMP ping).
 - Compatible con servidores comunitarios, clientes multijugador (GameRanger, FiveM, etc.) y puentes para **Easy Anti-Cheat** y **BattlEye** en Linux.
 

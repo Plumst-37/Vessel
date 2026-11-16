@@ -149,6 +149,7 @@ configurar_programa_win() {
         echo -e "  ${C_BOLD}${C_CYAN}[3]${C_RESET} ${C_RED}🗑️  Eliminar programa de la lista (no borra tus archivos)${C_RESET}"
         echo -e "  ${C_BOLD}${C_CYAN}[4]${C_RESET} ${C_WHITE}📋 Ver todos los programas registrados${C_RESET}"
         echo -e "  ${C_BOLD}${C_CYAN}[5]${C_RESET} ${C_MAGENTA}🖥️  Crear / Regenerar Acceso Directo en el Escritorio (1-Clic)${C_RESET}"
+        echo -e "  ${C_BOLD}${C_CYAN}[6]${C_RESET} ${C_BLUE}📂 Abrir carpeta del juego (para instalar Mods, parches o ver archivos)${C_RESET}"
         echo ""
         echo -e "  ${C_BOLD}${C_RED}[0]${C_RESET} ${C_YELLOW}Volver al menú principal${C_RESET}"
         echo ""
@@ -169,6 +170,9 @@ configurar_programa_win() {
                 ;;
             5)
                 crear_acceso_escritorio_interactivo
+                ;;
+            6)
+                abrir_carpeta_juego_mods
                 ;;
             0|"")
                 return
@@ -649,6 +653,8 @@ crear_archivo_desktop() {
     local ruta="$2"
     local prefijo="$3"
     local desktop_path="/home/plumst/Escritorio/${nombre}.desktop"
+    local carpeta_juego
+    carpeta_juego="$(dirname "$ruta")"
 
     local exec_cmd
     if [ -n "$prefijo" ] && [ "$prefijo" != "compartido" ] && [ "$prefijo" != "DEFAULT" ]; then
@@ -662,17 +668,25 @@ crear_archivo_desktop() {
 Version=1.0
 Type=Application
 Name=${nombre}
-Comment=Juego de Windows optimizado con Win PC
+Comment=Juego de Windows optimizado con Vessel
 Exec=${exec_cmd}
+Path=${carpeta_juego}
 Icon=wine
 Terminal=false
 Categories=Game;
 StartupNotify=true
+Actions=AbrirCarpeta;
+
+[Desktop Action AbrirCarpeta]
+Name=📂 Abrir carpeta del juego (Instalar Mods / Archivos)
+Exec=xdg-open "${carpeta_juego}"
+Icon=folder-open
 EOF
 
     chmod +x "$desktop_path"
     gio set "$desktop_path" metadata::trusted true 2>/dev/null || true
     echo -e "${C_GREEN}✔ Acceso directo creado en tu Escritorio:${C_RESET} ${nombre}.desktop"
+    echo -e "${C_GRAY}  ↳ Tip: Puedes hacer clic derecho en el icono y elegir 'Abrir carpeta del juego' para pegar mods.${C_RESET}"
 }
 
 crear_acceso_escritorio_interactivo() {
@@ -716,6 +730,72 @@ crear_acceso_escritorio_interactivo() {
         echo -e "${C_RED}❌ Opción inválida.${C_RESET}"
     fi
     pausar
+}
+
+abrir_carpeta_juego_mods() {
+    mostrar_banner
+    echo -e "${C_CYAN}📂 [ ABRIR CARPETA DE UN JUEGO (MODS Y ARCHIVOS) ]${C_RESET}"
+    echo -e "${C_GRAY}Abre la carpeta del juego en tu explorador de archivos para instalar mods, parches o traducciones:${C_RESET}"
+    echo ""
+
+    if [ ! -s "$DB_FILE" ]; then
+        echo -e "${C_YELLOW}No hay programas registrados en la lista.${C_RESET}"
+        pausar
+        return
+    fi
+
+    local i=1
+    declare -a nombres_c
+    declare -a carpetas_c
+
+    while IFS='|' read -r nombre ruta prefijo; do
+        [ -z "$nombre" ] && continue
+        nombres_c[i]="$nombre"
+        carpetas_c[i]="$(dirname "$ruta")"
+        echo -e "  ${C_BOLD}${C_CYAN}[$i]${C_RESET} ${C_WHITE}${nombre}${C_RESET}"
+        echo -e "      ${C_GRAY}↳ Carpeta: ${carpetas_c[i]}${C_RESET}"
+        ((i++))
+    done < "$DB_FILE"
+
+    local total=$((i - 1))
+    echo ""
+    echo -e "  ${C_BOLD}${C_YELLOW}[C]${C_RESET} ${C_MAGENTA}💽 Abrir Disco C: de Wine (Archivos de Programa / AppData)${C_RESET}"
+    echo -e "  ${C_BOLD}${C_RED}[0]${C_RESET} ${C_YELLOW}Volver al menú${C_RESET}"
+    echo ""
+    read -p "$(echo -e "${C_BOLD}Selecciona el juego cuya carpeta deseas abrir (1-${total}, C o 0): ${C_RESET}")" sel_c
+
+    if [ "$sel_c" = "0" ] || [ -z "$sel_c" ]; then
+        return
+    fi
+
+    if [[ "$sel_c" =~ ^[cC]$ ]]; then
+        local wine_c="${DIR}/wineprefix/drive_c"
+        echo ""
+        echo -e "${C_GREEN}Abriendo Disco C: de Wine en tu explorador de archivos...${C_RESET}"
+        xdg-open "$wine_c" 2>/dev/null || dolphin "$wine_c" 2>/dev/null || true
+        echo -e "${C_GRAY}Ruta: ${wine_c}${C_RESET}"
+        pausar
+        return
+    fi
+
+    if [[ "$sel_c" =~ ^[0-9]+$ ]] && [ "$sel_c" -ge 1 ] && [ "$sel_c" -le "$total" ]; then
+        local target_folder="${carpetas_c[$sel_c]}"
+        local target_name="${nombres_c[$sel_c]}"
+        echo ""
+        echo -e "${C_GREEN}Abriendo carpeta de '${target_name}' en tu explorador de archivos...${C_RESET}"
+        xdg-open "$target_folder" 2>/dev/null || dolphin "$target_folder" 2>/dev/null || true
+        echo ""
+        echo -e "${C_CYAN}✔ Carpeta:${C_RESET} ${target_folder}"
+        echo ""
+        echo -e "${C_YELLOW}💡 Instrucciones sencillas para Mods:${C_RESET}"
+        echo -e "  1. Pega tus archivos de mod (.asi, .dll, scripts, texturas o parches) directamente en esta carpeta."
+        echo -e "  2. Vessel detectará y activará automáticamente librerías como dinput8.dll, dxgi.dll, version.dll, etc."
+        echo -e "  3. Al iniciar el juego desde el Menú o tu Escritorio, los mods se cargarán solos."
+        pausar
+    else
+        echo -e "${C_RED}❌ Opción inválida.${C_RESET}"
+        sleep 1.2
+    fi
 }
 
 eliminar_programa_lista() {

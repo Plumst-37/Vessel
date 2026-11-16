@@ -126,10 +126,25 @@ TARGET_FILE="$(basename "$TARGET")"
 # Moverse al directorio donde reside el juego (vital para rutas relativas y DLLs)
 cd "$TARGET_DIR"
 
-# Si el juego incluye un dinput8.dll local (ASI loaders/mods), activar el override nativo
-if [ -f "dinput8.dll" ]; then
-    export WINEDLLOVERRIDES="dinput8=n,b;${WINEDLLOVERRIDES}"
-fi
+# Asegurar permisos de escritura para que los mods puedan guardar configs, logs y partidas
+[ -w "$TARGET_DIR" ] || chmod -R u+w "$TARGET_DIR" 2>/dev/null || true
+
+# ==============================================================================
+# AUTO-ACTIVACIÓN DE MODS, ASI LOADERS, RESHADE, ENB Y TRADUCCIONES
+# Detecta automáticamente librerías de mods locales y activa el override nativo (n,b)
+# para que funcionen inmediatamente sin tocar winecfg
+# ==============================================================================
+MOD_HOOKS=("dinput8" "dxgi" "version" "dsound" "winmm" "xinput1_3" "xinput1_4" "xinput9_1_0" "x3daudio1_7" "binkw32" "binkw64" "bink2w64" "dbghelp" "msimg32" "opengl32")
+MODS_ACTIVADOS=()
+
+for hook in "${MOD_HOOKS[@]}"; do
+    if [ -f "${hook}.dll" ] || [ -f "${hook}.DLL" ]; then
+        export WINEDLLOVERRIDES="${hook}=n,b;${WINEDLLOVERRIDES}"
+        MODS_ACTIVADOS+=("${hook}.dll")
+    fi
+done
+
+CANT_ASI=$(ls -1 *.asi scripts/*.asi plugins/*.asi 2>/dev/null | wc -l)
 
 echo "[+] Ejecutando con Perfil [${PERFIL_RENDIMIENTO:-maximo}]..."
 echo "    - CPU: ${CPU_MODEL} (${CPU_CORES} Hilos)"
@@ -140,6 +155,10 @@ echo "    - Límite de FPS: ${LIMITE_FPS:-60} FPS"
 echo "    - AMD FSR Upscaling: $([ "$ACTIVAR_FSR" = "1" ] && echo "Activado" || echo "Desactivado")"
 echo "    - GameMode: $([ -n "$GAMEMODE" ] && echo "Activo" || echo "Inactivo")"
 echo "    - Prefijo Wine: ${WINEPREFIX}"
+if [ ${#MODS_ACTIVADOS[@]} -gt 0 ] || [ "$CANT_ASI" -gt 0 ]; then
+    echo "    - Mods / Hooks Activos: $([ ${#MODS_ACTIVADOS[@]} -gt 0 ] && echo "${MODS_ACTIVADOS[*]}" || echo "Ninguna DLL especial")"
+    [ "$CANT_ASI" -gt 0 ] && echo "    - Plugins ASI / Scripts: ${CANT_ASI} archivo(s) detectado(s)"
+fi
 
 # Función para limpiar procesos colgados al cerrar la ventana con [X] o Ctrl+C
 limpiar_procesos_al_salir() {
