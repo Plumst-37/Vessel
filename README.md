@@ -49,7 +49,7 @@ El instalador:
 - **HUD en Pantalla:** Contador de FPS y uso de recursos opcional.
 
 ### 📂 4. Gestión Cómoda de Juegos Portables e Instaladores
-- **➕ Añadir programa portable:** Para juegos o programas ya listos en carpetas (repacks, portables, discos externos).
+- **➕ Añadir programa portable:** Para juegos o programas ya listos en carpetas (repacks, portables, discos externos). Admite ejecutables directos (`.exe`, `.bat`, `.cmd`) y **accesos directos de Windows (`.lnk` y `.ink`)**, resolviendo automáticamente el ejecutable real dentro de la carpeta o prefijo.
 - **➕ Añadir programa instalable:** Ejecuta instaladores (`Setup.exe`, `Installer.exe`, `.msi`), los instala en Wine y **auto-detecta el ejecutable principal recién creado** leyendo accesos `.lnk` o inodos, registrándolo automáticamente.
 - **🖱️ Selector Gráfico con Ratón:** Puedes buscar tus ejecutables navegando con carpetas y ratón (**KDialog / Zenity**) o por terminal.
 - **🖥️ Accesos Directos al Escritorio (1-Clic):** Crea accesos directos validados y ejecutables en tu Escritorio para abrir cualquier juego directamente sin abrir la terminal.
@@ -78,6 +78,7 @@ El instalador:
 Vessel/
 ├── menu-win.sh            # Panel principal interactivo con paleta ANSI
 ├── launch-win-app.sh      # Lanzador con GameMode, PRIME GPU y multi-prefijos
+├── resolver_lnk.py        # Resolvedor universal de accesos directos (.lnk / .ink)
 ├── hardware_detect.sh     # Detector universal de CPU, GPU, Vulkan y Fsync
 ├── generar_dxvk_conf.sh   # Generador dinámico de dxvk.conf según hilos de CPU
 ├── config_rendimiento.cfg # Archivo de preferencias persistente

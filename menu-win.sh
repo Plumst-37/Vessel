@@ -187,24 +187,25 @@ configurar_programa_win() {
 agregar_programa_portable() {
     mostrar_banner
     echo -e "${C_GREEN}➕ [ AÑADIR NUEVO PROGRAMA PORTABLE ]${C_RESET}"
-    echo -e "${C_GRAY}Configura el acceso para tu juego o programa portable (.exe o .bat ya descargado):${C_RESET}"
+    echo -e "${C_GRAY}Configura el acceso para tu juego o programa portable (.exe, .bat o acceso directo .lnk / .ink):${C_RESET}"
     echo ""
 
     local ruta_prog=""
     local metodo_busqueda=""
 
-    echo -e "${C_WHITE}¿Cómo deseas buscar el ejecutable portable?${C_RESET}"
+    echo -e "${C_WHITE}¿Cómo deseas buscar el ejecutable o acceso directo portable?${C_RESET}"
     echo -e "  ${C_BOLD}[1]${C_RESET} ${C_CYAN}🖱️  Explorar con el ratón (Abrir ventana de diálogo gráfica)${C_RESET}"
     echo -e "  ${C_BOLD}[2]${C_RESET} ${C_YELLOW}⌨️  Escribir o pegar la ruta manualmente en la terminal${C_RESET}"
     echo ""
     read -p "$(echo -e "${C_BOLD}Elegir método (1 o 2): ${C_RESET}")" metodo_busqueda
 
     if [ "$metodo_busqueda" = "1" ]; then
-        echo -e "${C_CYAN}Abriendo explorador de archivos... (Selecciona tu archivo .exe o .bat)${C_RESET}"
+        echo -e "${C_CYAN}Abriendo explorador de archivos... (Selecciona tu archivo .exe, .bat o acceso directo .lnk / .ink)${C_RESET}"
         if command -v kdialog &>/dev/null && [ -n "$DISPLAY$WAYLAND_DISPLAY" ]; then
-            ruta_prog=$(kdialog --title "Seleccionar Ejecutable Portable (.exe / .bat)" --getopenfilename "/media" "*.exe *.bat *.EXE *.BAT | Ejecutables de Windows (*.exe, *.bat)" 2>/dev/null)
+            ruta_prog=$(kdialog --title "Seleccionar Ejecutable o Acceso Directo (.exe, .bat, .lnk, .ink)" --getopenfilename "/media" "*.exe *.bat *.cmd *.lnk *.ink *.EXE *.BAT *.CMD *.LNK *.INK | Ejecutables y Accesos Directos (*.exe, *.bat, *.lnk, *.ink)
+* | Todos los archivos (*)" 2>/dev/null)
         elif command -v zenity &>/dev/null && [ -n "$DISPLAY$WAYLAND_DISPLAY" ]; then
-            ruta_prog=$(zenity --file-selection --title="Seleccionar Ejecutable Portable (.exe / .bat)" --file-filter="Ejecutables (*.exe, *.bat) | *.exe *.bat *.EXE *.BAT" 2>/dev/null)
+            ruta_prog=$(zenity --file-selection --title="Seleccionar Ejecutable o Acceso Directo (.exe, .bat, .lnk, .ink)" --file-filter="Ejecutables y Accesos Directos (*.exe, *.bat, *.lnk, *.ink) | *.exe *.bat *.cmd *.lnk *.ink *.EXE *.BAT *.CMD *.LNK *.INK" --file-filter="Todos los archivos (*) | *" 2>/dev/null)
         fi
 
         if [ -z "$ruta_prog" ]; then
@@ -221,8 +222,8 @@ agregar_programa_portable() {
 
     if [ -z "$ruta_prog" ]; then
         echo ""
-        echo -e "${C_CYAN}Ubicación del programa${C_RESET} ${C_GRAY}(ruta exacta al .exe o .bat):${C_RESET}"
-        echo -e "${C_GRAY}Ejemplo: /media/plumst/Disco/Juego/juego.exe${C_RESET}"
+        echo -e "${C_CYAN}Ubicación del programa${C_RESET} ${C_GRAY}(ruta exacta al .exe, .bat o acceso directo .lnk / .ink):${C_RESET}"
+        echo -e "${C_GRAY}Ejemplo: /media/plumst/Disco/Juego/juego.exe o /media/plumst/Disco/Juego/Jugar.lnk${C_RESET}"
         read -p "$(echo -e "${C_BOLD}➤ ${C_RESET}")" ruta_prog
     fi
 
@@ -248,9 +249,74 @@ agregar_programa_portable() {
         esac
     fi
 
-    # Sugerir nombre basado en el archivo
+    local nombre_sugerido_base=""
+
+    # DETECCIÓN Y RESOLUCIÓN INTELIGENTE DE ACCESOS DIRECTOS .LNK / .INK
+    if [[ "$ruta_prog" =~ \.([lL][nN][kK]|[iI][nN][kK])$ ]] && [ -f "$ruta_prog" ]; then
+        echo ""
+        echo -e "${C_CYAN}🔍 Analizando acceso directo de Windows (${ruta_prog##*.})...${C_RESET}"
+        local resolved_res=""
+        local resolved_status=""
+        local resolved_path=""
+        local link_name=""
+        local candidates_raw=""
+
+        if [ -f "${DIR}/resolver_lnk.py" ]; then
+            resolved_res=$(python3 "${DIR}/resolver_lnk.py" "$ruta_prog" "${DIR}/wineprefix" 2>/dev/null || true)
+            resolved_status=$(echo "$resolved_res" | grep '^STATUS=' | cut -d= -f2-)
+            resolved_path=$(echo "$resolved_res" | grep '^RESOLVED_PATH=' | cut -d= -f2-)
+            link_name=$(echo "$resolved_res" | grep '^NAME=' | cut -d= -f2-)
+            candidates_raw=$(echo "$resolved_res" | grep '^CANDIDATES=' | cut -d= -f2-)
+        fi
+
+        # Fallback con comandos nativos si python no estuviera disponible
+        if [ "$resolved_status" != "RESOLVED" ]; then
+            local win_target
+            win_target=$(file "$ruta_prog" 2>/dev/null | sed -n 's/.*LocalBasePath "\([^"]*\)".*/\1/p')
+            [ -z "$win_target" ] && win_target=$(strings "$ruta_prog" 2>/dev/null | grep -iE '^[a-zA-Z]:\\.*\.exe$' | head -n 1)
+            if [ -n "$win_target" ]; then
+                local rel_clean
+                rel_clean=$(echo "$win_target" | sed -E 's/^[a-zA-Z]:[\\\/]+//' | tr '\\' '/')
+                if [ -f "${DIR}/wineprefix/drive_c/${rel_clean}" ]; then
+                    resolved_path="${DIR}/wineprefix/drive_c/${rel_clean}"
+                    resolved_status="RESOLVED"
+                fi
+            fi
+        fi
+
+        if [ "$resolved_status" = "RESOLVED" ] && [ -f "$resolved_path" ]; then
+            echo -e "${C_GREEN}✔ ¡Acceso directo resuelto con éxito!${C_RESET}"
+            echo -e "   ${C_BOLD}Acceso directo:${C_RESET} $(basename "$ruta_prog")"
+            echo -e "   ${C_BOLD}Ejecutable real:${C_RESET} ${C_CYAN}${resolved_path}${C_RESET}"
+            nombre_sugerido_base="$link_name"
+            ruta_prog="$resolved_path"
+        elif [ "$resolved_status" = "MULTIPLE_CANDIDATES" ] && [ -n "$candidates_raw" ]; then
+            echo -e "${C_YELLOW}Se detectaron varios ejecutables en la carpeta del juego:${C_RESET}"
+            IFS='|' read -r -a cand_list <<< "$candidates_raw"
+            local ci=1
+            for c in "${cand_list[@]}"; do
+                echo -e "  ${C_BOLD}${C_CYAN}[$ci]${C_RESET} $c"
+                ((ci++))
+            done
+            echo -e "  ${C_BOLD}[0]${C_RESET} Conservar la ruta original"
+            read -p "$(echo -e "${C_BOLD}Selecciona el ejecutable correcto (1-${#cand_list[@]} o 0): ${C_RESET}")" cand_sel
+            if [[ "$cand_sel" =~ ^[0-9]+$ ]] && [ "$cand_sel" -ge 1 ] && [ "$cand_sel" -le "${#cand_list[@]}" ]; then
+                ruta_prog="${cand_list[$((cand_sel - 1))]}"
+                echo -e "${C_GREEN}✔ Ejecutable seleccionado:${C_RESET} ${ruta_prog}"
+            fi
+        else
+            echo -e "${C_YELLOW}⚠️  Aviso: No se pudo localizar automáticamente el .exe en disco.${C_RESET}"
+            echo -e "${C_GRAY}(Se guardará el acceso directo para que Wine lo resuelva al abrir)${C_RESET}"
+        fi
+    fi
+
+    # Sugerir nombre limpio basado en el archivo o acceso directo
     local nombre_sugerido
-    nombre_sugerido=$(basename "$ruta_prog" | sed 's/\.[^.]*$//' | sed 's/[-_]/ /g')
+    if [ -n "$nombre_sugerido_base" ]; then
+        nombre_sugerido="$nombre_sugerido_base"
+    else
+        nombre_sugerido=$(basename "$ruta_prog" | sed -E 's/\.(exe|bat|cmd|lnk|ink|msi|EXE|BAT|CMD|LNK|INK|MSI)$//' | sed 's/[-_]/ /g')
+    fi
 
     echo ""
     echo -e "${C_CYAN}Nombre para mostrar en el menú:${C_RESET}"
@@ -424,26 +490,40 @@ agregar_programa_instalable() {
     local candidatos=()
     declare -A vistos
 
-    # 1. ESTRATEGIA .LNK: Buscar accesos directos creados por el instalador en Start Menu y Escritorio
+    # 1. ESTRATEGIA .LNK / .INK: Buscar accesos directos creados por el instalador en Start Menu y Escritorio
     if [ -d "${target_prefix}/drive_c/users" ]; then
         while IFS= read -r lnk_file; do
             [ -z "$lnk_file" ] && continue
-            local target_in_lnk
-            target_in_lnk=$(strings "$lnk_file" 2>/dev/null | grep -iE '^[a-zA-Z]:\\.*\.exe$' | head -n 1)
-            if [ -n "$target_in_lnk" ]; then
-                local rel_path
-                rel_path=$(echo "$target_in_lnk" | sed -E 's/^[a-zA-Z]:[\\\/]+//' | tr '\\' '/')
-                local full_cand="${target_prefix}/drive_c/${rel_path}"
-                if [ -f "$full_cand" ]; then
-                    local base_cand
-                    base_cand=$(basename "$full_cand" | tr '[:upper:]' '[:lower:]')
-                    if [[ ! "$base_cand" =~ (unins|uninstall|setup|installer|dxsetup|vcredist|crashpad) ]] && [ -z "${vistos[$full_cand]}" ]; then
-                        candidatos+=("$full_cand")
-                        vistos["$full_cand"]=1
-                    fi
+            local cand_resuelto=""
+            if [ -f "${DIR}/resolver_lnk.py" ]; then
+                local res_out
+                res_out=$(python3 "${DIR}/resolver_lnk.py" "$lnk_file" "$target_prefix" 2>/dev/null || true)
+                local res_status
+                res_status=$(echo "$res_out" | grep '^STATUS=' | cut -d= -f2-)
+                if [ "$res_status" = "RESOLVED" ]; then
+                    cand_resuelto=$(echo "$res_out" | grep '^RESOLVED_PATH=' | cut -d= -f2-)
                 fi
             fi
-        done < <(find "${target_prefix}/drive_c/users" -type f -iname "*.lnk" -newerct "@$((time_start - 30))" 2>/dev/null)
+
+            if [ -z "$cand_resuelto" ] || [ ! -f "$cand_resuelto" ]; then
+                local target_in_lnk
+                target_in_lnk=$(strings "$lnk_file" 2>/dev/null | grep -iE '^[a-zA-Z]:\\.*\.exe$' | head -n 1)
+                if [ -n "$target_in_lnk" ]; then
+                    local rel_path
+                    rel_path=$(echo "$target_in_lnk" | sed -E 's/^[a-zA-Z]:[\\\/]+//' | tr '\\' '/')
+                    cand_resuelto="${target_prefix}/drive_c/${rel_path}"
+                fi
+            fi
+
+            if [ -n "$cand_resuelto" ] && [ -f "$cand_resuelto" ]; then
+                local base_cand
+                base_cand=$(basename "$cand_resuelto" | tr '[:upper:]' '[:lower:]')
+                if [[ ! "$base_cand" =~ (unins|uninstall|setup|installer|dxsetup|vcredist|crashpad) ]] && [ -z "${vistos[$cand_resuelto]}" ]; then
+                    candidatos+=("$cand_resuelto")
+                    vistos["$cand_resuelto"]=1
+                fi
+            fi
+        done < <(find "${target_prefix}/drive_c/users" -type f \( -iname "*.lnk" -o -iname "*.ink" \) -newerct "@$((time_start - 30))" 2>/dev/null)
     fi
 
     # 2. ESTRATEGIA -NEWERCT: Buscar archivos .exe creados en disco (verificando tiempo de creación de inodo)
@@ -484,15 +564,16 @@ agregar_programa_instalable() {
 
     if [ -z "$exe_instalado" ]; then
         echo ""
-        echo -e "${C_YELLOW}Selecciona el archivo ejecutable (.exe) que se instaló en el disco C: de Wine:${C_RESET}"
+        echo -e "${C_YELLOW}Selecciona el archivo ejecutable (.exe) o acceso directo (.lnk / .ink) instalado en Wine:${C_RESET}"
         if command -v kdialog &>/dev/null && [ -n "$DISPLAY$WAYLAND_DISPLAY" ]; then
-            exe_instalado=$(kdialog --title "Seleccionar Ejecutable Instalado (.exe)" --getopenfilename "${target_prefix}/drive_c" "*.exe *.EXE | Ejecutables de Windows (*.exe)" 2>/dev/null)
+            exe_instalado=$(kdialog --title "Seleccionar Ejecutable o Acceso Directo (.exe, .lnk, .ink)" --getopenfilename "${target_prefix}/drive_c" "*.exe *.lnk *.ink *.EXE *.LNK *.INK | Ejecutables y Accesos Directos (*.exe, *.lnk, *.ink)
+* | Todos los archivos (*)" 2>/dev/null)
         elif command -v zenity &>/dev/null && [ -n "$DISPLAY$WAYLAND_DISPLAY" ]; then
-            exe_instalado=$(zenity --file-selection --filename="${target_prefix}/drive_c/" --title="Seleccionar Ejecutable Instalado (.exe)" --file-filter="Ejecutables (*.exe) | *.exe *.EXE" 2>/dev/null)
+            exe_instalado=$(zenity --file-selection --filename="${target_prefix}/drive_c/" --title="Seleccionar Ejecutable o Acceso Directo (.exe, .lnk, .ink)" --file-filter="Ejecutables y Accesos Directos (*.exe, *.lnk, *.ink) | *.exe *.lnk *.ink *.EXE *.LNK *.INK" --file-filter="Todos los archivos (*) | *" 2>/dev/null)
         fi
 
         if [ -z "$exe_instalado" ]; then
-            read -p "$(echo -e "${C_CYAN}Escribe o pega la ruta del .exe instalado:${C_RESET}\n${C_BOLD}➤ ${C_RESET}")" exe_instalado
+            read -p "$(echo -e "${C_CYAN}Escribe o pega la ruta del .exe o .lnk/.ink instalado:${C_RESET}\n${C_BOLD}➤ ${C_RESET}")" exe_instalado
         fi
     fi
 
@@ -500,6 +581,24 @@ agregar_programa_instalable() {
     exe_instalado="${exe_instalado#\"}"
     exe_instalado="${exe_instalado%\'}"
     exe_instalado="${exe_instalado#\'}"
+
+    # Si seleccionó un acceso directo, resolverlo
+    if [[ "$exe_instalado" =~ \.([lL][nN][kK]|[iI][nN][kK])$ ]] && [ -f "$exe_instalado" ]; then
+        if [ -f "${DIR}/resolver_lnk.py" ]; then
+            local res_sel
+            res_sel=$(python3 "${DIR}/resolver_lnk.py" "$exe_instalado" "$target_prefix" 2>/dev/null || true)
+            local res_sel_status
+            res_sel_status=$(echo "$res_sel" | grep '^STATUS=' | cut -d= -f2-)
+            if [ "$res_sel_status" = "RESOLVED" ]; then
+                local res_sel_path
+                res_sel_path=$(echo "$res_sel" | grep '^RESOLVED_PATH=' | cut -d= -f2-)
+                if [ -n "$res_sel_path" ] && [ -f "$res_sel_path" ]; then
+                    echo -e "${C_GREEN}✔ Acceso directo resuelto a:${C_RESET} ${res_sel_path}"
+                    exe_instalado="$res_sel_path"
+                fi
+            fi
+        fi
+    fi
 
     if [ -z "$exe_instalado" ] || [ ! -f "$exe_instalado" ]; then
         echo -e "${C_RED}❌ No se seleccionó un ejecutable válido.${C_RESET}"

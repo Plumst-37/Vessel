@@ -54,7 +54,7 @@ echo ""
 echo -e "${C_CYAN}[1/5] Detectando distribución y comprobando dependencias...${C_RESET}"
 
 MISSING_DEPS=false
-for cmd in wine winetricks dxvk-setup gamemoderun cabextract curl 7z; do
+for cmd in wine winetricks dxvk-setup gamemoderun cabextract curl 7z python3; do
     if ! command -v "$cmd" &> /dev/null; then
         MISSING_DEPS=true
         break
@@ -67,19 +67,19 @@ else
     if command -v apt-get &> /dev/null; then
         PKG_MGR="apt"
         INSTALL_CMD="sudo apt-get update && sudo apt-get install -y"
-        PKGS="wine winetricks dxvk gamemode cabextract curl p7zip-full mesa-utils vulkan-tools zenity libnss-resolve:i386 libnss-mdns:i386"
+        PKGS="wine winetricks dxvk gamemode cabextract curl p7zip-full mesa-utils vulkan-tools zenity python3 libnss-resolve:i386 libnss-mdns:i386"
     elif command -v pacman &> /dev/null; then
         PKG_MGR="pacman"
         INSTALL_CMD="sudo pacman -Sy --noconfirm --needed"
-        PKGS="wine winetricks dxvk gamemode cabextract curl p7zip mesa-utils vulkan-tools zenity"
+        PKGS="wine winetricks dxvk gamemode cabextract curl p7zip mesa-utils vulkan-tools zenity python"
     elif command -v dnf &> /dev/null; then
         PKG_MGR="dnf"
         INSTALL_CMD="sudo dnf install -y"
-        PKGS="wine winetricks dxvk gamemode cabextract curl p7zip mesa-demos vulkan-tools zenity"
+        PKGS="wine winetricks dxvk gamemode cabextract curl p7zip mesa-demos vulkan-tools zenity python3"
     elif command -v zypper &> /dev/null; then
         PKG_MGR="zypper"
         INSTALL_CMD="sudo zypper install -y"
-        PKGS="wine winetricks dxvk gamemode cabextract curl p7zip mesa-utils vulkan-tools zenity"
+        PKGS="wine winetricks dxvk gamemode cabextract curl p7zip mesa-utils vulkan-tools zenity python3"
     else
         echo -e "${C_YELLOW}Aviso: No se detectó un gestor de paquetes estándar. Asegúrate de tener Wine y DXVK instalados.${C_RESET}"
         PKG_MGR="manual"
@@ -113,7 +113,7 @@ echo ""
 
 # 3. Dar permisos de ejecución a los scripts
 echo -e "${C_CYAN}[3/5] Configurando permisos de ejecución en los scripts del proyecto...${C_RESET}"
-chmod +x "${DIR}"/*.sh 2>/dev/null || true
+chmod +x "${DIR}"/*.sh "${DIR}"/*.py 2>/dev/null || true
 echo -e "${C_GREEN}✔ Scripts ejecutables configurados.${C_RESET}"
 echo ""
 

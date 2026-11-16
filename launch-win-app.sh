@@ -55,6 +55,20 @@ else
     export WINEPREFIX="${DIR}/wineprefix"
 fi
 
+# 5.1 Resolver accesos directos de Windows (.lnk o .ink) al ejecutable real
+if [[ "$TARGET" =~ \.([lL][nN][kK]|[iI][nN][kK])$ ]] && [ -f "$TARGET" ]; then
+    echo "[*] Acceso directo detectado: $(basename "$TARGET"). Resolviendo ejecutable real..."
+    if [ -f "${DIR}/resolver_lnk.py" ]; then
+        RESOLVED_RES=$(python3 "${DIR}/resolver_lnk.py" "$TARGET" "${WINEPREFIX}" 2>/dev/null || true)
+        RESOLVED_STATUS=$(echo "$RESOLVED_RES" | grep '^STATUS=' | cut -d= -f2-)
+        RESOLVED_PATH=$(echo "$RESOLVED_RES" | grep '^RESOLVED_PATH=' | cut -d= -f2-)
+        if [ "$RESOLVED_STATUS" = "RESOLVED" ] && [ -f "$RESOLVED_PATH" ]; then
+            echo "[+] Acceso directo resuelto a: $RESOLVED_PATH"
+            TARGET="$RESOLVED_PATH"
+        fi
+    fi
+fi
+
 # 6. Auto-inicialización del prefijo si es nuevo
 if [ ! -f "${WINEPREFIX}/system.reg" ]; then
     echo "[*] Configurando nuevo entorno de Windows para este juego..."
@@ -135,6 +149,8 @@ trap limpiar_procesos_al_salir EXIT INT TERM
 
 if [[ "$TARGET_FILE" =~ \.(msi|MSI)$ ]]; then
     $GAMEMODE "$WINE_CMD" msiexec /i "$TARGET_FILE" "$@"
+elif [[ "$TARGET_FILE" =~ \.(lnk|ink|LNK|INK)$ ]]; then
+    $GAMEMODE "$WINE_CMD" start /unix "$TARGET" "$@"
 else
     $GAMEMODE "$WINE_CMD" "$TARGET_FILE" "$@"
 fi
