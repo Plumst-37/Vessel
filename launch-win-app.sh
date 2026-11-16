@@ -106,7 +106,7 @@ cd "$TARGET_DIR"
 # Detecta automáticamente librerías de mods locales y activa el override nativo (n,b)
 # para que funcionen inmediatamente sin tocar winecfg
 # ==============================================================================
-MOD_HOOKS=("dinput8" "dxgi" "d3d9" "d3d11" "d3d12" "version" "dsound" "winmm" "xinput1_3" "xinput1_4" "xinput9_1_0" "x3daudio1_7" "binkw32" "binkw64" "bink2w64" "dbghelp" "msimg32" "opengl32")
+MOD_HOOKS=("ddraw" "d3d8" "d3d9" "d3d11" "d3d12" "dxgi" "dinput8" "dinput" "dsound" "dplayx" "dpnet" "version" "winmm" "xinput1_3" "xinput1_4" "xinput9_1_0" "x3daudio1_7" "binkw32" "binkw64" "bink2w64" "dbghelp" "msimg32" "opengl32")
 MODS_ACTIVADOS=()
 
 for hook in "${MOD_HOOKS[@]}"; do

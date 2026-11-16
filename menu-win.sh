@@ -1397,6 +1397,7 @@ EOF'
     [ ! -f "$sys32/msvcr100.dll" ] && faltan_win+=("vcrun2010")
     [ ! -f "$sys32/vcruntime140.dll" ] && faltan_win+=("vcrun2022")
     [ ! -f "$sys32/d3dcompiler_47.dll" ] && faltan_win+=("d3dcompiler_47")
+    [ ! -f "$sys32/dplayx.dll" ] && faltan_win+=("directplay")
     [ ! -f "$fonts/arial.ttf" ] && faltan_win+=("corefonts")
 
     if [ ${#faltan_win[@]} -eq 0 ]; then
@@ -1413,16 +1414,9 @@ EOF'
         WINEPREFIX="${DIR}/wineprefix" dxvk-setup install -y 2>/dev/null || true
     fi
 
-    # Configuración de compatibilidad gráfica Direct3D y X11 (evita pantalla negra y tirones)
-    local vram_val="${VRAM_MB:-2048}"
-    WINEPREFIX="${DIR}/wineprefix" wine reg add "HKEY_CURRENT_USER\Software\Wine\Direct3D" /v "VideoMemorySize" /t REG_SZ /d "$vram_val" /f >/dev/null 2>&1 || true
+    # Optimización de hilos gráficos multithread Direct3D (CSMT)
     WINEPREFIX="${DIR}/wineprefix" wine reg add "HKEY_CURRENT_USER\Software\Wine\Direct3D" /v "csmt" /t REG_DWORD /d 1 /f >/dev/null 2>&1 || true
-    WINEPREFIX="${DIR}/wineprefix" wine reg add "HKEY_CURRENT_USER\Software\Wine\Direct3D" /v "StrictDrawOrdering" /t REG_SZ /d "disabled" /f >/dev/null 2>&1 || true
-    WINEPREFIX="${DIR}/wineprefix" wine reg add "HKEY_CURRENT_USER\Software\Wine\Direct3D" /v "AlwaysOffscreen" /t REG_SZ /d "enabled" /f >/dev/null 2>&1 || true
-    WINEPREFIX="${DIR}/wineprefix" wine reg add "HKEY_CURRENT_USER\Software\Wine\Direct3D" /v "OffscreenRenderingMode" /t REG_SZ /d "fbo" /f >/dev/null 2>&1 || true
-    WINEPREFIX="${DIR}/wineprefix" wine reg add "HKEY_CURRENT_USER\Software\Wine\X11 Driver" /v "UseTakeFocus" /t REG_SZ /d "N" /f >/dev/null 2>&1 || true
-    WINEPREFIX="${DIR}/wineprefix" wine reg add "HKEY_CURRENT_USER\Software\Wine\X11 Driver" /v "GrabFullscreen" /t REG_SZ /d "Y" /f >/dev/null 2>&1 || true
-    echo -e "${C_GREEN}  ✔ Parámetros de video Direct3D (VRAM ${vram_val}MB, CSMT, X11) optimizados.${C_RESET}"
+    echo -e "${C_GREEN}  ✔ Motor Direct3D CSMT optimizado para multiprocesamiento multihilo.${C_RESET}"
     echo ""
 
     # 4. Afinación de DXVK y Shaders
