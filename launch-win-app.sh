@@ -2,7 +2,7 @@
 # ==============================================================================
 # LANZADOR UNIVERSAL OPTIMIZADO PARA APLICACIONES Y JUEGOS DE WINDOWS
 # Compatible con cualquier arquitectura de PC (Intel, AMD, NVIDIA, Integradas)
-# Soporta Prefijo Compartido y Prefijos Aislados por Juego
+# Prefijo Wine Unificado con Compatibilidad Total de Gráficos y Videos
 # ==============================================================================
 
 set -e
@@ -106,7 +106,7 @@ cd "$TARGET_DIR"
 # Detecta automáticamente librerías de mods locales y activa el override nativo (n,b)
 # para que funcionen inmediatamente sin tocar winecfg
 # ==============================================================================
-MOD_HOOKS=("dinput8" "dxgi" "version" "dsound" "winmm" "xinput1_3" "xinput1_4" "xinput9_1_0" "x3daudio1_7" "binkw32" "binkw64" "bink2w64" "dbghelp" "msimg32" "opengl32")
+MOD_HOOKS=("dinput8" "dxgi" "d3d9" "d3d11" "d3d12" "version" "dsound" "winmm" "xinput1_3" "xinput1_4" "xinput9_1_0" "x3daudio1_7" "binkw32" "binkw64" "bink2w64" "dbghelp" "msimg32" "opengl32")
 MODS_ACTIVADOS=()
 
 for hook in "${MOD_HOOKS[@]}"; do
@@ -118,6 +118,16 @@ done
 
 CANT_ASI=$(ls -1 *.asi scripts/*.asi plugins/*.asi 2>/dev/null | wc -l)
 
+# Detección de resolución para modo Escritorio Virtual
+RES_PRIMARIA=$(xrandr 2>/dev/null | grep -E ' connected primary| connected' | head -n 1 | grep -oE '[0-9]+x[0-9]+' | head -n 1)
+[ -z "$RES_PRIMARIA" ] && RES_PRIMARIA="1280x720"
+DESKTOP_RES="${RESOLUCION_ESCRITORIO:-$RES_PRIMARIA}"
+
+RUN_PREFIX=""
+if [ "$ESCRITORIO_VIRTUAL" = "1" ]; then
+    RUN_PREFIX="explorer /desktop=Vessel,${DESKTOP_RES}"
+fi
+
 echo "[+] Ejecutando con Perfil [${PERFIL_RENDIMIENTO:-maximo}]..."
 echo "    - CPU: ${CPU_MODEL} (${CPU_CORES} Hilos)"
 echo "    - GPU: ${DETECTED_GPU}"
@@ -126,6 +136,7 @@ echo "    - Fsync/Esync: $([ "$WINEFSYNC" = "1" ] && echo "Fsync Activo" || echo
 echo "    - Límite de FPS: ${LIMITE_FPS:-60} FPS"
 echo "    - AMD FSR Upscaling: $([ "$ACTIVAR_FSR" = "1" ] && echo "Activado" || echo "Desactivado")"
 echo "    - GameMode: $([ -n "$GAMEMODE" ] && echo "Activo" || echo "Inactivo")"
+echo "    - Modo Pantalla: $([ "$ESCRITORIO_VIRTUAL" = "1" ] && echo "Escritorio Virtual (${DESKTOP_RES})" || echo "Pantalla Completa Nativa")"
 echo "    - Prefijo Wine: ${WINEPREFIX}"
 if [ ${#MODS_ACTIVADOS[@]} -gt 0 ] || [ "$CANT_ASI" -gt 0 ]; then
     echo "    - Mods / Hooks Activos: $([ ${#MODS_ACTIVADOS[@]} -gt 0 ] && echo "${MODS_ACTIVADOS[*]}" || echo "Ninguna DLL especial")"
@@ -141,9 +152,17 @@ trap limpiar_procesos_al_salir EXIT INT TERM
 if [[ "$TARGET_FILE" =~ \.(msi|MSI)$ ]]; then
     $GAMEMODE "$WINE_CMD" msiexec /i "$TARGET_FILE" "$@"
 elif [[ "$TARGET_FILE" =~ \.(lnk|ink|LNK|INK)$ ]]; then
-    $GAMEMODE "$WINE_CMD" start /unix "$TARGET" "$@"
+    if [ -n "$RUN_PREFIX" ]; then
+        $GAMEMODE "$WINE_CMD" $RUN_PREFIX start /unix "$TARGET" "$@"
+    else
+        $GAMEMODE "$WINE_CMD" start /unix "$TARGET" "$@"
+    fi
 else
-    $GAMEMODE "$WINE_CMD" "$TARGET_FILE" "$@"
+    if [ -n "$RUN_PREFIX" ]; then
+        $GAMEMODE "$WINE_CMD" $RUN_PREFIX "$TARGET_FILE" "$@"
+    else
+        $GAMEMODE "$WINE_CMD" "$TARGET_FILE" "$@"
+    fi
 fi
 EXIT_STATUS=$?
 

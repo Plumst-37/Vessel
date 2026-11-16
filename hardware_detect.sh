@@ -17,18 +17,25 @@ RAM_TOTAL_MB=$(free -m 2>/dev/null | awk '/^Mem:/{print $2}')
 DETECTED_GPU="Desconocida"
 HAS_NVIDIA=false
 HAS_AMD_DEDICATED=false
+VRAM_MB=2048
 
 if lspci 2>/dev/null | grep -iE 'vga|3d|display' | grep -i 'nvidia' > /dev/null; then
     HAS_NVIDIA=true
     GPU_NAME=$(lspci 2>/dev/null | grep -iE 'vga|3d|display' | grep -i 'nvidia' | cut -d: -f3 | xargs | head -n 1)
     DETECTED_GPU="NVIDIA: ${GPU_NAME}"
+    NV_VRAM=$(nvidia-smi --query-gpu=memory.total --format=csv,noheader,nounits 2>/dev/null | head -n 1)
+    if [[ "$NV_VRAM" =~ ^[0-9]+$ ]] && [ "$NV_VRAM" -gt 0 ]; then
+        VRAM_MB="$NV_VRAM"
+    fi
 elif lspci 2>/dev/null | grep -iE 'vga|3d|display' | grep -i 'amd|radeon' > /dev/null; then
     HAS_AMD_DEDICATED=true
     GPU_NAME=$(lspci 2>/dev/null | grep -iE 'vga|3d|display' | grep -i 'amd|radeon' | cut -d: -f3 | xargs | head -n 1)
     DETECTED_GPU="AMD Radeon: ${GPU_NAME}"
+    VRAM_MB=4096
 else
     GPU_NAME=$(lspci 2>/dev/null | grep -iE 'vga|3d|display' | grep -i 'intel' | cut -d: -f3 | xargs | head -n 1)
     DETECTED_GPU="Intel Integrada: ${GPU_NAME:-Gráficos Integrados}"
+    VRAM_MB=2048
 fi
 
 # Detección de compatibilidad con Vulkan (para GPUs modernas vs. antiguas)
@@ -89,14 +96,18 @@ aplicar_entorno_hardware() {
     export MESA_DISK_CACHE_SINGLE_FILE=1
     export mesa_glthread=true
 
-    # 8. Renderizado según la GPU detectada
+    # 8. Renderizado según la GPU detectada (Garantiza usar la GPU dedicada y no la integrada débil)
     if [ "$HAS_NVIDIA" = true ]; then
         export __NV_PRIME_RENDER_OFFLOAD=1
         export __GLX_VENDOR_LIBRARY_NAME=nvidia
         export __VK_LAYER_NV_optimus=NVIDIA_only
-        export DRI_PRIME=1
+        export DXVK_FILTER_DEVICE_NAME="GeForce,NVIDIA"
+        export MESA_VK_DEVICE_SELECT="10de:*"
+        export VKD3D_CONFIG="dxr11,dxr"
     elif [ "$HAS_AMD_DEDICATED" = true ]; then
         export DRI_PRIME=1
+        export DXVK_FILTER_DEVICE_NAME="Radeon,AMD"
+        export MESA_VK_DEVICE_SELECT="1002:*"
         export RADV_PERFTEST=aco,sam,dcc
     fi
 
@@ -106,6 +117,8 @@ aplicar_entorno_hardware() {
     export PROTON_EAC_ASYNC=1
     export WINE_DISABLE_FAST_SYNC=0
 
-    # 10. Bypass de compositor de escritorio en pantalla completa
+    # 10. Prevención de pantalla negra en cambio de resolución, cinemáticas y videos
+    export SDL_VIDEO_MINIMIZE_ON_FOCUS_LOSS=0
     export WINE_FULLSCREEN_INTEGER_SCALING=0
+    export GST_PLUGIN_FEATURE_RANK="libav:MAX,ugly:MAX,bad:MAX"
 }

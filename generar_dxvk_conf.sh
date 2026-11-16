@@ -42,13 +42,18 @@ d3d11.relaxedBarriers = True
 d3d11.maxTessellationFactor = 16
 d3d11.samplerAnisotropy = 4
 
-# Optimización para juegos DirectX 9 y DirectX 11 con Mods / ReShade
-d3d9.deferSurfaceCreation = True
-d3d9.maxFrameLatency = 1
-dxgi.maxFrameLatency = 1
-dxgi.syncInterval = 0
-dxgi.deferSurfaceCreation = True
+# Buffer de fotogramas para eliminar tirones (2 cuadros de cola suavizan el frametime)
+d3d9.maxFrameLatency = 2
+dxgi.maxFrameLatency = 2
 EOF
+
+# Filtro de GPU dedicada: Obliga a DXVK a elegir la GPU NVIDIA o AMD dedicada
+# y evita que el juego caiga en la gráfica integrada débil (causa de tirones y baja VRAM)
+if [ "$HAS_NVIDIA" = true ]; then
+    echo "dxvk.deviceFilter = GeForce,NVIDIA" >> "$CONF_FILE"
+elif [ "$HAS_AMD_DEDICATED" = true ]; then
+    echo "dxvk.deviceFilter = Radeon,AMD" >> "$CONF_FILE"
+fi
 
 # Si el HUD de FPS está activado
 if [ "$MOSTRAR_HUD_FPS" = "1" ]; then

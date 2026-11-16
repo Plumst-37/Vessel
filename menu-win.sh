@@ -921,7 +921,8 @@ menu_configuracion() {
         echo -e "  ${C_BOLD}${C_CYAN}[3]${C_RESET} ${C_MAGENTA}🚀 AMD FSR Upscaling (Para GPUs modestas o integradas)${C_RESET} (Actual: $([ "$ACTIVAR_FSR" = "1" ] && echo -e "${C_GREEN}ACTIVADO (x${FSR_STRENGTH:-2})${C_RESET}" || echo -e "${C_RED}DESACTIVADO${C_RESET}"))"
         echo -e "  ${C_BOLD}${C_CYAN}[4]${C_RESET} ${C_CYAN}📊 Contador de FPS en pantalla (HUD)${C_RESET} (Actual: $([ "$MOSTRAR_HUD_FPS" = "1" ] && echo -e "${C_GREEN}ACTIVADO${C_RESET}" || echo -e "${C_RED}DESACTIVADO${C_RESET}"))"
         echo -e "  ${C_BOLD}${C_CYAN}[5]${C_RESET} ${C_WHITE}🎮 Cambiar Motor Gráfico (DXVK Vulkan vs. WineD3D OpenGL)${C_RESET} (Actual: ${C_BOLD}${RENDERER_BACKEND:-auto}${C_RESET})"
-        echo -e "  ${C_BOLD}${C_CYAN}[6]${C_RESET} ${C_WHITE}🔍 Diagnóstico de Hardware y Controladores${C_RESET}"
+        echo -e "  ${C_BOLD}${C_CYAN}[6]${C_RESET} ${C_WHITE}🖥️  Modo Escritorio Virtual (Solución a Pantalla Negra en multimonitor/resolución)${C_RESET} (Actual: $([ "$ESCRITORIO_VIRTUAL" = "1" ] && echo -e "${C_GREEN}ACTIVADO (${RESOLUCION_ESCRITORIO:-Auto})${C_RESET}" || echo -e "${C_RED}DESACTIVADO${C_RESET}"))"
+        echo -e "  ${C_BOLD}${C_CYAN}[7]${C_RESET} ${C_WHITE}🔍 Diagnóstico de Hardware y Controladores${C_RESET}"
         echo ""
         echo -e "  ${C_BOLD}${C_RED}[0]${C_RESET} ${C_YELLOW}Volver al menú principal${C_RESET}"
         echo ""
@@ -944,6 +945,9 @@ menu_configuracion() {
                 ajustar_motor_grafico
                 ;;
             6)
+                ajustar_escritorio_virtual
+                ;;
+            7)
                 mostrar_diagnostico_hardware
                 ;;
             0|"")
@@ -966,11 +970,66 @@ ACTIVAR_FSR="${ACTIVAR_FSR}"
 MOSTRAR_HUD_FPS="${MOSTRAR_HUD_FPS}"
 FSR_STRENGTH="${FSR_STRENGTH:-2}"
 RENDERER_BACKEND="${RENDERER_BACKEND:-auto}"
+SISTEMA_LINUX="${SISTEMA_LINUX:-debian}"
+DISTRO_NAME="${DISTRO_NAME:-Debian}"
+ESCRITORIO_VIRTUAL="${ESCRITORIO_VIRTUAL:-0}"
+RESOLUCION_ESCRITORIO="${RESOLUCION_ESCRITORIO:-1280x720}"
 EOF
     # Regenerar dxvk.conf con los nuevos valores
     if [ -x "${DIR}/generar_dxvk_conf.sh" ]; then
         "${DIR}/generar_dxvk_conf.sh"
     fi
+}
+
+ajustar_escritorio_virtual() {
+    mostrar_banner
+    echo -e "${C_CYAN}🖥️  [ MODO ESCRITORIO VIRTUAL DE WINE ]${C_RESET}"
+    echo -e "${C_GRAY}Soluciona la pantalla negra cuando los juegos cambian resolución (ej. a 4:3) o en configuraciones con doble monitor.${C_RESET}"
+    echo ""
+    local res_detectada
+    res_detectada=$(xrandr 2>/dev/null | grep -E ' connected primary| connected' | head -n 1 | grep -oE '[0-9]+x[0-9]+' | head -n 1)
+    [ -z "$res_detectada" ] && res_detectada="1280x720"
+
+    echo -e "  ${C_BOLD}Estado actual:${C_RESET} $([ "$ESCRITORIO_VIRTUAL" = "1" ] && echo -e "${C_GREEN}ACTIVADO (${RESOLUCION_ESCRITORIO:-$res_detectada})${C_RESET}" || echo -e "${C_RED}DESACTIVADO${C_RESET}")"
+    echo ""
+    echo -e "  ${C_BOLD}[1]${C_RESET} ${C_GREEN}Activar con resolución nativa detectada (${res_detectada})${C_RESET}"
+    echo -e "  ${C_BOLD}[2]${C_RESET} Activar con resolución 1920x1080 (Full HD)"
+    echo -e "  ${C_BOLD}[3]${C_RESET} Activar con resolución 1280x720 (HD)"
+    echo -e "  ${C_BOLD}[4]${C_RESET} Activar con resolución 1024x768 (4:3 Retro / Juegos Clásicos)"
+    echo -e "  ${C_BOLD}[5]${C_RESET} ${C_RED}Desactivar Escritorio Virtual (Modo Pantalla Completa Directa)${C_RESET}"
+    echo -e "  ${C_BOLD}[0]${C_RESET} Volver sin cambios"
+    echo ""
+    read -p "$(echo -e "${C_BOLD}Elegir opción: ${C_RESET}")" esc_opc
+
+    case "$esc_opc" in
+        1)
+            ESCRITORIO_VIRTUAL="1"
+            RESOLUCION_ESCRITORIO="$res_detectada"
+            echo -e "${C_GREEN}✔ Escritorio Virtual activado a ${res_detectada}.${C_RESET}"
+            ;;
+        2)
+            ESCRITORIO_VIRTUAL="1"
+            RESOLUCION_ESCRITORIO="1920x1080"
+            echo -e "${C_GREEN}✔ Escritorio Virtual activado a 1920x1080.${C_RESET}"
+            ;;
+        3)
+            ESCRITORIO_VIRTUAL="1"
+            RESOLUCION_ESCRITORIO="1280x720"
+            echo -e "${C_GREEN}✔ Escritorio Virtual activado a 1280x720.${C_RESET}"
+            ;;
+        4)
+            ESCRITORIO_VIRTUAL="1"
+            RESOLUCION_ESCRITORIO="1024x768"
+            echo -e "${C_GREEN}✔ Escritorio Virtual activado a 1024x768.${C_RESET}"
+            ;;
+        5)
+            ESCRITORIO_VIRTUAL="0"
+            echo -e "${C_YELLOW}Escritorio Virtual desactivado.${C_RESET}"
+            ;;
+        *) return ;;
+    esac
+    guardar_config_usuario
+    sleep 1.2
 }
 
 ajustar_perfil_rendimiento() {
@@ -1274,6 +1333,10 @@ instalar_recursos_actualizar() {
                 faltan_paquetes=true
                 faltantes+=("libnss-resolve:i386" "libnss-mdns:i386")
             fi
+            if ! dpkg -s gstreamer1.0-libav:i386 &>/dev/null || ! dpkg -s gstreamer1.0-plugins-ugly:i386 &>/dev/null; then
+                faltan_paquetes=true
+                faltantes+=("gstreamer1.0-libav:i386" "gstreamer1.0-plugins-ugly:i386" "gstreamer1.0-plugins-bad:i386" "libvkd3d1:i386")
+            fi
         fi
     fi
 
@@ -1283,16 +1346,16 @@ instalar_recursos_actualizar() {
         echo -e "${C_YELLOW}  ⬇️ Faltan componentes (${faltantes[*]}). Instalando automáticamente...${C_RESET}"
         case "$SISTEMA_LINUX" in
             debian|ubuntu)
-                sudo apt-get update && sudo apt-get install -y wine winetricks dxvk gamemode cabextract curl p7zip-full mesa-utils vulkan-tools zenity python3 libnss-resolve:i386 libnss-mdns:i386
+                sudo apt-get update && sudo apt-get install -y wine winetricks dxvk gamemode cabextract curl p7zip-full mesa-utils vulkan-tools zenity python3 libnss-resolve:i386 libnss-mdns:i386 gstreamer1.0-libav:i386 gstreamer1.0-plugins-ugly:i386 gstreamer1.0-plugins-bad:i386 libvkd3d1:i386 libopenexr-3-1-30:i386
                 ;;
             fedora)
-                sudo dnf install -y wine winetricks dxvk gamemode cabextract curl p7zip mesa-demos vulkan-tools zenity python3
+                sudo dnf install -y wine winetricks dxvk gamemode cabextract curl p7zip mesa-demos vulkan-tools zenity python3 gstreamer1-plugins-ugly.i686 gstreamer1-plugins-bad-free.i686 vkd3d.i686
                 ;;
             arch)
-                sudo pacman -Sy --noconfirm --needed wine winetricks dxvk gamemode cabextract curl p7zip mesa-utils vulkan-tools zenity python
+                sudo pacman -Sy --noconfirm --needed wine winetricks dxvk gamemode cabextract curl p7zip mesa-utils vulkan-tools zenity python lib32-gst-plugins-ugly lib32-gst-plugins-bad lib32-gst-libav lib32-vkd3d
                 ;;
             opensuse)
-                sudo zypper install -y wine winetricks dxvk gamemode cabextract curl p7zip mesa-utils vulkan-tools zenity python3
+                sudo zypper install -y wine winetricks dxvk gamemode cabextract curl p7zip mesa-utils vulkan-tools zenity python3 gstreamer-plugins-ugly-32bit gstreamer-plugins-bad-32bit
                 ;;
             *)
                 echo -e "${C_RED}  ⚠️ Distribución desconocida. Instala Wine y DXVK con tu gestor habitual.${C_RESET}"
@@ -1349,6 +1412,17 @@ EOF'
         echo -e "${C_CYAN}  ⚡ Sincronizando DXVK en el prefijo de Wine...${C_RESET}"
         WINEPREFIX="${DIR}/wineprefix" dxvk-setup install -y 2>/dev/null || true
     fi
+
+    # Configuración de compatibilidad gráfica Direct3D y X11 (evita pantalla negra y tirones)
+    local vram_val="${VRAM_MB:-2048}"
+    WINEPREFIX="${DIR}/wineprefix" wine reg add "HKEY_CURRENT_USER\Software\Wine\Direct3D" /v "VideoMemorySize" /t REG_SZ /d "$vram_val" /f >/dev/null 2>&1 || true
+    WINEPREFIX="${DIR}/wineprefix" wine reg add "HKEY_CURRENT_USER\Software\Wine\Direct3D" /v "csmt" /t REG_DWORD /d 1 /f >/dev/null 2>&1 || true
+    WINEPREFIX="${DIR}/wineprefix" wine reg add "HKEY_CURRENT_USER\Software\Wine\Direct3D" /v "StrictDrawOrdering" /t REG_SZ /d "disabled" /f >/dev/null 2>&1 || true
+    WINEPREFIX="${DIR}/wineprefix" wine reg add "HKEY_CURRENT_USER\Software\Wine\Direct3D" /v "AlwaysOffscreen" /t REG_SZ /d "enabled" /f >/dev/null 2>&1 || true
+    WINEPREFIX="${DIR}/wineprefix" wine reg add "HKEY_CURRENT_USER\Software\Wine\Direct3D" /v "OffscreenRenderingMode" /t REG_SZ /d "fbo" /f >/dev/null 2>&1 || true
+    WINEPREFIX="${DIR}/wineprefix" wine reg add "HKEY_CURRENT_USER\Software\Wine\X11 Driver" /v "UseTakeFocus" /t REG_SZ /d "N" /f >/dev/null 2>&1 || true
+    WINEPREFIX="${DIR}/wineprefix" wine reg add "HKEY_CURRENT_USER\Software\Wine\X11 Driver" /v "GrabFullscreen" /t REG_SZ /d "Y" /f >/dev/null 2>&1 || true
+    echo -e "${C_GREEN}  ✔ Parámetros de video Direct3D (VRAM ${vram_val}MB, CSMT, X11) optimizados.${C_RESET}"
     echo ""
 
     # 4. Afinación de DXVK y Shaders

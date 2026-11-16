@@ -67,19 +67,19 @@ else
     if command -v apt-get &> /dev/null; then
         PKG_MGR="apt"
         INSTALL_CMD="sudo apt-get update && sudo apt-get install -y"
-        PKGS="wine winetricks dxvk gamemode cabextract curl p7zip-full mesa-utils vulkan-tools zenity python3 libnss-resolve:i386 libnss-mdns:i386"
+        PKGS="wine winetricks dxvk gamemode cabextract curl p7zip-full mesa-utils vulkan-tools zenity python3 libnss-resolve:i386 libnss-mdns:i386 gstreamer1.0-libav:i386 gstreamer1.0-plugins-ugly:i386 gstreamer1.0-plugins-bad:i386 libvkd3d1:i386 libopenexr-3-1-30:i386"
     elif command -v pacman &> /dev/null; then
         PKG_MGR="pacman"
         INSTALL_CMD="sudo pacman -Sy --noconfirm --needed"
-        PKGS="wine winetricks dxvk gamemode cabextract curl p7zip mesa-utils vulkan-tools zenity python"
+        PKGS="wine winetricks dxvk gamemode cabextract curl p7zip mesa-utils vulkan-tools zenity python lib32-gst-plugins-ugly lib32-gst-plugins-bad lib32-gst-libav lib32-vkd3d"
     elif command -v dnf &> /dev/null; then
         PKG_MGR="dnf"
         INSTALL_CMD="sudo dnf install -y"
-        PKGS="wine winetricks dxvk gamemode cabextract curl p7zip mesa-demos vulkan-tools zenity python3"
+        PKGS="wine winetricks dxvk gamemode cabextract curl p7zip mesa-demos vulkan-tools zenity python3 gstreamer1-plugins-ugly.i686 gstreamer1-plugins-bad-free.i686 vkd3d.i686"
     elif command -v zypper &> /dev/null; then
         PKG_MGR="zypper"
         INSTALL_CMD="sudo zypper install -y"
-        PKGS="wine winetricks dxvk gamemode cabextract curl p7zip mesa-utils vulkan-tools zenity python3"
+        PKGS="wine winetricks dxvk gamemode cabextract curl p7zip mesa-utils vulkan-tools zenity python3 gstreamer-plugins-ugly-32bit gstreamer-plugins-bad-32bit"
     else
         echo -e "${C_YELLOW}Aviso: No se detectó un gestor de paquetes estándar. Asegúrate de tener Wine y DXVK instalados.${C_RESET}"
         PKG_MGR="manual"
@@ -124,12 +124,24 @@ if [ -f "${DIR}/generar_dxvk_conf.sh" ]; then
     echo -e "${C_GREEN}✔ Archivo dxvk.conf generado a medida.${C_RESET}"
 fi
 
-# 4.1 Asegurar librerías esenciales para instaladores (MFC, Visual C++, Fuentes)
+# 4.1 Asegurar librerías esenciales para instaladores (MFC, Visual C++, Fuentes) y registro
 if command -v winetricks &>/dev/null && [ ! -f "${DIR}/wineprefix/drive_c/windows/syswow64/mfc42.dll" ]; then
     echo -e "${C_CYAN}      Instalando librerías base para instaladores (MFC, VC++, Corefonts)...${C_RESET}"
     WINEPREFIX="${DIR}/wineprefix" winetricks -q corefonts vcrun2022 vcrun2010 mfc42 2>/dev/null || true
     echo -e "${C_GREEN}✔ Entorno base optimizado para cualquier instalador.${C_RESET}"
 fi
+
+# 4.2 Ajustes de Registro Direct3D y X11 (Previene pantalla negra y micro-tirones)
+source "${DIR}/hardware_detect.sh" 2>/dev/null || true
+local_vram="${VRAM_MB:-2048}"
+WINEPREFIX="${DIR}/wineprefix" wine reg add "HKEY_CURRENT_USER\Software\Wine\Direct3D" /v "VideoMemorySize" /t REG_SZ /d "$local_vram" /f >/dev/null 2>&1 || true
+WINEPREFIX="${DIR}/wineprefix" wine reg add "HKEY_CURRENT_USER\Software\Wine\Direct3D" /v "csmt" /t REG_DWORD /d 1 /f >/dev/null 2>&1 || true
+WINEPREFIX="${DIR}/wineprefix" wine reg add "HKEY_CURRENT_USER\Software\Wine\Direct3D" /v "StrictDrawOrdering" /t REG_SZ /d "disabled" /f >/dev/null 2>&1 || true
+WINEPREFIX="${DIR}/wineprefix" wine reg add "HKEY_CURRENT_USER\Software\Wine\Direct3D" /v "AlwaysOffscreen" /t REG_SZ /d "enabled" /f >/dev/null 2>&1 || true
+WINEPREFIX="${DIR}/wineprefix" wine reg add "HKEY_CURRENT_USER\Software\Wine\Direct3D" /v "OffscreenRenderingMode" /t REG_SZ /d "fbo" /f >/dev/null 2>&1 || true
+WINEPREFIX="${DIR}/wineprefix" wine reg add "HKEY_CURRENT_USER\Software\Wine\X11 Driver" /v "UseTakeFocus" /t REG_SZ /d "N" /f >/dev/null 2>&1 || true
+WINEPREFIX="${DIR}/wineprefix" wine reg add "HKEY_CURRENT_USER\Software\Wine\X11 Driver" /v "GrabFullscreen" /t REG_SZ /d "Y" /f >/dev/null 2>&1 || true
+echo -e "${C_GREEN}✔ Parámetros de compatibilidad gráfica Direct3D configurados.${C_RESET}"
 echo ""
 
 # 5. Crear accesos directos universales (Escritorio y Menú del Sistema)

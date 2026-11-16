@@ -42,9 +42,13 @@ El instalador:
 - **Intel Graphics:** Optimiza la traducción a Vulkan o realiza fallback suave a **WineD3D (OpenGL)** en computadoras antiguas sin Vulkan.
 - **Sincronización:** Detecta automáticamente **Fsync nativo (Futex2)** o **Esync**.
 
-### 🎮 3. Control Gráfico en Tiempo Real
+### 🎮 3. Control Gráfico en Tiempo Real y Cero Pantalla Negra / Tirones
 - **Perfiles de Rendimiento:** *Máximo Rendimiento* (GameMode al 100%), *Equilibrado* y *Ahorro de Batería*.
 - **Límite de FPS:** Fija topes de 30, 60, 120 FPS o Ilimitado para evitar sobrecalentamiento.
+- **Buffer Anti-Tirones (Zero-Stuttering):** Cola de fotogramas sincronizada (`maxFrameLatency = 2`) y compilación asíncrona de shaders GPL que eliminan caídas de frames y micro-parones.
+- **Filtro de GPU Dedicada:** Obliga a DXVK y Vulkan a seleccionar tu tarjeta gráfica dedicada (NVIDIA GeForce / AMD Radeon), evitando que los juegos caigan por error en la GPU integrada Intel.
+- **Decodificación de Cinemáticas y Videos:** Soporte multiarch completo para decodificadores de video (H.264, MPEG-4, WMV3, Bink, Media Foundation y DirectShow vía GStreamer 32/64 bits), solucionando el problema donde se escuchaba el audio pero la pantalla quedaba negra.
+- **🖥️ Modo Escritorio Virtual Configurable:** Soluciona pantallas negras al cambiar de resolución (juegos retro a 4:3 o 800x600) y en configuraciones con múltiples monitores.
 - **AMD FSR (FidelityFX Super Resolution):** Reescalado inteligente que duplica los FPS en tarjetas de gama media/baja o integradas con ajuste de nitidez.
 - **HUD en Pantalla:** Contador de FPS y uso de recursos opcional.
 
