@@ -48,6 +48,7 @@ d3d11.samplerAnisotropy = 4
 # Buffer de fotogramas para eliminar tirones (2 cuadros suavizan el frametime en cualquier GPU)
 d3d9.maxFrameLatency = 2
 dxgi.maxFrameLatency = 2
+d3d9.samplerAnisotropy = 4
 EOF
 
 # Si el HUD de FPS está activado

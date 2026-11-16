@@ -102,6 +102,64 @@ cd "$TARGET_DIR"
 [ -w "$TARGET_DIR" ] || chmod -R u+w "$TARGET_DIR" 2>/dev/null || true
 
 # ==============================================================================
+# AUTO-OPTIMIZACIÓN PARA JUEGOS PESADOS Y CAPCOM MT FRAMEWORK (Resident Evil, etc.)
+# Soluciona permanentemente el error 'Fatal error. ERR09: Unsupported function'
+# asegurando modo ventana/borderless nativo antes de la inicialización de Direct3D
+# ==============================================================================
+corregir_config_capcom() {
+    local capcom_dir="$HOME/Documentos/CAPCOM"
+    [ ! -d "$capcom_dir" ] && capcom_dir="${WINEPREFIX}/drive_c/users/${USER}/Documents/CAPCOM"
+
+    # Si es Resident Evil 6 o similar, asegurar carpeta y config.ini inicial
+    if [[ "$TARGET" =~ (Resident\ Evil|BH6|re6|RE6) ]] || [[ "$TARGET_DIR" =~ (Resident\ Evil|BH6|re6|RE6) ]]; then
+        mkdir -p "${capcom_dir}/RESIDENT EVIL 6"
+        local re6_cfg="${capcom_dir}/RESIDENT EVIL 6/config.ini"
+        if [ ! -f "$re6_cfg" ]; then
+            cat <<EOF > "$re6_cfg"
+[GAME]
+MouseBaseSpeed=2.000000
+[GRAPHICS]
+HDR=DEFAULT
+AntiAlias=NONE
+AltAntiAlias=FXAA3HQ
+DeferredLightingLight=APPROXIMATE_SPECULAR
+ScreenQuality=HIGH
+SLI=OFF
+Stereo=OFF
+MotionBlurEnabled=ON
+ShadowsQuality=HIGH
+FrameRate=VARIABLE
+TextureDetail=HIGH
+TextureMipLimite=2
+[DISPLAY]
+Resolution=1280x720
+Aspect=DEFAULT
+RefreshRate=60.00Hz
+FullScreen=OFF
+VSYNC=OFF
+[SOUNDS]
+SeVoiceNum=128
+[CPU]
+JobThread=7
+RenderingThread=ON
+EOF
+            echo "[+] Configuración inicial generada para Resident Evil 6 (FullScreen=OFF)."
+        fi
+    fi
+
+    # Corregir cualquier config.ini de Capcom que tenga FullScreen=ON para evitar ERR09
+    if [ -d "$capcom_dir" ]; then
+        find "$capcom_dir" -name "config.ini" 2>/dev/null | while read -r cini; do
+            if grep -q "FullScreen=ON" "$cini" 2>/dev/null; then
+                sed -i 's/FullScreen=ON/FullScreen=OFF/' "$cini" 2>/dev/null || true
+                echo "[+] Previendo ERR09: Ajustado FullScreen=OFF en $(basename "$(dirname "$cini")")/config.ini."
+            fi
+        done
+    fi
+}
+corregir_config_capcom
+
+# ==============================================================================
 # AUTO-ACTIVACIÓN DE MODS, ASI LOADERS, RESHADE, ENB Y TRADUCCIONES
 # Detecta automáticamente librerías de mods locales y activa el override nativo (n,b)
 # para que funcionen inmediatamente sin tocar winecfg
