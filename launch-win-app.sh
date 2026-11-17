@@ -89,11 +89,13 @@ if [ ! -f "${WINEPREFIX}/system.reg" ]; then
     fi
 fi
 
-# 6. Optimización de captura de ratón en 3D (rotación fluida 360°, sin rebotes ni tirones de cámara)
-if ! grep -q '"MouseWarpOverride"="force"' "${WINEPREFIX}/user.reg" 2>/dev/null; then
+# 6. Optimización de captura de ratón en 3D y pantalla completa borderless sin bordes ni desalineación
+if ! grep -q '"Decorated"="N"' "${WINEPREFIX}/user.reg" 2>/dev/null; then
     wine reg add "HKEY_CURRENT_USER\Software\Wine\DirectInput" /v MouseWarpOverride /t REG_SZ /d force /f >/dev/null 2>&1 || true
     wine reg add "HKEY_CURRENT_USER\Software\Wine\X11 Driver" /v UseTakeFocus /t REG_SZ /d N /f >/dev/null 2>&1 || true
     wine reg add "HKEY_CURRENT_USER\Software\Wine\X11 Driver" /v GrabFullscreen /t REG_SZ /d Y /f >/dev/null 2>&1 || true
+    wine reg add "HKEY_CURRENT_USER\Software\Wine\X11 Driver" /v Decorated /t REG_SZ /d N /f >/dev/null 2>&1 || true
+    wine reg add "HKEY_CURRENT_USER\Software\Wine\X11 Driver" /v Managed /t REG_SZ /d Y /f >/dev/null 2>&1 || true
 fi
 
 # 7. Generar archivo DXVK optimizado según la CPU y límite de FPS configurado
@@ -163,6 +165,19 @@ auto_optimizar_juegos_3d() {
     best_w=$(echo "$best_res" | cut -dx -f1)
     best_h=$(echo "$best_res" | cut -dx -f2)
 
+    # Calcular relación de aspecto matemática exacta según la pantalla
+    local best_aspect="DEFAULT"
+    if [ -n "$best_w" ] && [ -n "$best_h" ] && [ "$best_h" -gt 0 ]; then
+        local ratio_x100=$(( best_w * 100 / best_h ))
+        if [ "$ratio_x100" -ge 170 ] && [ "$ratio_x100" -le 185 ]; then
+            best_aspect="16:9"
+        elif [ "$ratio_x100" -ge 155 ] && [ "$ratio_x100" -le 165 ]; then
+            best_aspect="16:10"
+        elif [ "$ratio_x100" -ge 130 ] && [ "$ratio_x100" -le 138 ]; then
+            best_aspect="4:3"
+        fi
+    fi
+
     # 2. CAPCOM MT FRAMEWORK (Resident Evil 4/5/6, Revelations, DMC4, etc.)
     local capcom_dir="$HOME/Documentos/CAPCOM"
     [ ! -d "$capcom_dir" ] && capcom_dir="${WINEPREFIX}/drive_c/users/${USER}/Documents/CAPCOM"
@@ -189,7 +204,7 @@ TextureDetail=HIGH
 TextureMipLimite=2
 [DISPLAY]
 Resolution=${best_res}
-Aspect=DEFAULT
+Aspect=${best_aspect}
 RefreshRate=60.00Hz
 FullScreen=ON
 VSYNC=OFF
@@ -229,7 +244,7 @@ EOF
                 fi
                 
                 sed -i 's/^RefreshRate=.*/RefreshRate=60.00Hz/' "$cini" 2>/dev/null || true
-                sed -i 's/^Aspect=.*/Aspect=DEFAULT/' "$cini" 2>/dev/null || true
+                sed -i "s/^Aspect=.*/Aspect=${best_aspect}/" "$cini" 2>/dev/null || true
                 sed -i 's/^AntiAlias=.*/AntiAlias=NONE/' "$cini" 2>/dev/null || true
                 sed -i 's/^AltAntiAlias=.*/AltAntiAlias=FXAA3HQ/' "$cini" 2>/dev/null || true
                 sed -i 's/^ShadowsDisable=ON/ShadowsDisable=OFF/' "$cini" 2>/dev/null || true

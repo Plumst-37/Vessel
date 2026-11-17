@@ -40,15 +40,13 @@ d3d9.maxFrameRate = ${FPS_VAL}
 dxvk.enableAsync = true
 dxvk.gpl = True
 
-# Modo Pantalla Completa Exclusiva Nativa y compatibilidad DPI universal
+# Modo Pantalla Completa Exclusiva Nativa
 dxvk.allowFse = True
-d3d9.dpiAware = True
 
 # Precisión geométrica universal: elimina deformaciones, estiramientos y z-fighting en modelos 3D
 d3d9.invariantPosition = True
 d3d11.invariantPosition = True
 d3d9.longMad = True
-d3d9.lenientClear = True
 d3d9.maxAvailableMemory = 4096
 
 # Modo Mailbox Present (Triple Buffering Tear-Free de Ultra-Baja Latencia)
