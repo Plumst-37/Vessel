@@ -227,7 +227,9 @@ case "$DISTRO_DETECTED" in
             echo -e "${C_CYAN}  🎮 GPU NVIDIA detectada: Asegurando librerías gráficas de 32 bits...${C_RESET}"
             sudo apt-get install -y nvidia-driver-libs:i386 2>/dev/null || true
         fi
+        sudo apt-get install -y libgnutls30:i386 2>/dev/null || sudo apt-get install -y libgnutls30t64:i386 2>/dev/null || true
         sudo apt-get install -y libnss-resolve:i386 libnss-mdns:i386 libvkd3d1:i386 2>/dev/null || true
+        sudo apt-get install -y libasound2-plugins:i386 2>/dev/null || true
         sudo apt-get install -y gstreamer1.0-plugins-base:i386 gstreamer1.0-plugins-good:i386 gstreamer1.0-plugins-ugly:i386 gstreamer1.0-libav:i386 2>/dev/null || true
         ;;
     ubuntu)
@@ -248,7 +250,9 @@ case "$DISTRO_DETECTED" in
                 sudo apt-get install -y libnvidia-gl-535:i386 2>/dev/null || sudo apt-get install -y libnvidia-gl-525:i386 2>/dev/null || true
             fi
         fi
+        sudo apt-get install -y libgnutls30:i386 2>/dev/null || sudo apt-get install -y libgnutls30t64:i386 2>/dev/null || true
         sudo apt-get install -y libnss-resolve:i386 libnss-mdns:i386 libvkd3d1:i386 2>/dev/null || true
+        sudo apt-get install -y libasound2-plugins:i386 2>/dev/null || true
         sudo apt-get install -y gstreamer1.0-plugins-base:i386 gstreamer1.0-plugins-good:i386 gstreamer1.0-plugins-ugly:i386 gstreamer1.0-libav:i386 2>/dev/null || true
         ;;
     arch)
@@ -271,7 +275,7 @@ case "$DISTRO_DETECTED" in
             echo -e "${C_CYAN}  🎮 GPU NVIDIA detectada: Instalando librerías nvidia-utils (32 y 64 bits)...${C_RESET}"
             sudo pacman -S --needed --noconfirm nvidia-utils lib32-nvidia-utils 2>/dev/null || true
         fi
-        sudo pacman -S --needed --noconfirm lib32-gst-plugins-base lib32-gst-plugins-good lib32-gst-plugins-ugly lib32-gst-libav 2>/dev/null || true
+        sudo pacman -S --needed --noconfirm lib32-gnutls lib32-glibc lib32-gst-plugins-base lib32-gst-plugins-good lib32-gst-plugins-ugly lib32-gst-libav 2>/dev/null || true
         ;;
     fedora)
         echo -e "${C_CYAN}  ⚙️ Configurando Fedora / Nobara...${C_RESET}"
@@ -304,6 +308,9 @@ case "$DISTRO_DETECTED" in
         # 6. Decodificadores multimedia GStreamer
         sudo dnf install -y gstreamer1-plugins-base.i686 gstreamer1-plugins-good.i686 2>/dev/null || true
         sudo dnf install -y gstreamer1-plugins-ugly.i686 gstreamer1-plugins-bad-free.i686 2>/dev/null || true
+
+        # 7. Librerías de red, SSL/TLS y DNS de 32 bits (Multijugador, GameRanger y HTTPS)
+        sudo dnf install -y gnutls.i686 systemd-libs.i686 nss-mdns.i686 glibc.i686 2>/dev/null || true
         ;;
     opensuse)
         echo -e "${C_CYAN}  ⚙️ Configurando openSUSE...${C_RESET}"
@@ -316,7 +323,7 @@ case "$DISTRO_DETECTED" in
             echo -e "${C_CYAN}  🎮 Gráficos Intel detectados: Instalando controladores ANV Vulkan...${C_RESET}"
             sudo zypper --non-interactive --auto-agree-with-licenses install libvulkan_intel libvulkan_intel-32bit 2>/dev/null || true
         fi
-        sudo zypper --non-interactive --auto-agree-with-licenses install gstreamer-plugins-ugly-32bit gstreamer-plugins-bad-32bit 2>/dev/null || true
+        sudo zypper --non-interactive --auto-agree-with-licenses install gstreamer-plugins-ugly-32bit gstreamer-plugins-bad-32bit libgnutls30-32bit systemd-32bit 2>/dev/null || sudo zypper --non-interactive --auto-agree-with-licenses install gnutls-32bit 2>/dev/null || true
         ;;
     *)
         echo -e "${C_YELLOW}  ⚠️ Distribución genérica detectada. Verificando comandos estándar...${C_RESET}"
@@ -352,6 +359,33 @@ fs.file-max = 2097152
 EOF' 2>/dev/null || true
     sudo /sbin/sysctl --system > /dev/null 2>&1 || sudo sysctl --system > /dev/null 2>&1 || true
     echo -e "${C_GREEN}✔ Parámetros del Kernel aplicados permanentemente (vm.max_map_count = 2.1M).${C_RESET}"
+fi
+
+# Apertura de firewall para multijugador y GameRanger (Puerto UDP 16000)
+echo -e "${C_CYAN}  🌐 Configurando Firewall para GameRanger / Multijugador (Puerto UDP 16000)...${C_RESET}"
+if command -v firewall-cmd &>/dev/null && systemctl is-active firewalld &>/dev/null; then
+    sudo firewall-cmd --permanent --add-port=16000/udp 2>/dev/null || true
+    sudo firewall-cmd --reload 2>/dev/null || true
+fi
+if command -v ufw &>/dev/null && sudo ufw status 2>/dev/null | grep -qi "active"; then
+    sudo ufw allow 16000/udp 2>/dev/null || true
+fi
+if command -v iptables &>/dev/null; then
+    sudo iptables -C INPUT -p udp --dport 16000 -j ACCEPT 2>/dev/null || sudo iptables -I INPUT -p udp --dport 16000 -j ACCEPT 2>/dev/null || true
+fi
+
+# Resolución infalible de dominios de GameRanger en /etc/hosts (0% fallos de DNS)
+if [ -w /etc/hosts ] || sudo -n true 2>/dev/null || [ "$EUID" -eq 0 ]; then
+    if ! grep -q "connect.gameranger.com" /etc/hosts 2>/dev/null; then
+        sudo bash -c 'cat <<EOF >> /etc/hosts
+
+# Servidores Oficiales GameRanger - Vessel Gaming Network
+51.222.17.7 connect.gameranger.com
+67.228.206.97 status.gameranger.com
+67.228.102.62 www.gameranger.com
+67.228.102.62 default.gameranger.com
+EOF' 2>/dev/null || true
+    fi
 fi
 
 if [ -w /etc/security/limits.d ] || sudo -n true 2>/dev/null || [ "$EUID" -eq 0 ]; then
@@ -397,16 +431,22 @@ WINEPREFIX="${DIR}/wineprefix" wine reg add "HKEY_CURRENT_USER\Software\Wine\X11
 WINEPREFIX="${DIR}/wineprefix" wine reg add "HKEY_CURRENT_USER\Software\Wine\X11 Driver" /v "Decorated" /t REG_SZ /d "Y" /f >/dev/null 2>&1 || true
 WINEPREFIX="${DIR}/wineprefix" wine reg add "HKEY_CURRENT_USER\Software\Wine\X11 Driver" /v "Managed" /t REG_SZ /d "Y" /f >/dev/null 2>&1 || true
 
-# 4.3.1 Compatibilidad total para GameRanger (Chromium CEF / ANGLE sin fallos de Vulkan)
-WINEPREFIX="${DIR}/wineprefix" wine reg add "HKEY_CURRENT_USER\Software\Wine\AppDefaults\GameRanger.exe\DllOverrides" /v d3d11 /t REG_SZ /d builtin /f >/dev/null 2>&1 || true
-WINEPREFIX="${DIR}/wineprefix" wine reg add "HKEY_CURRENT_USER\Software\Wine\AppDefaults\GameRanger.exe\DllOverrides" /v dxgi /t REG_SZ /d builtin /f >/dev/null 2>&1 || true
-WINEPREFIX="${DIR}/wineprefix" wine reg add "HKEY_CURRENT_USER\Software\Wine\AppDefaults\GameRanger.exe\DllOverrides" /v d3d9 /t REG_SZ /d builtin /f >/dev/null 2>&1 || true
-WINEPREFIX="${DIR}/wineprefix" wine reg add "HKEY_CURRENT_USER\Software\Wine\AppDefaults\GameRanger.exe\DllOverrides" /v d3d10core /t REG_SZ /d builtin /f >/dev/null 2>&1 || true
-WINEPREFIX="${DIR}/wineprefix" wine reg add "HKEY_CURRENT_USER\Software\Wine\AppDefaults\GameRangerSetup.exe\DllOverrides" /v d3d11 /t REG_SZ /d builtin /f >/dev/null 2>&1 || true
-WINEPREFIX="${DIR}/wineprefix" wine reg add "HKEY_CURRENT_USER\Software\Wine\AppDefaults\GameRangerSetup.exe\DllOverrides" /v dxgi /t REG_SZ /d builtin /f >/dev/null 2>&1 || true
-WINEPREFIX="${DIR}/wineprefix" wine reg add "HKEY_CURRENT_USER\Software\Wine\AppDefaults\GameRangerSetup.exe\DllOverrides" /v d3d9 /t REG_SZ /d builtin /f >/dev/null 2>&1 || true
-WINEPREFIX="${DIR}/wineprefix" wine reg add "HKEY_CURRENT_USER\Software\Wine\AppDefaults\GameRangerSetup.exe\DllOverrides" /v d3d10core /t REG_SZ /d builtin /f >/dev/null 2>&1 || true
-echo -e "${C_GREEN}✔ Captura de ratón DirectInput 3D, multi-monitor y perfil GameRanger configurados.${C_RESET}"
+# 4.3.1 Compatibilidad total para GameRanger (Chromium CEF / ANGLE sin fallos de Vulkan + Red 100% activa)
+for gr_target in "GameRanger.exe" "GameRangerSetup.exe"; do
+    WINEPREFIX="${DIR}/wineprefix" wine reg add "HKEY_CURRENT_USER\Software\Wine\AppDefaults\\${gr_target}\DllOverrides" /v d3d11 /t REG_SZ /d builtin /f >/dev/null 2>&1 || true
+    WINEPREFIX="${DIR}/wineprefix" wine reg add "HKEY_CURRENT_USER\Software\Wine\AppDefaults\\${gr_target}\DllOverrides" /v dxgi /t REG_SZ /d builtin /f >/dev/null 2>&1 || true
+    WINEPREFIX="${DIR}/wineprefix" wine reg add "HKEY_CURRENT_USER\Software\Wine\AppDefaults\\${gr_target}\DllOverrides" /v d3d9 /t REG_SZ /d builtin /f >/dev/null 2>&1 || true
+    WINEPREFIX="${DIR}/wineprefix" wine reg add "HKEY_CURRENT_USER\Software\Wine\AppDefaults\\${gr_target}\DllOverrides" /v d3d10core /t REG_SZ /d builtin /f >/dev/null 2>&1 || true
+    WINEPREFIX="${DIR}/wineprefix" wine reg add "HKEY_CURRENT_USER\Software\Wine\AppDefaults\\${gr_target}\DllOverrides" /v ws2_32 /t REG_SZ /d builtin /f >/dev/null 2>&1 || true
+    WINEPREFIX="${DIR}/wineprefix" wine reg add "HKEY_CURRENT_USER\Software\Wine\AppDefaults\\${gr_target}\DllOverrides" /v dnsapi /t REG_SZ /d builtin /f >/dev/null 2>&1 || true
+    WINEPREFIX="${DIR}/wineprefix" wine reg add "HKEY_CURRENT_USER\Software\Wine\AppDefaults\\${gr_target}\DllOverrides" /v secur32 /t REG_SZ /d builtin /f >/dev/null 2>&1 || true
+    WINEPREFIX="${DIR}/wineprefix" wine reg add "HKEY_CURRENT_USER\Software\Wine\AppDefaults\\${gr_target}\DllOverrides" /v wininet /t REG_SZ /d builtin /f >/dev/null 2>&1 || true
+    WINEPREFIX="${DIR}/wineprefix" wine reg add "HKEY_CURRENT_USER\Software\Wine\AppDefaults\\${gr_target}\DllOverrides" /v iphlpapi /t REG_SZ /d builtin /f >/dev/null 2>&1 || true
+done
+WINEPREFIX="${DIR}/wineprefix" wine reg add "HKEY_CURRENT_USER\Software\Wine\DllOverrides" /v dplayx /t REG_SZ /d "builtin,native" /f >/dev/null 2>&1 || true
+WINEPREFIX="${DIR}/wineprefix" wine reg add "HKEY_CURRENT_USER\Software\Wine\DllOverrides" /v dpnet /t REG_SZ /d "builtin,native" /f >/dev/null 2>&1 || true
+WINEPREFIX="${DIR}/wineprefix" wine reg add "HKEY_CURRENT_USER\Software\Wine\DllOverrides" /v dpwsockx /t REG_SZ /d "builtin,native" /f >/dev/null 2>&1 || true
+echo -e "${C_GREEN}✔ Captura de ratón DirectInput 3D, multi-monitor, red y perfil GameRanger configurados.${C_RESET}"
 
 # 4.3.2 Instalación e integración automática de GameRanger en el sistema
 TARGET_USER="${SUDO_USER:-$USER}"
@@ -419,11 +459,11 @@ if [ -f "${DIR}/GameRanger/GameRanger.exe" ]; then
     cp -r "${DIR}/GameRanger"/* "$GR_ROAMING/" 2>/dev/null || true
     echo -e "${C_GREEN}✔ GameRanger pre-instalado copiado al prefijo del usuario.${C_RESET}"
 elif [ -f "${DIR}/GameRangerSetup.exe" ]; then
-    WINEPREFIX="${DIR}/wineprefix" WINEDLLOVERRIDES="winemenubuilder.exe=d;dxgi=b;d3d11=b;d3d10core=b;d3d9=b;" wine "${DIR}/GameRangerSetup.exe" 2>/dev/null || true
+    WINEPREFIX="${DIR}/wineprefix" WINEDLLOVERRIDES="dxgi=b;d3d11=b;d3d10core=b;d3d9=b;" wine "${DIR}/GameRangerSetup.exe" 2>/dev/null || true
     echo -e "${C_GREEN}✔ GameRangerSetup instalado con éxito.${C_RESET}"
 elif command -v curl &>/dev/null; then
     curl -fsSL https://www.gameranger.com/download/GameRangerSetup.exe -o "${DIR}/GameRangerSetup.exe" 2>/dev/null || true
-    [ -f "${DIR}/GameRangerSetup.exe" ] && WINEPREFIX="${DIR}/wineprefix" WINEDLLOVERRIDES="winemenubuilder.exe=d;dxgi=b;d3d11=b;d3d10core=b;d3d9=b;" wine "${DIR}/GameRangerSetup.exe" 2>/dev/null || true
+    [ -f "${DIR}/GameRangerSetup.exe" ] && WINEPREFIX="${DIR}/wineprefix" WINEDLLOVERRIDES="dxgi=b;d3d11=b;d3d10core=b;d3d9=b;" wine "${DIR}/GameRangerSetup.exe" 2>/dev/null || true
 fi
 
 # Registrar GameRanger en programas.db de Vessel

@@ -159,11 +159,15 @@ if [[ "$TARGET_FILE" =~ [Gg]ame[Rr]anger ]]; then
     # Desactivamos DXVK para GameRanger y usamos WineD3D nativo, eliminando cualquier cuelgue de UI.
     export RENDERER_IN_USE="WineD3D (Lobby Compatibilidad)"
     export PROTON_USE_WINED3D=1
-    export WINEDLLOVERRIDES="$(echo "$WINEDLLOVERRIDES" | sed -E 's/(dxgi|d3d11|d3d10core|d3d9)=n/\1=b/g')"
+    export WINEDLLOVERRIDES="$(echo "$WINEDLLOVERRIDES" | sed -E 's/(dxgi|d3d11|d3d10core|d3d9)=n/\1=b/g');ws2_32=b;dnsapi=b;secur32=b;wininet=b;iphlpapi=b"
     unset DXVK_CONFIG_FILE
     unset DXVK_STATE_CACHE_PATH
     unset DXVK_ASYNC
     unset DXVK_GPLASYNCCACHE
+
+    # Asegurar privilegios de red para multijugador y ping ICMP en GameRanger
+    sysctl -w net.ipv4.ping_group_range="0 2147483647" 2>/dev/null || true
+    sysctl -w net.ipv4.ip_unprivileged_port_start=0 2>/dev/null || true
 fi
 
 # Moverse al directorio donde reside el juego (vital para rutas relativas y DLLs)
