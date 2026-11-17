@@ -414,6 +414,9 @@ EOF
     echo -e "${C_GREEN}✔ Acceso directo creado y validado en tu Escritorio: 'Menu Win (PC)'${C_RESET}"
 fi
 
+echo "3.0.0" > "${DIR}/version.txt" 2>/dev/null || true
+chown "$TARGET_USER:$TARGET_USER" "${DIR}/version.txt" 2>/dev/null || true
+
 echo ""
 echo -e "${C_BOLD}${C_GREEN}🎉 ¡INSTALACIÓN COMPLETADA CON ÉXITO! 🎉${C_RESET}"
 echo -e "${C_WHITE}Tu PC ahora está optimizada y lista para correr cualquier juego o programa.${C_RESET}"

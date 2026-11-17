@@ -23,6 +23,8 @@ LAUNCHER = os.path.join(DIR, "launch-win-app.sh")
 DXVK_CONF = os.path.join(DIR, "dxvk.conf")
 CONFIG_USER = os.path.join(DIR, "config_rendimiento.cfg")
 WINEPREFIX = os.path.join(DIR, "wineprefix")
+VERSION_FILE = os.path.join(DIR, "version.txt")
+VERSION_ACTUAL = "3.0.0"
 
 # Paleta de colores Neón Púrpura y Windows 11
 PURPLE = "\033[38;2;224;86;253m"
@@ -981,7 +983,7 @@ def menu_herramientas(hw, cfg):
 # SUBMENÚ 5: ACTUALIZAR Y CONFIGURAR AUTOMÁTICAMENTE
 # ==============================================================================
 
-def menu_actualizar(hw, cfg):
+def menu_actualizar(hw, cfg, es_primer_inicio=False):
     """Submenú 5: Actualizar distribución, descargar componentes y optimizar el sistema."""
     cfg = cargar_config()
     distro_detectada = cfg.get("DISTRO_NAME", "Debian")
@@ -1006,8 +1008,12 @@ def menu_actualizar(hw, cfg):
         ("0", "↩️  Cancelar y Volver al Menú Principal")
     ]
 
-    sel_distro = submenu_interactivo("🔄  Selecciona tu Distribución de Linux para Actualizar", distro_menu, hw, cfg)
+    titulo_sub = "🚀  Paso 1: Selecciona tu Distribución de Linux" if es_primer_inicio else "🔄  Selecciona tu Distribución de Linux para Actualizar"
+    sel_distro = submenu_interactivo(titulo_sub, distro_menu, hw, cfg)
     if sel_distro == "0":
+        if es_primer_inicio:
+            print(f"\n{YELLOW}⚠️  Configuración inicial pospuesta. Podrás ejecutarla en cualquier momento desde la opción [5] Actualizar.{RESET}")
+            time.sleep(1.5)
         return
 
     mapa_distros = {
@@ -1026,34 +1032,87 @@ def menu_actualizar(hw, cfg):
 
     # Preguntar si desea descargar los archivos necesarios (S/n)
     os.system("clear")
-    print(f"{PURPLE}🔄 [ ACTUALIZAR Y CONFIGURAR {nombre_elegido.upper()} ]{RESET}\n")
+    encabezado_modo = "CONFIGURACIÓN INICIAL DE PRIMER USO" if es_primer_inicio else "ACTUALIZAR Y CONFIGURAR"
+    print(f"{PURPLE}🔄 [ {encabezado_modo} - {nombre_elegido.upper()} ]{RESET}\n")
     print(f"  {WHITE}Distribución seleccionada :{RESET} {CYAN}{nombre_elegido}{RESET}")
     print(f"  {WHITE}Hardware detectado        :{RESET} {BOLD}{hw['cpu']} | {hw['gpu']} | {hw['ram']}{RESET}\n")
     print(f"{WHITE}Esta opción descargará y configurará automáticamente todos los paquetes,{RESET}")
-    print(f"{WHITE}drivers Vulkan, optimizaciones de memoria del kernel y dependencias para tu PC.{RESET}\n")
+    print(f"{WHITE}drivers Vulkan (32 y 64 bits), optimizaciones de memoria del kernel y dependencias para tu PC.{RESET}\n")
 
     confirmar = input(f"{CYAN}¿Deseas descargar los archivos necesarios para esta computadora? (S/n): {RESET}").strip().lower()
     if confirmar == 'n':
         print(f"\n{YELLOW}⚠️  Operación cancelada. Volviendo al menú principal...{RESET}")
-        time.sleep(1)
+        time.sleep(1.2)
         return
 
     # Proceder a ejecutar la descarga e instalación completa
     os.system("clear")
     print(f"{GREEN}🚀 Iniciando descarga, actualización y configuración de {nombre_elegido}...{RESET}\n")
 
-    subprocess.run(["bash", "-c", f"""
+    res = subprocess.run(["bash", "-c", f"""
 export SISTEMA_LINUX="{id_elegido}"
 export DISTRO_NAME="{nombre_elegido}"
 source "{os.path.join(DIR, 'menu-win.sh')}"
 ejecutar_descarga_e_instalacion_automatica
 """])
 
+    # Si la instalación completó con éxito, registrar versión actual en version.txt
+    if res.returncode == 0:
+        try:
+            with open(VERSION_FILE, "w", encoding="utf-8") as f:
+                f.write(VERSION_ACTUAL + "\n")
+        except Exception:
+            pass
+
     print(f"\n{CYAN}══════════════════════════════════════════════════════════════════════{RESET}")
-    print(f"{BOLD}{GREEN}🎉 ¡ACTUALIZACIÓN Y CONFIGURACIÓN COMPLETADA CON ÉXITO AL 100%! 🎉{RESET}")
+    print(f"{BOLD}{GREEN}🎉 ¡CONFIGURACIÓN Y OPTIMIZACIÓN COMPLETADA CON ÉXITO AL 100%! 🎉{RESET}")
     print(f"{WHITE}Tu computadora ({nombre_elegido}) está lista para correr cualquier juego o programa.{RESET}")
     print(f"{CYAN}══════════════════════════════════════════════════════════════════════{RESET}")
     pausar()
+
+def comprobar_primer_inicio(hw, cfg):
+    """Comprueba si el usuario entra por primera vez (version.txt vacío o diferente versión)."""
+    # Si no existe el archivo version.txt, crearlo vacío
+    if not os.path.exists(VERSION_FILE):
+        try:
+            with open(VERSION_FILE, "w", encoding="utf-8") as f:
+                pass
+        except Exception:
+            pass
+
+    v_content = ""
+    try:
+        if os.path.exists(VERSION_FILE):
+            with open(VERSION_FILE, "r", encoding="utf-8", errors="ignore") as f:
+                v_content = f.read().strip()
+    except Exception:
+        v_content = ""
+
+    # Si version.txt está vacío o la versión no es la actual, lanzar asistente de primer inicio
+    if not v_content or v_content != VERSION_ACTUAL:
+        os.system("clear")
+        total_w = get_terminal_width()
+        inner_w = total_w - 2
+
+        print(f"{PURPLE}╭{'─' * inner_w}╮{RESET}")
+        title = "🎮  ¡BIENVENIDO A VESSEL (MENU WIN)!  🎮"
+        pad = max((inner_w - visual_width(title)) // 2, 0)
+        print(f"{PURPLE}│{RESET}{' ' * pad}{BOLD}{WHITE}{title}{RESET}{' ' * max(inner_w - pad - visual_width(title), 0)}{PURPLE}│{RESET}")
+        print(f"{PURPLE}│{' ' * inner_w}│{RESET}")
+
+        msg1 = "Detectamos que es la primera vez que abres el programa en esta computadora."
+        msg2 = "Para que tus juegos corran al máximo rendimiento (Vulkan, DXVK, Esync y Fsync),"
+        msg3 = "vamos a seleccionar tu distribución de Linux y optimizar todo a tu medida."
+
+        for m in (msg1, msg2, msg3):
+            pm = max((inner_w - visual_width(m)) // 2, 0)
+            print(f"{PURPLE}│{RESET}{' ' * pm}{CYAN}{m}{RESET}{' ' * max(inner_w - pm - visual_width(m), 0)}{PURPLE}│{RESET}")
+
+        print(f"{PURPLE}╰{'─' * inner_w}╯{RESET}\n")
+        print(f"{WHITE}Presiona {BOLD}{GREEN}[Enter]{RESET}{WHITE} para seleccionar tu sistema Linux y comenzar la configuración inicial...{RESET}")
+        read_key()
+
+        menu_actualizar(hw, cfg, es_primer_inicio=True)
 
 # ==============================================================================
 # MENÚ PRINCIPAL INTERACTIVO EN PÚRPURA NEÓN (MATCHING IMAGEN DE KONSOLE)
@@ -1065,6 +1124,12 @@ def main():
         subprocess.run(f"cd '{DIR}' && timeout 3 git fetch origin main --quiet 2>/dev/null", shell=True)
     except Exception:
         pass
+
+    cfg = cargar_config()
+    hw = obtener_info_hardware()
+
+    # Comprobar si el usuario entra por primera vez (version.txt vacío)
+    comprobar_primer_inicio(hw, cfg)
 
     # Selección en 2 columnas: 1 a 6
     # 1: Iniciar, 2: Configurar

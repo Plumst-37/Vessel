@@ -15,6 +15,11 @@ DB_FILE="${DIR}/programas.db"
 LAUNCHER="${DIR}/launch-win-app.sh"
 DXVK_CONF="${DIR}/dxvk.conf"
 CONFIG_USER="${DIR}/config_rendimiento.cfg"
+VERSION_FILE="${DIR}/version.txt"
+VERSION_ACTUAL="3.0.0"
+
+# Asegurar que version.txt exista
+[ ! -f "$VERSION_FILE" ] && touch "$VERSION_FILE" 2>/dev/null || true
 
 # Cargar preferencias y módulo de hardware
 [ -f "$CONFIG_USER" ] && source "$CONFIG_USER"
@@ -198,9 +203,22 @@ auto_detectar_distro() {
 
 comprobar_configuracion_inicial_distro() {
     [ -f "$CONFIG_USER" ] && source "$CONFIG_USER"
-    if [ -z "$SISTEMA_LINUX" ]; then
-        auto_detectar_distro
-        guardar_configuracion_distro
+    local v_content=""
+    if [ -f "$VERSION_FILE" ]; then
+        v_content=$(cat "$VERSION_FILE" 2>/dev/null | tr -d '[:space:]')
+    fi
+
+    # Si version.txt está vacío o la versión no es la actual, lanzar asistente de primer inicio
+    if [ -z "$v_content" ] || [ "$v_content" != "$VERSION_ACTUAL" ]; then
+        clear 2>/dev/null || true
+        echo -e "${C_CYAN}╔══════════════════════════════════════════════════════════════════════╗${C_RESET}"
+        echo -e "${C_CYAN}║${C_RESET}     ${C_GREEN}👋  ¡BIENVENIDO A VESSEL (MENU WIN) - CONFIGURACIÓN INICIAL! 🎮${C_RESET}     ${C_CYAN}║${C_RESET}"
+        echo -e "${C_CYAN}║${C_RESET}  ${C_WHITE}Detectamos que es la primera vez que abres el sistema en esta PC.${C_RESET}   ${C_CYAN}║${C_RESET}"
+        echo -e "${C_CYAN}║${C_RESET}  ${C_YELLOW}Vamos a seleccionar tu distribución de Linux y optimizar todo.${C_RESET}      ${C_CYAN}║${C_RESET}"
+        echo -e "${C_CYAN}╚══════════════════════════════════════════════════════════════════════╝${C_RESET}"
+        echo ""
+        read -p "$(echo -e "${C_WHITE}Presiona ${C_GREEN}[Enter]${C_WHITE} para seleccionar tu sistema Linux y continuar... ${C_RESET}")"
+        menu_actualizar_sistema
     fi
 }
 
@@ -1804,6 +1822,8 @@ EOF
     echo -e "${C_BOLD}${C_GREEN}🎉 ¡OPTIMIZACIÓN Y CONFIGURACIÓN COMPLETADA CON ÉXITO AL 100%! 🎉${C_RESET}"
     echo -e "${C_WHITE}Esta computadora (${DISTRO_NAME:-Linux}) está lista para correr cualquier juego o programa.${C_RESET}"
     echo -e "${C_CYAN}══════════════════════════════════════════════════════════════════════${C_RESET}"
+    echo "$VERSION_ACTUAL" > "$VERSION_FILE" 2>/dev/null || true
+    chown "$target_user:$target_user" "$VERSION_FILE" 2>/dev/null || true
     pausar
 }
 
