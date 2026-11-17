@@ -117,14 +117,19 @@ if [ ! -f "${WINEPREFIX}/system.reg" ]; then
     fi
 fi
 
-# 6. Configuración de ratón ultra-fluido (movimiento libre 1:1 por toda la pantalla sin bloqueos)
-if [ ! -f "${WINEPREFIX}/.vessel_reg_ok" ]; then
+# 6. Configuración de pantalla completa universal, ratón ultra-fluido y estabilidad 3D
+if [ ! -f "${WINEPREFIX}/.vessel_reg_v3" ]; then
     wine reg add "HKEY_CURRENT_USER\Software\Wine\DirectInput" /v MouseWarpOverride /t REG_SZ /d enable /f >/dev/null 2>&1 || true
-    wine reg add "HKEY_CURRENT_USER\Software\Wine\X11 Driver" /v UseTakeFocus /t REG_SZ /d Y /f >/dev/null 2>&1 || true
+    wine reg add "HKEY_CURRENT_USER\Software\Wine\X11 Driver" /v UseTakeFocus /t REG_SZ /d N /f >/dev/null 2>&1 || true
     wine reg add "HKEY_CURRENT_USER\Software\Wine\X11 Driver" /v GrabFullscreen /t REG_SZ /d Y /f >/dev/null 2>&1 || true
-    wine reg add "HKEY_CURRENT_USER\Software\Wine\X11 Driver" /v Decorated /t REG_SZ /d Y /f >/dev/null 2>&1 || true
+    wine reg add "HKEY_CURRENT_USER\Software\Wine\X11 Driver" /v Decorated /t REG_SZ /d N /f >/dev/null 2>&1 || true
     wine reg add "HKEY_CURRENT_USER\Software\Wine\X11 Driver" /v Managed /t REG_SZ /d Y /f >/dev/null 2>&1 || true
-    touch "${WINEPREFIX}/.vessel_reg_ok" 2>/dev/null || true
+    wine reg add "HKEY_CURRENT_USER\Software\Wine\Direct3D" /v csmt /t REG_DWORD /d 1 /f >/dev/null 2>&1 || true
+    wine reg add "HKEY_CURRENT_USER\Software\Wine\Direct3D" /v StrictDrawOrdering /t REG_SZ /d disabled /f >/dev/null 2>&1 || true
+    wine reg add "HKEY_CURRENT_USER\Software\Wine\Direct3D" /v AlwaysOffscreen /t REG_SZ /d enabled /f >/dev/null 2>&1 || true
+    wine reg add "HKEY_CURRENT_USER\Software\Wine\Direct3D" /v CheckDepthStencil /t REG_SZ /d enabled /f >/dev/null 2>&1 || true
+    wine reg add "HKEY_CURRENT_USER\Software\Wine\AppDefaults\GameRanger.exe\X11 Driver" /v Decorated /t REG_SZ /d Y /f >/dev/null 2>&1 || true
+    touch "${WINEPREFIX}/.vessel_reg_v3" 2>/dev/null || true
 fi
 
 # 7. Generar archivo DXVK optimizado según la CPU y límite de FPS configurado
@@ -206,12 +211,13 @@ cd "$TARGET_DIR"
 [ -w "$TARGET_DIR" ] || chmod -R u+w "$TARGET_DIR" 2>/dev/null || true
 
 # ==============================================================================
-# AUTO-OPTIMIZACIÓN UNIVERSAL DE GRÁFICOS 3D, RESOLUCIÓN Y CERO TEARING
-# - Adapta automáticamente la resolución nativa del monitor en cualquier PC
-# - Elimina tirones y desgarro horizontal (VSync activo y frame pacing suave)
-# - Elimina desenfoque de movimiento molesto (Motion Blur desactivado)
-# - Fuerza máxima nitidez de texturas 3D en ángulos (Filtrado Anisotrópico 16x)
-# - Optimiza Capcom MT Framework, Rockstar Games, Unreal Engine y motores 3D
+# AUTO-OPTIMIZACIÓN UNIVERSAL DE PANTALLA COMPLETA, GRÁFICOS 3D Y CERO TEARING
+# - Adapta automáticamente la pantalla completa nativa del monitor en cualquier PC
+# - Elimina deformaciones de aspecto 3D (Aspect=DEFAULT para FOV matemático perfecto)
+# - Corrige motores RE Engine (elimina renderizado entrelazado y deformaciones de lente)
+# - Enforce modo pantalla completa exclusiva en Rockstar Games (Windowed=0)
+# - Configura Widescreen Fix y desactiva modo ventana forzado en GTA San Andreas
+# - Enforce pantalla completa en Unreal Engine (SWAT 4), Capcom MT Framework y cnc-ddraw
 # ==============================================================================
 auto_optimizar_juegos_3d() {
     # 1. Detectar resolución óptima del monitor principal en cualquier PC (Intel, AMD, NVIDIA)
@@ -228,19 +234,6 @@ auto_optimizar_juegos_3d() {
     local best_w best_h
     best_w=$(echo "$best_res" | cut -dx -f1)
     best_h=$(echo "$best_res" | cut -dx -f2)
-
-    # Calcular relación de aspecto matemática exacta según la pantalla
-    local best_aspect="DEFAULT"
-    if [ -n "$best_w" ] && [ -n "$best_h" ] && [ "$best_h" -gt 0 ]; then
-        local ratio_x100=$(( best_w * 100 / best_h ))
-        if [ "$ratio_x100" -ge 170 ] && [ "$ratio_x100" -le 185 ]; then
-            best_aspect="16:9"
-        elif [ "$ratio_x100" -ge 155 ] && [ "$ratio_x100" -le 165 ]; then
-            best_aspect="16:10"
-        elif [ "$ratio_x100" -ge 130 ] && [ "$ratio_x100" -le 138 ]; then
-            best_aspect="4:3"
-        fi
-    fi
 
     # 2. CAPCOM MT FRAMEWORK (Resident Evil 4/5/6, Revelations, DMC4, etc.)
     local capcom_dir="$HOME/Documentos/CAPCOM"
@@ -268,7 +261,7 @@ TextureDetail=HIGH
 TextureMipLimite=0
 [DISPLAY]
 Resolution=${best_res}
-Aspect=${best_aspect}
+Aspect=DEFAULT
 RefreshRate=60.00Hz
 FullScreen=ON
 VSYNC=OFF
@@ -281,74 +274,112 @@ RenderingThread=ON
 MainX=0
 MainY=0
 EOF
-            echo "[+] Configuración de alta fidelidad 3D generada para Resident Evil 6 (${best_res}, nitidez total)."
+            echo "[+] Configuración de alta fidelidad 3D en pantalla completa generada para Resident Evil 6 (${best_res})."
         fi
     fi
 
-    # Corregir configs existentes de Capcom para máxima calidad 3D, nitidez y cero tirones:
+    # Corregir configs existentes de Capcom MT Framework:
     local dirs_a_buscar=("$capcom_dir")
     [ -d "${TARGET_DIR}/gamedata/optimization" ] && dirs_a_buscar+=("${TARGET_DIR}/gamedata/optimization")
     [ -d "${TARGET_DIR}/optimization" ] && dirs_a_buscar+=("${TARGET_DIR}/optimization")
+    [ -d "$TARGET_DIR" ] && dirs_a_buscar+=("$TARGET_DIR")
 
     for dir_c in "${dirs_a_buscar[@]}"; do
         if [ -d "$dir_c" ]; then
-            find "$dir_c" -name "config.ini" 2>/dev/null | while read -r cini; do
-                sed -i 's/^FullScreen=OFF/FullScreen=ON/' "$cini" 2>/dev/null || true
-                sed -i 's/^VSYNC=ON/VSYNC=OFF/' "$cini" 2>/dev/null || true
-                sed -i 's/^MotionBlurEnabled=ON/MotionBlurEnabled=OFF/' "$cini" 2>/dev/null || true
-                
-                # Calibrar resolución universalmente: preservar si es compatible, o ajustar a la pantalla si no existe o es inválida
-                local cur_res
-                cur_res=$(grep -E '^Resolution=' "$cini" 2>/dev/null | cut -d'=' -f2 | tr -d '\r\n ')
-                if [ -z "$cur_res" ] || [ "$cur_res" = "Unknown" ] || [ "$cur_res" = "0x0" ] || ! echo "$cur_res" | grep -qE '^[0-9]+x[0-9]+$'; then
-                    sed -i "s/^Resolution=.*/Resolution=${best_res}/" "$cini" 2>/dev/null || true
-                elif command -v xrandr &>/dev/null && ! xrandr 2>/dev/null | grep -q "\b${cur_res}\b"; then
-                    # Si la resolución guardada no existe en este monitor (evita ERR09: Unsupported function de Capcom)
-                    sed -i "s/^Resolution=.*/Resolution=${best_res}/" "$cini" 2>/dev/null || true
+            find "$dir_c" -maxdepth 3 -name "config.ini" 2>/dev/null | while read -r cini; do
+                if grep -q "\[GRAPHICS\]" "$cini" 2>/dev/null || grep -q "\[DISPLAY\]" "$cini" 2>/dev/null; then
+                    sed -i 's/^FullScreen=OFF/FullScreen=ON/' "$cini" 2>/dev/null || true
+                    sed -i 's/^VSYNC=ON/VSYNC=OFF/' "$cini" 2>/dev/null || true
+                    sed -i 's/^MotionBlurEnabled=ON/MotionBlurEnabled=OFF/' "$cini" 2>/dev/null || true
+                    # Aspect=DEFAULT asegura que el motor 3D calcule la perspectiva exacta sin achatamiento ni estiramientos
+                    sed -i 's/^Aspect=.*/Aspect=DEFAULT/' "$cini" 2>/dev/null || true
+                    
+                    local cur_res
+                    cur_res=$(grep -E '^Resolution=' "$cini" 2>/dev/null | cut -d'=' -f2 | tr -d '\r\n ')
+                    if [ -z "$cur_res" ] || [ "$cur_res" = "Unknown" ] || [ "$cur_res" = "0x0" ] || ! echo "$cur_res" | grep -qE '^[0-9]+x[0-9]+$'; then
+                        sed -i "s/^Resolution=.*/Resolution=${best_res}/" "$cini" 2>/dev/null || true
+                    elif command -v xrandr &>/dev/null && ! xrandr 2>/dev/null | grep -q "\b${cur_res}\b"; then
+                        sed -i "s/^Resolution=.*/Resolution=${best_res}/" "$cini" 2>/dev/null || true
+                    fi
+                    
+                    sed -i 's/^RefreshRate=.*/RefreshRate=60.00Hz/' "$cini" 2>/dev/null || true
+                    sed -i 's/^AntiAlias=.*/AntiAlias=NONE/' "$cini" 2>/dev/null || true
+                    sed -i 's/^AltAntiAlias=.*/AltAntiAlias=FXAA3HQ/' "$cini" 2>/dev/null || true
+                    sed -i 's/^ShadowsDisable=ON/ShadowsDisable=OFF/' "$cini" 2>/dev/null || true
+                    sed -i 's/^ShadowsQuality=HIGH/ShadowsQuality=MEDIUM/' "$cini" 2>/dev/null || true
+                    sed -i 's/^ShadowsQuality=MIDDLE/ShadowsQuality=MEDIUM/' "$cini" 2>/dev/null || true
+                    sed -i 's/^JobThread=.*/JobThread=3/' "$cini" 2>/dev/null || true
+                    sed -i 's/^RenderingThread=OFF/RenderingThread=ON/' "$cini" 2>/dev/null || true
+                    sed -i 's/^TextureDetail=LOWEST/TextureDetail=HIGH/' "$cini" 2>/dev/null || true
+                    sed -i 's/^ScreenQuality=LOW/ScreenQuality=HIGH/' "$cini" 2>/dev/null || true
+                    sed -i 's/^TextureMipLimite=.*/TextureMipLimite=0/' "$cini" 2>/dev/null || true
+                    sed -i 's/^MouseBaseSpeed=.*/MouseBaseSpeed=1.500000/' "$cini" 2>/dev/null || true
+                    sed -i 's/^MainX=.*/MainX=0/' "$cini" 2>/dev/null || true
+                    sed -i 's/^MainY=.*/MainY=0/' "$cini" 2>/dev/null || true
                 fi
-                
-                sed -i 's/^RefreshRate=.*/RefreshRate=60.00Hz/' "$cini" 2>/dev/null || true
-                sed -i "s/^Aspect=.*/Aspect=${best_aspect}/" "$cini" 2>/dev/null || true
-                sed -i 's/^AntiAlias=.*/AntiAlias=NONE/' "$cini" 2>/dev/null || true
-                sed -i 's/^AltAntiAlias=.*/AltAntiAlias=FXAA3HQ/' "$cini" 2>/dev/null || true
-                sed -i 's/^ShadowsDisable=ON/ShadowsDisable=OFF/' "$cini" 2>/dev/null || true
-                sed -i 's/^ShadowsQuality=HIGH/ShadowsQuality=MEDIUM/' "$cini" 2>/dev/null || true
-                sed -i 's/^ShadowsQuality=MIDDLE/ShadowsQuality=MEDIUM/' "$cini" 2>/dev/null || true
-                sed -i 's/^JobThread=.*/JobThread=3/' "$cini" 2>/dev/null || true
-                sed -i 's/^RenderingThread=OFF/RenderingThread=ON/' "$cini" 2>/dev/null || true
-                sed -i 's/^TextureDetail=LOWEST/TextureDetail=HIGH/' "$cini" 2>/dev/null || true
-                sed -i 's/^ScreenQuality=LOW/ScreenQuality=HIGH/' "$cini" 2>/dev/null || true
-                sed -i 's/^TextureMipLimite=.*/TextureMipLimite=0/' "$cini" 2>/dev/null || true
-                sed -i 's/^MouseBaseSpeed=.*/MouseBaseSpeed=1.500000/' "$cini" 2>/dev/null || true
-                sed -i 's/^MainX=.*/MainX=0/' "$cini" 2>/dev/null || true
-                sed -i 's/^MainY=.*/MainY=0/' "$cini" 2>/dev/null || true
             done
+        fi
+    done
+
+    # 2.1 CAPCOM RE ENGINE (Resident Evil 4 Remake, RE2/3 Remake, RE7, RE8, DMC5)
+    find "$TARGET_DIR" -maxdepth 3 -name "*config*.ini" 2>/dev/null | while read -r re_ini; do
+        if grep -q "\[AppRender\]" "$re_ini" 2>/dev/null || grep -q "\[RenderConfig\]" "$re_ini" 2>/dev/null; then
+            # Forzar Pantalla Completa nativa en RE Engine
+            sed -i 's/^FullScreenMode=.*/FullScreenMode=true/' "$re_ini" 2>/dev/null || true
+            sed -i 's/^WindowMode=.*/WindowMode=FullScreen/' "$re_ini" 2>/dev/null || true
+            sed -i 's/^AppWindowMode=.*/AppWindowMode=0/' "$re_ini" 2>/dev/null || true
+            # CORRECCIÓN 3D CRÍTICA: Cambiar método de renderizado entrelazado (2) a progresivo normal (1)
+            # El renderizado entrelazado provoca desgarros y mallas 3D completamente dentadas/deformes
+            sed -i 's/^AppRenderingMethod=.*/AppRenderingMethod=1/' "$re_ini" 2>/dev/null || true
+            # Desactivar distorsión de lente óptica que deforma la perspectiva 3D
+            sed -i 's/^AppLensDistorsion=.*/AppLensDistorsion=0/' "$re_ini" 2>/dev/null || true
+            sed -i 's/^AppMotionBlur=.*/AppMotionBlur=0/' "$re_ini" 2>/dev/null || true
+            sed -i 's/^AppFilmGrainNoise=.*/AppFilmGrainNoise=0/' "$re_ini" 2>/dev/null || true
+            sed -i 's/^AppVsync=.*/AppVsync=0/' "$re_ini" 2>/dev/null || true
+            # Buscar el modo de pantalla nativo correspondiente
+            local dm_idx
+            dm_idx=$(grep -B 1 "DisplayMode[0-9]*_Height=${best_h}" "$re_ini" 2>/dev/null | grep -E "DisplayMode[0-9]*_Width=${best_w}" | head -n 1 | grep -oE "DisplayMode[0-9]+" | tr -d 'DisplayMode')
+            if [ -n "$dm_idx" ]; then
+                sed -i "s/^AppResolution=.*/AppResolution=${dm_idx}/" "$re_ini" 2>/dev/null || true
+                sed -i "s/^FullScreenDisplayMode=.*/FullScreenDisplayMode=${dm_idx}/" "$re_ini" 2>/dev/null || true
+            else
+                local max_dm
+                max_dm=$(grep -oE "DisplayMode[0-9]+_Width" "$re_ini" 2>/dev/null | tr -d 'DisplayMode_Width' | sort -n | tail -n 1)
+                if [ -n "$max_dm" ]; then
+                    sed -i "s/^AppResolution=.*/AppResolution=${max_dm}/" "$re_ini" 2>/dev/null || true
+                    sed -i "s/^FullScreenDisplayMode=.*/FullScreenDisplayMode=${max_dm}/" "$re_ini" 2>/dev/null || true
+                fi
+            fi
+            echo "[+] RE Engine optimizado: Pantalla completa forzada, renderizado progresivo 3D y distorsión eliminada."
         fi
     done
 
     # 3. ROCKSTAR GAMES (GTA V, GTA IV, Max Payne 3, etc.)
     local rsg_dir="$HOME/Documentos/Rockstar Games"
     [ ! -d "$rsg_dir" ] && rsg_dir="${WINEPREFIX}/drive_c/users/${USER}/Documents/Rockstar Games"
-    if [ -d "$rsg_dir" ]; then
-        find "$rsg_dir" -name "settings.xml" 2>/dev/null | while read -r sxml; do
-            if grep -q '<ScreenWidth value="0"' "$sxml" 2>/dev/null || ! grep -q '<ScreenWidth' "$sxml" 2>/dev/null; then
+    local rsg_dirs=("$rsg_dir")
+    [ -d "$TARGET_DIR" ] && rsg_dirs+=("$TARGET_DIR")
+    for r_dir in "${rsg_dirs[@]}"; do
+        if [ -d "$r_dir" ]; then
+            find "$r_dir" -maxdepth 3 -name "settings.xml" 2>/dev/null | while read -r sxml; do
                 sed -i "s/<ScreenWidth value=\"[0-9]*\"/<ScreenWidth value=\"${best_w}\"/" "$sxml" 2>/dev/null || true
                 sed -i "s/<ScreenHeight value=\"[0-9]*\"/<ScreenHeight value=\"${best_h}\"/" "$sxml" 2>/dev/null || true
-            fi
-            sed -i 's/<VSync value="[0-9]*"/<VSync value="0"/' "$sxml" 2>/dev/null || true
-            sed -i 's/<Windowed value="[0-9]*"/<Windowed value="2"/' "$sxml" 2>/dev/null || true
-            sed -i 's/<PauseOnFocusLoss value="[0-9]*"/<PauseOnFocusLoss value="0"/' "$sxml" 2>/dev/null || true
-            sed -i 's/<AspectRatio value="[0-9]*"/<AspectRatio value="0"/' "$sxml" 2>/dev/null || true
-            sed -i 's/<AnisotropicFiltering value="[0-9]*"/<AnisotropicFiltering value="16"/' "$sxml" 2>/dev/null || true
-            sed -i 's/<FXAA_Enabled value="false"/<FXAA_Enabled value="true"/' "$sxml" 2>/dev/null || true
-            sed -i 's/<LodScale value="0.000000"/<LodScale value="1.000000"/' "$sxml" 2>/dev/null || true
-            sed -i 's/<PedLodBias value="0.000000"/<PedLodBias value="0.200000"/' "$sxml" 2>/dev/null || true
-            sed -i 's/<VehicleLodBias value="0.000000"/<VehicleLodBias value="0.200000"/' "$sxml" 2>/dev/null || true
-            if [ -n "$GPU_NAME" ]; then
-                sed -i "s|<VideoCardDescription>.*</VideoCardDescription>|<VideoCardDescription>${GPU_NAME}</VideoCardDescription>|" "$sxml" 2>/dev/null || true
-            fi
-        done
-    fi
+                # Windowed 0 = Pantalla Completa Exclusiva Real
+                sed -i 's/<Windowed value="[0-9]*"/<Windowed value="0"/' "$sxml" 2>/dev/null || true
+                sed -i 's/<VSync value="[0-9]*"/<VSync value="0"/' "$sxml" 2>/dev/null || true
+                sed -i 's/<PauseOnFocusLoss value="[0-9]*"/<PauseOnFocusLoss value="0"/' "$sxml" 2>/dev/null || true
+                sed -i 's/<AspectRatio value="[0-9]*"/<AspectRatio value="0"/' "$sxml" 2>/dev/null || true
+                sed -i 's/<AnisotropicFiltering value="[0-9]*"/<AnisotropicFiltering value="16"/' "$sxml" 2>/dev/null || true
+                sed -i 's/<FXAA_Enabled value="false"/<FXAA_Enabled value="true"/' "$sxml" 2>/dev/null || true
+                sed -i 's/<LodScale value="0.000000"/<LodScale value="1.000000"/' "$sxml" 2>/dev/null || true
+                sed -i 's/<PedLodBias value="0.000000"/<PedLodBias value="0.200000"/' "$sxml" 2>/dev/null || true
+                sed -i 's/<VehicleLodBias value="0.000000"/<VehicleLodBias value="0.200000"/' "$sxml" 2>/dev/null || true
+                if [ -n "$GPU_NAME" ]; then
+                    sed -i "s|<VideoCardDescription>.*</VideoCardDescription>|<VideoCardDescription>${GPU_NAME}</VideoCardDescription>|" "$sxml" 2>/dev/null || true
+                fi
+            done
+        fi
+    done
 
     # 3.1 OPTIMIZACIÓN ESPECÍFICA GTA V (Carga rápida sin cuelgues ni saturación de hilos)
     if [[ "$TARGET_FILE" =~ (GTA5|PlayGTAV|gta5) ]]; then
@@ -359,8 +390,11 @@ EOF
             grep -q '^-StraightIntoFreemode' "$gta_cmdline" || echo "-StraightIntoFreemode" >> "$gta_cmdline"
             grep -q '^-scOfflineOnly' "$gta_cmdline" || echo "-scOfflineOnly" >> "$gta_cmdline"
             grep -q '^-novsync' "$gta_cmdline" || echo "-novsync" >> "$gta_cmdline"
+            grep -q '^-fullscreen' "$gta_cmdline" || echo "-fullscreen" >> "$gta_cmdline"
+            grep -q '^-width' "$gta_cmdline" || echo "-width ${best_w}" >> "$gta_cmdline"
+            grep -q '^-height' "$gta_cmdline" || echo "-height ${best_h}" >> "$gta_cmdline"
             grep -q '^-disablespecular' "$gta_cmdline" || echo "-disablespecular" >> "$gta_cmdline"
-            echo "[+] Archivo commandline.txt de GTA V optimizado (Carga inmediata sin bloqueos de render thread)."
+            echo "[+] Archivo commandline.txt de GTA V optimizado (Pantalla completa y carga inmediata)."
         fi
     fi
 
@@ -370,19 +404,33 @@ EOF
         find "${WINEPREFIX}/drive_c/users" -name "gta_sa.set" -delete 2>/dev/null || true
         rm -f "$HOME/Documentos/GTA San Andreas User Files/gta_sa.set" 2>/dev/null || true
         rm -f "$HOME/Documents/GTA San Andreas User Files/gta_sa.set" 2>/dev/null || true
+        # Configurar Widescreen Fix para pantalla completa y aspecto perfecto
+        find "$TARGET_DIR" -iname "GTASA.WidescreenFix.ini" 2>/dev/null | while read -r wf_ini; do
+            sed -i "s/^ResX = .*/ResX = ${best_w}/" "$wf_ini" 2>/dev/null || true
+            sed -i "s/^ResY = .*/ResY = ${best_h}/" "$wf_ini" 2>/dev/null || true
+            sed -i "s/^ForceAspectRatio = .*/ForceAspectRatio = auto/" "$wf_ini" 2>/dev/null || true
+        done
+        # Si existe el plugin de modo ventana con borde, desactivar borde o renombrar para pantalla completa real
+        find "$TARGET_DIR" -iname "III.VC.SA.WindowedMode.ini" 2>/dev/null | while read -r wm_ini; do
+            sed -i "s/^ShowBorder = .*/ShowBorder = 0/" "$wm_ini" 2>/dev/null || true
+        done
+        find "$TARGET_DIR" -iname "III.VC.SA.WindowedMode.asi" 2>/dev/null | while read -r wm_asi; do
+            mv "$wm_asi" "${wm_asi}.disabled" 2>/dev/null || true
+        done
         # Desactivar GLThread para evitar fallos de renderizado en D3D9 con mods CLEO/ModLoader
         export mesa_glthread=false
         # Asegurar overrides esenciales para ASI Loader y librerías de sonido
         export WINEDLLOVERRIDES="vorbisfile=n,b;vorbishooked=n,b;dinput8=n,b;d3d9=n,b;${WINEDLLOVERRIDES}"
-        echo "[+] GTA San Andreas optimizado: Configuración de monitor limpia y ASI Loader asegurado."
+        echo "[+] GTA San Andreas optimizado: Pantalla completa nativa (${best_res}) y aspecto 3D corregido."
     fi
 
-    # 4. UNREAL ENGINE 1/2/2.5 (SWAT 4, Deus Ex, Bioshock, etc.)
+    # 4. UNREAL ENGINE 1/2/2.5/3/4 (SWAT 4, Deus Ex, Bioshock, etc.)
     local target_system_dir="$TARGET_DIR"
     [ -d "${TARGET_DIR}/System" ] && target_system_dir="${TARGET_DIR}/System"
     [ -d "${TARGET_DIR}/Content/System" ] && target_system_dir="${TARGET_DIR}/Content/System"
-    find "$target_system_dir" -maxdepth 1 -name "*.ini" 2>/dev/null | while read -r ueini; do
+    find "$target_system_dir" -maxdepth 2 -name "*.ini" 2>/dev/null | while read -r ueini; do
         if grep -q "\[WinDrv.WindowsClient\]" "$ueini" 2>/dev/null; then
+            sed -i 's/^StartupFullscreen=False/StartupFullscreen=True/' "$ueini" 2>/dev/null || true
             sed -i "s/^FullscreenViewportX=[0-9]*/FullscreenViewportX=${best_w}/" "$ueini" 2>/dev/null || true
             sed -i "s/^FullscreenViewportY=[0-9]*/FullscreenViewportY=${best_h}/" "$ueini" 2>/dev/null || true
             sed -i "s/^WindowedViewportX=[0-9]*/WindowedViewportX=${best_w}/" "$ueini" 2>/dev/null || true
@@ -395,6 +443,24 @@ EOF
             sed -i 's/^Use16bitTextures=True/Use16bitTextures=False/' "$ueini" 2>/dev/null || true
             sed -i 's/^ReduceMouseLag=False/ReduceMouseLag=True/' "$ueini" 2>/dev/null || true
         fi
+        if grep -q "\[/Script/Engine.GameUserSettings\]" "$ueini" 2>/dev/null; then
+            sed -i 's/^FullscreenMode=[0-9]*/FullscreenMode=0/' "$ueini" 2>/dev/null || true
+            sed -i 's/^PreferredFullscreenMode=[0-9]*/PreferredFullscreenMode=0/' "$ueini" 2>/dev/null || true
+            sed -i 's/^LastConfirmedFullscreenMode=[0-9]*/LastConfirmedFullscreenMode=0/' "$ueini" 2>/dev/null || true
+            sed -i "s/^ResolutionSizeX=[0-9]*/ResolutionSizeX=${best_w}/" "$ueini" 2>/dev/null || true
+            sed -i "s/^ResolutionSizeY=[0-9]*/ResolutionSizeY=${best_h}/" "$ueini" 2>/dev/null || true
+        fi
+    done
+
+    # 5. CNC-DDRAW / DIRECTDRAW GAMES (Age of Empires II, StarCraft, Red Alert 2, etc.)
+    find "$TARGET_DIR" -maxdepth 2 -iname "ddraw.ini" 2>/dev/null | while read -r ddini; do
+        sed -i 's/^fullscreen=.*/fullscreen=true/' "$ddini" 2>/dev/null || true
+        sed -i 's/^windowed=.*/windowed=false/' "$ddini" 2>/dev/null || true
+        sed -i "s/^width=.*/width=${best_w}/" "$ddini" 2>/dev/null || true
+        sed -i "s/^height=.*/height=${best_h}/" "$ddini" 2>/dev/null || true
+        sed -i 's/^boxing=.*/boxing=false/' "$ddini" 2>/dev/null || true
+        sed -i 's/^maintas=.*/maintas=false/' "$ddini" 2>/dev/null || true
+        echo "[+] DirectDraw / cnc-ddraw configurado en pantalla completa nativa (${best_res})."
     done
 }
 auto_optimizar_juegos_3d
@@ -437,8 +503,43 @@ if [ ${#MODS_ACTIVADOS[@]} -gt 0 ] || [ "$CANT_ASI" -gt 0 ]; then
     [ "$CANT_ASI" -gt 0 ] && echo "    - Plugins ASI / Scripts: ${CANT_ASI} archivo(s) detectado(s)"
 fi
 
+# Argumentos de pantalla completa y resolución adaptativa según el motor del juego
+if [[ ! "$TARGET_FILE" =~ ([Gg]ame[Rr]anger|winecfg|regedit|cmd|notepad) ]]; then
+    # Unity Engine (ej. *_Data o UnityPlayer.dll)
+    if [ -d "${TARGET_DIR}/${TARGET_FILE%.*}_Data" ] || [ -f "${TARGET_DIR}/UnityPlayer.dll" ]; then
+        EXTRA_APP_ARGS="${EXTRA_APP_ARGS} -screen-fullscreen 1 -screen-width ${best_w} -screen-height ${best_h}"
+    # Source Engine (Half-Life 2, L4D, Portal, etc.)
+    elif [ -f "${TARGET_DIR}/tier0.dll" ] || [ -f "${TARGET_DIR}/bin/tier0.dll" ]; then
+        EXTRA_APP_ARGS="${EXTRA_APP_ARGS} -fullscreen -w ${best_w} -h ${best_h}"
+    # Unreal Engine 3/4
+    elif [ -d "${TARGET_DIR}/Engine" ] || [ -d "${TARGET_DIR}/Binaries" ]; then
+        EXTRA_APP_ARGS="${EXTRA_APP_ARGS} -fullscreen"
+    fi
+fi
+
+# Guardián en segundo plano para asegurar pantalla completa universal al detectar la ventana
+WATCHDOG_PID=""
+if [[ ! "$TARGET_FILE" =~ ([Gg]ame[Rr]anger|winecfg|regedit|cmd|notepad) ]]; then
+    (
+        for i in $(seq 1 30); do
+            sleep 0.5
+            if command -v wmctrl &>/dev/null; then
+                wmctrl -l 2>/dev/null | grep -iE 'Wine|Resident|Grand Theft|GTA|SWAT|Age of Empires|BioShock|Unreal|Speed|NFS' | grep -viE 'GameRanger|Winecfg|Error|Debug' | while read -r wid rest; do
+                    wmctrl -i -r "$wid" -b add,fullscreen 2>/dev/null || true
+                done
+            elif command -v xwininfo &>/dev/null && command -v xprop &>/dev/null; then
+                xwininfo -root -tree 2>/dev/null | grep -iE '("Resident Evil|"GTA|"Grand Theft|"Swat|"PlayGTAV|"BH6|"re4|"Age of Empires|"Wine)' | grep -viE 'GameRanger|Winecfg' | grep -oE '0x[0-9a-fA-F]+' | head -n 3 | while read -r wid; do
+                    xprop -id "$wid" -f _NET_WM_STATE 32a -set _NET_WM_STATE _NET_WM_STATE_FULLSCREEN 2>/dev/null || true
+                done
+            fi
+        done
+    ) &
+    WATCHDOG_PID=$!
+fi
+
 # Función para limpiar procesos en caso de interrupción del usuario (Ctrl+C o terminal cerrada)
 limpiar_procesos_al_interrumpir() {
+    [ -n "$WATCHDOG_PID" ] && kill "$WATCHDOG_PID" 2>/dev/null || true
     wineserver -k 2>/dev/null || true
 }
 trap limpiar_procesos_al_interrumpir INT TERM
@@ -463,6 +564,9 @@ else
     fi
 fi
 EXIT_STATUS=$?
+
+# Terminar vigilante de pantalla completa si sigue activo
+[ -n "$WATCHDOG_PID" ] && kill "$WATCHDOG_PID" 2>/dev/null || true
 
 # Esperar sincronización limpia de los subprocesos de Wine sin matarlos abruptamente
 wineserver -w 2>/dev/null || true

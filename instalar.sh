@@ -220,7 +220,7 @@ case "$DISTRO_DETECTED" in
             sudo dpkg --add-architecture i386 2>/dev/null || true
         fi
         sudo apt-get update -y 2>/dev/null || true
-        sudo apt-get install -y wine wine32:i386 wine64 winetricks cabextract curl git p7zip-full mesa-utils vulkan-tools zenity python3 wine-gecko wine-mono 2>/dev/null || sudo apt-get install -y wine winetricks cabextract curl git p7zip-full zenity python3 2>/dev/null || true
+        sudo apt-get install -y wine wine32:i386 wine64 winetricks cabextract curl git p7zip-full mesa-utils vulkan-tools zenity python3 wine-gecko wine-mono wmctrl xdotool 2>/dev/null || sudo apt-get install -y wine winetricks cabextract curl git p7zip-full zenity python3 wmctrl xdotool 2>/dev/null || true
         sudo apt-get install -y libvulkan1 libvulkan1:i386 mesa-vulkan-drivers mesa-vulkan-drivers:i386 libgl1-mesa-dri:i386 libgl1:i386 2>/dev/null || true
         sudo apt-get install -y gamemode libgamemode0:i386 2>/dev/null || sudo apt-get install -y gamemode 2>/dev/null || true
         if lspci 2>/dev/null | grep -qi "nvidia"; then
@@ -239,7 +239,7 @@ case "$DISTRO_DETECTED" in
             sudo dpkg --add-architecture i386 2>/dev/null || true
         fi
         sudo apt-get update -y 2>/dev/null || true
-        sudo apt-get install -y wine wine32:i386 wine64 winetricks cabextract curl git p7zip-full mesa-utils vulkan-tools zenity python3 wine-gecko wine-mono 2>/dev/null || sudo apt-get install -y wine winetricks cabextract curl git p7zip-full zenity python3 2>/dev/null || true
+        sudo apt-get install -y wine wine32:i386 wine64 winetricks cabextract curl git p7zip-full mesa-utils vulkan-tools zenity python3 wine-gecko wine-mono wmctrl xdotool 2>/dev/null || sudo apt-get install -y wine winetricks cabextract curl git p7zip-full zenity python3 wmctrl xdotool 2>/dev/null || true
         sudo apt-get install -y libvulkan1 libvulkan1:i386 mesa-vulkan-drivers mesa-vulkan-drivers:i386 libgl1-mesa-dri:i386 libgl1:i386 mangohud gamemode libgamemode0:i386 2>/dev/null || true
         if lspci 2>/dev/null | grep -qi "nvidia"; then
             echo -e "${C_CYAN}  🎮 GPU NVIDIA detectada: Asegurando controladores y librerías de 32 bits...${C_RESET}"
@@ -262,7 +262,7 @@ case "$DISTRO_DETECTED" in
             sudo sed -i '/^#\[multilib\]/{s/^#//;n;s/^#//}' /etc/pacman.conf 2>/dev/null || true
             sudo pacman -Sy --noconfirm 2>/dev/null || true
         fi
-        sudo pacman -S --needed --noconfirm wine winetricks gamemode lib32-gamemode cabextract curl git p7zip mesa-utils vulkan-tools zenity python wine-gecko wine-mono 2>/dev/null || sudo pacman -S --needed --noconfirm wine winetricks gamemode cabextract curl git p7zip mesa-utils vulkan-tools zenity python 2>/dev/null || true
+        sudo pacman -S --needed --noconfirm wine winetricks gamemode lib32-gamemode cabextract curl git p7zip mesa-utils vulkan-tools zenity python wine-gecko wine-mono wmctrl xdotool 2>/dev/null || sudo pacman -S --needed --noconfirm wine winetricks gamemode cabextract curl git p7zip mesa-utils vulkan-tools zenity python wmctrl xdotool 2>/dev/null || true
         sudo pacman -S --needed --noconfirm vulkan-icd-loader lib32-vulkan-icd-loader lib32-mesa lib32-libglvnd mangohud lib32-mangohud lib32-vkd3d 2>/dev/null || true
         if lspci 2>/dev/null | grep -qiE "amd|radeon"; then
             echo -e "${C_CYAN}  🎮 GPU AMD detectada: Instalando controladores RADV Vulkan (32 y 64 bits)...${C_RESET}"
@@ -280,7 +280,7 @@ case "$DISTRO_DETECTED" in
     fedora)
         echo -e "${C_CYAN}  ⚙️ Configurando Fedora / Nobara...${C_RESET}"
         # 1. Paquetes base esenciales (100% oficiales y disponibles en Fedora)
-        sudo dnf install -y wine winetricks gamemode cabextract curl git p7zip p7zip-plugins vulkan-tools glx-utils zenity python3 wine-gecko wine-mono 2>/dev/null || sudo dnf install -y wine winetricks gamemode cabextract curl git p7zip vulkan-tools zenity python3 2>/dev/null || true
+        sudo dnf install -y wine winetricks gamemode cabextract curl git p7zip p7zip-plugins vulkan-tools glx-utils zenity python3 wine-gecko wine-mono wmctrl xdotool 2>/dev/null || sudo dnf install -y wine winetricks gamemode cabextract curl git p7zip vulkan-tools zenity python3 wmctrl xdotool 2>/dev/null || true
 
         # 2. Soporte para juegos y ejecutables de 32 bits (Wine multiarch)
         sudo dnf install -y wine.i686 2>/dev/null || sudo dnf install -y wine-core.i686 2>/dev/null || true
@@ -315,7 +315,7 @@ case "$DISTRO_DETECTED" in
         ;;
     opensuse)
         echo -e "${C_CYAN}  ⚙️ Configurando openSUSE...${C_RESET}"
-        sudo zypper --non-interactive --auto-agree-with-licenses install wine wine-32bit winetricks gamemode gamemode-32bit cabextract curl git p7zip mesa-utils vulkan-tools zenity python3 wine-gecko wine-mono 2>/dev/null || sudo zypper --non-interactive --auto-agree-with-licenses install wine winetricks gamemode cabextract curl git p7zip mesa-utils vulkan-tools zenity python3 2>/dev/null || true
+        sudo zypper --non-interactive --auto-agree-with-licenses install wine wine-32bit winetricks gamemode gamemode-32bit cabextract curl git p7zip mesa-utils vulkan-tools zenity python3 wine-gecko wine-mono wmctrl xdotool 2>/dev/null || sudo zypper --non-interactive --auto-agree-with-licenses install wine winetricks gamemode cabextract curl git p7zip mesa-utils vulkan-tools zenity python3 wmctrl xdotool 2>/dev/null || true
         sudo zypper --non-interactive --auto-agree-with-licenses install libvulkan1 libvulkan1-32bit Mesa-dri-32bit libglvnd-32bit mangohud mangohud-32bit 2>/dev/null || true
         if lspci 2>/dev/null | grep -qiE "amd|radeon"; then
             echo -e "${C_CYAN}  🎮 GPU AMD detectada: Instalando controladores RADV Vulkan...${C_RESET}"
@@ -330,13 +330,13 @@ case "$DISTRO_DETECTED" in
         echo -e "${C_YELLOW}  ⚠️ Distribución genérica detectada. Verificando comandos estándar...${C_RESET}"
         if command -v apt-get &>/dev/null; then
             sudo apt-get update -y 2>/dev/null || true
-            sudo apt-get install -y wine winetricks gamemode cabextract curl p7zip-full zenity python3 2>/dev/null || true
+            sudo apt-get install -y wine winetricks gamemode cabextract curl p7zip-full zenity python3 wmctrl xdotool 2>/dev/null || true
         elif command -v pacman &>/dev/null; then
-            sudo pacman -S --needed --noconfirm wine winetricks gamemode cabextract curl p7zip zenity python 2>/dev/null || true
+            sudo pacman -S --needed --noconfirm wine winetricks gamemode cabextract curl p7zip zenity python wmctrl xdotool 2>/dev/null || true
         elif command -v dnf &>/dev/null; then
-            sudo dnf install -y --skip-broken wine winetricks gamemode cabextract curl p7zip zenity python3 2>/dev/null || true
+            sudo dnf install -y --skip-broken wine winetricks gamemode cabextract curl p7zip zenity python3 wmctrl xdotool 2>/dev/null || true
         elif command -v zypper &>/dev/null; then
-            sudo zypper --non-interactive --auto-agree-with-licenses install wine winetricks gamemode cabextract curl p7zip zenity python3 2>/dev/null || true
+            sudo zypper --non-interactive --auto-agree-with-licenses install wine winetricks gamemode cabextract curl p7zip zenity python3 wmctrl xdotool 2>/dev/null || true
         fi
         ;;
 esac

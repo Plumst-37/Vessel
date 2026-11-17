@@ -56,14 +56,13 @@ dxvk.allowFse = True
 d3d9.invariantPosition = True
 d3d11.invariantPosition = True
 d3d9.longMad = True
-d3d9.floatEmulation = Strict
+d3d9.floatEmulation = Auto
 d3d9.clampNegativeLodBias = True
 d3d11.clampNegativeLodBias = True
 d3d9.samplerAnisotropy = 16
 d3d11.samplerAnisotropy = 16
-d3d11.maxTessFactor = 16
 d3d11.constantBufferRangeCheck = True
-d3d9.lenientClear = False
+d3d9.lenientClear = True
 d3d9.maxAvailableMemory = 4096
 
 # Modo Mailbox Present (Triple Buffering Tear-Free de Ultra-Baja Latencia)
@@ -80,32 +79,64 @@ dxgi.maxFrameLatency = 1
 # Optimizaciones de memoria y pipelines DXVK 2.6
 dxvk.trackPipelineLifetime = True
 d3d9.memoryTrackTest = False
-d3d9.shaderModel = 3
 
-# Perfiles específicos por ejecutable para máxima estabilidad y rendimiento
+# Perfiles específicos por ejecutable para máxima fidelidad 3D, estabilidad y rendimiento
 [GTA5.exe]
-d3d11.maxTessFactor = 16
 dxgi.maxFrameLatency = 1
 d3d11.clampNegativeLodBias = True
 d3d11.constantBufferRangeCheck = True
 dxvk.enableAsync = true
 dxvk.gpl = True
+dxvk.allowFse = True
 
 [PlayGTAV.exe]
-d3d11.maxTessFactor = 16
 dxgi.maxFrameLatency = 1
 d3d11.clampNegativeLodBias = True
 d3d11.constantBufferRangeCheck = True
 dxvk.enableAsync = true
 dxvk.gpl = True
+dxvk.allowFse = True
 
 [BH6.exe]
 d3d9.invariantPosition = True
 d3d9.longMad = True
-d3d9.floatEmulation = Strict
+d3d9.floatEmulation = Auto
 d3d9.clampNegativeLodBias = True
 d3d9.samplerAnisotropy = 16
-d3d9.lenientClear = False
+d3d9.lenientClear = True
+dxvk.allowFse = True
+
+[re4.exe]
+dxgi.syncInterval = 0
+dxgi.maxFrameLatency = 1
+d3d11.constantBufferRangeCheck = True
+dxvk.allowFse = True
+dxvk.enableAsync = true
+dxvk.gpl = True
+
+[re4_original.exe]
+dxgi.syncInterval = 0
+dxgi.maxFrameLatency = 1
+d3d11.constantBufferRangeCheck = True
+dxvk.allowFse = True
+dxvk.enableAsync = true
+dxvk.gpl = True
+
+[gta_sa.exe]
+d3d9.invariantPosition = True
+d3d9.longMad = True
+d3d9.floatEmulation = Auto
+d3d9.clampNegativeLodBias = True
+d3d9.samplerAnisotropy = 16
+dxvk.allowFse = True
+
+[Swat4.exe]
+d3d9.invariantPosition = True
+d3d9.longMad = True
+d3d9.floatEmulation = Auto
+d3d9.clampNegativeLodBias = True
+d3d9.samplerAnisotropy = 16
+dxvk.allowFse = True
 
 # GameRanger: cliente de lobby 2D / chat con Chromium CEF y ANGLE
 # Evita fallos de swapchains Vulkan (VK_ERROR_OUT_OF_HOST_MEMORY) en subventanas de CEF
