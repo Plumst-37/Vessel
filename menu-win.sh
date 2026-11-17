@@ -1599,16 +1599,35 @@ ejecutar_descarga_e_instalacion_automatica() {
             ;;
         fedora)
             echo -e "${C_CYAN}  ⚙️ Configurando Fedora / Nobara...${C_RESET}"
-            sudo dnf install -y --skip-broken wine wine.i686 winetricks gamemode gamemode.i686 cabextract curl p7zip p7zip-plugins mesa-demos vulkan-tools zenity python3 2>/dev/null || sudo dnf install -y --skip-broken wine winetricks gamemode cabextract curl p7zip mesa-demos vulkan-tools zenity python3 2>/dev/null || true
-            sudo dnf install -y --skip-broken vulkan-loader vulkan-loader.i686 mesa-vulkan-drivers mesa-vulkan-drivers.i686 mangohud mangohud.i686 vkd3d vkd3d.i686 2>/dev/null || true
+            # 1. Paquetes base esenciales (100% oficiales y disponibles en Fedora)
+            sudo dnf install -y wine winetricks gamemode cabextract curl p7zip p7zip-plugins vulkan-tools glx-utils zenity python3 2>/dev/null || sudo dnf install -y wine winetricks gamemode cabextract curl p7zip vulkan-tools zenity python3 2>/dev/null || true
+
+            # 2. Soporte para juegos y ejecutables de 32 bits (Wine multiarch)
+            sudo dnf install -y wine.i686 2>/dev/null || sudo dnf install -y wine-core.i686 2>/dev/null || true
+
+            # 3. Controladores Vulkan (64 bits y 32 bits para juegos)
+            sudo dnf install -y vulkan-loader mesa-vulkan-drivers 2>/dev/null || true
+            sudo dnf install -y vulkan-loader.i686 mesa-vulkan-drivers.i686 2>/dev/null || true
+
+            # 4. Herramientas complementarias (MangoHud y VKD3D)
+            sudo dnf install -y mangohud vkd3d 2>/dev/null || true
+            sudo dnf install -y mangohud.i686 2>/dev/null || true
+
+            # 5. Detección y aceleración por GPU
             if lspci 2>/dev/null | grep -qiE "amd|radeon"; then
-                echo -e "${C_CYAN}  🎮 GPU AMD detectada: Instalando controladores de aceleración VA-API...${C_RESET}"
-                sudo dnf install -y --skip-broken mesa-va-drivers mesa-va-drivers.i686 mesa-vdpau-drivers mesa-vdpau-drivers.i686 2>/dev/null || true
+                echo -e "${C_CYAN}  🎮 GPU AMD detectada: Instalando aceleración VA-API...${C_RESET}"
+                sudo dnf install -y mesa-va-drivers mesa-va-drivers.i686 2>/dev/null || sudo dnf install -y mesa-va-drivers 2>/dev/null || true
+            elif lspci 2>/dev/null | grep -qi "intel"; then
+                echo -e "${C_CYAN}  🎮 Gráficos Intel detectados: Instalando aceleración multimedia...${C_RESET}"
+                sudo dnf install -y intel-media-driver 2>/dev/null || true
             elif lspci 2>/dev/null | grep -qi "nvidia"; then
-                echo -e "${C_CYAN}  🎮 GPU NVIDIA detectada: Instalando librerías 32-bit (RPM Fusion)...${C_RESET}"
-                sudo dnf install -y --skip-broken xorg-x11-drv-nvidia-libs.i686 2>/dev/null || true
+                echo -e "${C_CYAN}  🎮 GPU NVIDIA detectada: Asegurando librerías 32 bits (RPM Fusion)...${C_RESET}"
+                sudo dnf install -y xorg-x11-drv-nvidia-libs.i686 2>/dev/null || true
             fi
-            sudo dnf install -y --skip-broken gstreamer1-plugins-ugly.i686 gstreamer1-plugins-bad-free.i686 2>/dev/null || true
+
+            # 6. Decodificadores multimedia GStreamer
+            sudo dnf install -y gstreamer1-plugins-base.i686 gstreamer1-plugins-good.i686 2>/dev/null || true
+            sudo dnf install -y gstreamer1-plugins-ugly.i686 gstreamer1-plugins-bad-free.i686 2>/dev/null || true
             ;;
         opensuse)
             echo -e "${C_CYAN}  ⚙️ Configurando openSUSE...${C_RESET}"
