@@ -51,11 +51,21 @@ if [ ! -f "$TARGET" ] && [[ "$TARGET" =~ [Gg]ame[Rr]anger ]]; then
     FOUND_GR=$(find "${DIR}" "${WINEPREFIX}/drive_c" -name "GameRanger.exe" 2>/dev/null | head -n 1)
     if [ -n "$FOUND_GR" ] && [ -f "$FOUND_GR" ]; then
         TARGET="$FOUND_GR"
+    elif [ -f "${DIR}/GameRanger/GameRanger.exe" ]; then
+        TARGET="${DIR}/GameRanger/GameRanger.exe"
     elif [ -f "${DIR}/GameRangerSetup.exe" ]; then
         echo "[*] GameRanger no encontrado en este equipo. Ejecutando instalador predeterminado..."
-        wine "${DIR}/GameRangerSetup.exe" 2>/dev/null || true
+        WINEPREFIX="${WINEPREFIX}" WINEDLLOVERRIDES="winemenubuilder.exe=d;dxgi=b;d3d11=b;d3d10core=b;d3d9=b;" wine "${DIR}/GameRangerSetup.exe" 2>/dev/null || true
         FOUND_GR=$(find "${WINEPREFIX}/drive_c" -name "GameRanger.exe" 2>/dev/null | head -n 1)
         [ -n "$FOUND_GR" ] && TARGET="$FOUND_GR"
+    elif command -v curl &>/dev/null; then
+        echo "[*] Descargando GameRanger oficial..."
+        curl -fsSL https://www.gameranger.com/download/GameRangerSetup.exe -o "${DIR}/GameRangerSetup.exe" 2>/dev/null || true
+        if [ -f "${DIR}/GameRangerSetup.exe" ]; then
+            WINEPREFIX="${WINEPREFIX}" WINEDLLOVERRIDES="winemenubuilder.exe=d;dxgi=b;d3d11=b;d3d10core=b;d3d9=b;" wine "${DIR}/GameRangerSetup.exe" 2>/dev/null || true
+            FOUND_GR=$(find "${WINEPREFIX}/drive_c" -name "GameRanger.exe" 2>/dev/null | head -n 1)
+            [ -n "$FOUND_GR" ] && TARGET="$FOUND_GR"
+        fi
     fi
 fi
 
@@ -380,11 +390,11 @@ if [ ${#MODS_ACTIVADOS[@]} -gt 0 ] || [ "$CANT_ASI" -gt 0 ]; then
     [ "$CANT_ASI" -gt 0 ] && echo "    - Plugins ASI / Scripts: ${CANT_ASI} archivo(s) detectado(s)"
 fi
 
-# Función para limpiar procesos colgados al cerrar la ventana con [X] o Ctrl+C
-limpiar_procesos_al_salir() {
+# Función para limpiar procesos en caso de interrupción del usuario (Ctrl+C o terminal cerrada)
+limpiar_procesos_al_interrumpir() {
     wineserver -k 2>/dev/null || true
 }
-trap limpiar_procesos_al_salir EXIT INT TERM
+trap limpiar_procesos_al_interrumpir INT TERM
 
 # Sincronizar buffers de disco y optimizar prioridad de proceso
 sync 2>/dev/null || true
@@ -407,5 +417,6 @@ else
 fi
 EXIT_STATUS=$?
 
-limpiar_procesos_al_salir
+# Esperar sincronización limpia de los subprocesos de Wine sin matarlos abruptamente
+wineserver -w 2>/dev/null || true
 exit $EXIT_STATUS

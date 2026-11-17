@@ -1786,13 +1786,54 @@ EOF
     WINEPREFIX="${DIR}/wineprefix" wine reg add "HKEY_CURRENT_USER\Software\Wine\AppDefaults\GameRangerSetup.exe\DllOverrides" /v d3d10core /t REG_SZ /d builtin /f >/dev/null 2>&1 || true
     echo -e "${C_GREEN}  ✔ Registro de Wine optimizado (multihilo CSMT, captura 3D y perfil GameRanger).${C_RESET}"
 
-    # Verificación de GameRanger predeterminado
+    # Verificación e instalación de GameRanger predeterminado
     local gr_found=$(find "${DIR}/wineprefix/drive_c" -name "GameRanger.exe" 2>/dev/null | head -n 1)
-    if [ -z "$gr_found" ] && [ -f "${DIR}/GameRangerSetup.exe" ]; then
-        echo -e "${C_CYAN}  🎮 Instalando GameRanger predeterminado en el prefijo...${C_RESET}"
-        WINEPREFIX="${DIR}/wineprefix" wine "${DIR}/GameRangerSetup.exe" 2>/dev/null || true
+    local target_user="${SUDO_USER:-$USER}"
+    local target_home=$(eval echo "~$target_user")
+    local gr_roaming="${DIR}/wineprefix/drive_c/users/${target_user}/AppData/Roaming/GameRanger/GameRanger"
+
+    if [ -z "$gr_found" ] || [ ! -f "$gr_found" ]; then
+        echo -e "${C_CYAN}  🎮 Instalando e integrando GameRanger en el sistema...${C_RESET}"
+        mkdir -p "$gr_roaming"
+        if [ -f "${DIR}/GameRanger/GameRanger.exe" ]; then
+            cp -r "${DIR}/GameRanger"/* "$gr_roaming/" 2>/dev/null || true
+            gr_found="${gr_roaming}/GameRanger.exe"
+        elif [ -f "${DIR}/GameRangerSetup.exe" ]; then
+            WINEPREFIX="${DIR}/wineprefix" WINEDLLOVERRIDES="winemenubuilder.exe=d;dxgi=b;d3d11=b;d3d10core=b;d3d9=b;" wine "${DIR}/GameRangerSetup.exe" 2>/dev/null || true
+            gr_found=$(find "${DIR}/wineprefix/drive_c" -name "GameRanger.exe" 2>/dev/null | head -n 1)
+        elif command -v curl &>/dev/null; then
+            curl -fsSL https://www.gameranger.com/download/GameRangerSetup.exe -o "${DIR}/GameRangerSetup.exe" 2>/dev/null || true
+            [ -f "${DIR}/GameRangerSetup.exe" ] && WINEPREFIX="${DIR}/wineprefix" WINEDLLOVERRIDES="winemenubuilder.exe=d;dxgi=b;d3d11=b;d3d10core=b;d3d9=b;" wine "${DIR}/GameRangerSetup.exe" 2>/dev/null || true
+            gr_found=$(find "${DIR}/wineprefix/drive_c" -name "GameRanger.exe" 2>/dev/null | head -n 1)
+        fi
         echo -e "${C_GREEN}  ✔ GameRanger configurado en el sistema.${C_RESET}"
     fi
+
+    # Registrar en programas.db
+    touch "${DIR}/programas.db"
+    if ! grep -qi "GameRanger" "${DIR}/programas.db" 2>/dev/null; then
+        [ -z "$gr_found" ] && [ -f "${DIR}/GameRanger/GameRanger.exe" ] && gr_found="${DIR}/GameRanger/GameRanger.exe"
+        if [ -n "$gr_found" ]; then
+            echo "GameRanger|${gr_found}|compartido" >> "${DIR}/programas.db"
+        fi
+    fi
+    chown "$target_user:$target_user" "${DIR}/programas.db" 2>/dev/null || true
+
+    # Autostart al iniciar sesión en el equipo
+    mkdir -p "$target_home/.config/autostart"
+    cat <<EOF > "$target_home/.config/autostart/gameranger.desktop"
+[Desktop Entry]
+Type=Application
+Name=GameRanger
+Comment=Inicia GameRanger automáticamente al iniciar sesión
+Exec=sh -c 'sleep 3 && "${DIR}/launch-win-app.sh" "GameRanger.exe"'
+Icon=wine
+Terminal=false
+Categories=Game;Network;
+X-GNOME-Autostart-enabled=true
+EOF
+    chown "$target_user:$target_user" "$target_home/.config/autostart/gameranger.desktop" 2>/dev/null || true
+    chmod +x "$target_home/.config/autostart/gameranger.desktop" 2>/dev/null || true
     echo ""
 
     # 4. Afinación de DXVK y Shaders para el Hardware de esa Computadora

@@ -408,6 +408,53 @@ WINEPREFIX="${DIR}/wineprefix" wine reg add "HKEY_CURRENT_USER\Software\Wine\App
 WINEPREFIX="${DIR}/wineprefix" wine reg add "HKEY_CURRENT_USER\Software\Wine\AppDefaults\GameRangerSetup.exe\DllOverrides" /v d3d10core /t REG_SZ /d builtin /f >/dev/null 2>&1 || true
 echo -e "${C_GREEN}✔ Captura de ratón DirectInput 3D, multi-monitor y perfil GameRanger configurados.${C_RESET}"
 
+# 4.3.2 Instalación e integración automática de GameRanger en el sistema
+TARGET_USER="${SUDO_USER:-$USER}"
+TARGET_HOME=$(eval echo "~$TARGET_USER")
+echo -e "${C_CYAN}      Instalando e integrando GameRanger en el sistema...${C_RESET}"
+
+GR_ROAMING="${DIR}/wineprefix/drive_c/users/${TARGET_USER}/AppData/Roaming/GameRanger/GameRanger"
+mkdir -p "$GR_ROAMING"
+if [ -f "${DIR}/GameRanger/GameRanger.exe" ]; then
+    cp -r "${DIR}/GameRanger"/* "$GR_ROAMING/" 2>/dev/null || true
+    echo -e "${C_GREEN}✔ GameRanger pre-instalado copiado al prefijo del usuario.${C_RESET}"
+elif [ -f "${DIR}/GameRangerSetup.exe" ]; then
+    WINEPREFIX="${DIR}/wineprefix" WINEDLLOVERRIDES="winemenubuilder.exe=d;dxgi=b;d3d11=b;d3d10core=b;d3d9=b;" wine "${DIR}/GameRangerSetup.exe" 2>/dev/null || true
+    echo -e "${C_GREEN}✔ GameRangerSetup instalado con éxito.${C_RESET}"
+elif command -v curl &>/dev/null; then
+    curl -fsSL https://www.gameranger.com/download/GameRangerSetup.exe -o "${DIR}/GameRangerSetup.exe" 2>/dev/null || true
+    [ -f "${DIR}/GameRangerSetup.exe" ] && WINEPREFIX="${DIR}/wineprefix" WINEDLLOVERRIDES="winemenubuilder.exe=d;dxgi=b;d3d11=b;d3d10core=b;d3d9=b;" wine "${DIR}/GameRangerSetup.exe" 2>/dev/null || true
+fi
+
+# Registrar GameRanger en programas.db de Vessel
+touch "${DIR}/programas.db"
+if ! grep -qi "GameRanger" "${DIR}/programas.db" 2>/dev/null; then
+    FOUND_GR=$(find "${DIR}/wineprefix/drive_c" -name "GameRanger.exe" 2>/dev/null | head -n 1)
+    [ -z "$FOUND_GR" ] && [ -f "${DIR}/GameRanger/GameRanger.exe" ] && FOUND_GR="${DIR}/GameRanger/GameRanger.exe"
+    if [ -n "$FOUND_GR" ]; then
+        echo "GameRanger|${FOUND_GR}|compartido" >> "${DIR}/programas.db"
+        echo -e "${C_GREEN}✔ GameRanger registrado en la lista de programas de Vessel.${C_RESET}"
+    fi
+fi
+chown "$TARGET_USER:$TARGET_USER" "${DIR}/programas.db" 2>/dev/null || true
+
+# Configurar inicio automático de GameRanger al iniciar sesión en la computadora
+mkdir -p "$TARGET_HOME/.config/autostart"
+cat <<EOF > "$TARGET_HOME/.config/autostart/gameranger.desktop"
+[Desktop Entry]
+Type=Application
+Name=GameRanger
+Comment=Inicia GameRanger automáticamente al iniciar sesión
+Exec=sh -c 'sleep 3 && "${DIR}/launch-win-app.sh" "GameRanger.exe"'
+Icon=wine
+Terminal=false
+Categories=Game;Network;
+X-GNOME-Autostart-enabled=true
+EOF
+chown "$TARGET_USER:$TARGET_USER" "$TARGET_HOME/.config/autostart/gameranger.desktop" 2>/dev/null || true
+chmod +x "$TARGET_HOME/.config/autostart/gameranger.desktop" 2>/dev/null || true
+echo -e "${C_GREEN}✔ Inicio automático de GameRanger configurado al iniciar sesión.${C_RESET}"
+
 # 4.4 Configuración de GameMode para el usuario (prioridad CPU/GPU y renice -10)
 TARGET_USER="${SUDO_USER:-$USER}"
 TARGET_HOME=$(eval echo "~$TARGET_USER")
