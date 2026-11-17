@@ -214,6 +214,11 @@ iniciar_programa() {
             local prog_nombre="${nombres[$seleccion]}"
             local prog_ruta="${rutas[$seleccion]}"
 
+            # Normalizar ruta si es relativa dentro del proyecto
+            if [[ "$prog_ruta" != /* ]] && [ -f "${DIR}/${prog_ruta}" ]; then
+                prog_ruta="${DIR}/${prog_ruta}"
+            fi
+
             echo ""
             echo -e "${C_GREEN}🚀 Iniciando: ${C_BOLD}${prog_nombre}${C_RESET}..."
             echo -e "${C_GRAY}Optimizando para tu ${DETECTED_GPU}...${C_RESET}"

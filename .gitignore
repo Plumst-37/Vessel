@@ -7,6 +7,9 @@ wine-tkg-build/
 # Base de datos local de juegos del usuario
 programas.db
 
+# Carpeta de exportación limpia para GitHub
+Subir Github/
+
 # Archivos temporales y registros
 *.log
 *.tmp

@@ -34,6 +34,22 @@ shift || true
 # 4. Definir la ruta del WINEPREFIX unificado
 export WINEPREFIX="${DIR}/wineprefix"
 
+# 4.0 Normalizar rutas relativas y resolución automática de GameRanger predeterminado
+if [[ "$TARGET" != /* ]] && [ -f "${DIR}/${TARGET}" ]; then
+    TARGET="${DIR}/${TARGET}"
+fi
+if [ ! -f "$TARGET" ] && [[ "$TARGET" =~ [Gg]ame[Rr]anger ]]; then
+    FOUND_GR=$(find "${DIR}" "${WINEPREFIX}/drive_c" -name "GameRanger.exe" 2>/dev/null | head -n 1)
+    if [ -n "$FOUND_GR" ] && [ -f "$FOUND_GR" ]; then
+        TARGET="$FOUND_GR"
+    elif [ -f "${DIR}/GameRangerSetup.exe" ]; then
+        echo "[*] GameRanger no encontrado en este equipo. Ejecutando instalador predeterminado..."
+        wine "${DIR}/GameRangerSetup.exe" 2>/dev/null || true
+        FOUND_GR=$(find "${WINEPREFIX}/drive_c" -name "GameRanger.exe" 2>/dev/null | head -n 1)
+        [ -n "$FOUND_GR" ] && TARGET="$FOUND_GR"
+    fi
+fi
+
 # 4.1 Resolver accesos directos de Windows (.lnk o .ink) al ejecutable real
 if [[ "$TARGET" =~ \.([lL][nN][kK]|[iI][nN][kK])$ ]] && [ -f "$TARGET" ]; then
     echo "[*] Acceso directo detectado: $(basename "$TARGET"). Resolviendo ejecutable real..."
