@@ -19,7 +19,7 @@ touch "$DB_FILE"
 mkdir -p "${DIR}/wineprefix"
 
 # ==============================================================================
-# PALETA DE COLORES ANSI
+# PALETA DE COLORES ANSI Y TEMA VIOLETA NEÓN
 # ==============================================================================
 C_RESET="\033[0m"
 C_BOLD="\033[1m"
@@ -31,6 +31,10 @@ C_MAGENTA="\033[1;35m"
 C_RED="\033[1;31m"
 C_WHITE="\033[1;37m"
 C_GRAY="\033[0;90m"
+C_PURPLE="\033[38;2;224;86;253m"
+C_VIOLET="\033[38;2;168;85;247m"
+C_BG_SELECT="\033[48;2;130;45;235m\033[1;37m"
+C_WIN_CYAN="\033[38;2;0;164;239m"
 
 # ==============================================================================
 # 1. ACTUALIZACIÓN AUTOMÁTICA DESDE GITHUB (AL ABRIR EL PROGRAMA)
@@ -203,25 +207,76 @@ mostrar_banner() {
     [ -f "$CONFIG_USER" ] && source "$CONFIG_USER"
     aplicar_entorno_hardware
 
-    local motor_mostrar="${RENDERER_IN_USE:-DXVK (Vulkan)}"
-    local distro_mostrar="${DISTRO_NAME:-Debian}"
+    local distro="${DISTRO_NAME:-Debian}"
+    
+    # Formateo limpio y compacto de CPU
+    local raw_cpu="${CPU_MODEL:-Intel i5-8250U}"
+    local clean_cpu=$(echo "$raw_cpu" | sed -E 's/CPU @.*//; s/\(R\)//g; s/\(TM\)//g; s/Core//g; s/Processor//g' | xargs)
+    local cpu="${clean_cpu:-$raw_cpu} (${CPU_CORES} hilos)"
 
-    echo -e "${C_CYAN}╔══════════════════════════════════════════════════════════════════════╗${C_RESET}"
-    echo -e "${C_CYAN}║${C_RESET}                   ${C_MAGENTA}🚀  M E N U   W I N   ( U N I V E R S A L )  🚀${C_RESET}     ${C_CYAN}║${C_RESET}"
-    echo -e "${C_CYAN}║${C_RESET}           ${C_WHITE}Gestor y Optimizador de Juegos y Programas de Windows${C_RESET}      ${C_CYAN}║${C_RESET}"
-    echo -e "${C_CYAN}╠══════════════════════════════════════════════════════════════════════╣${C_RESET}"
-    echo -e "${C_CYAN}║${C_RESET} ${C_YELLOW}Sistema:${C_RESET} ${distro_mostrar:0:22} | ${C_YELLOW}CPU:${C_RESET} ${CPU_MODEL:0:25} (${CPU_CORES} Hilos)"
-    echo -e "${C_CYAN}║${C_RESET} ${C_GREEN}GPU:${C_RESET} ${DETECTED_GPU:0:55}"
-    echo -e "${C_CYAN}║${C_RESET} ${C_CYAN}Motor:${C_RESET} [${motor_mostrar}] | ${C_CYAN}Perfil:${C_RESET} [${PERFIL_RENDIMIENTO:-maximo}] | ${C_CYAN}FPS:${C_RESET} ${LIMITE_FPS:-60}"
-    echo -e "${C_CYAN}║${C_RESET} ${C_CYAN}FSR:${C_RESET} $([ "$ACTIVAR_FSR" = "1" ] && echo -e "${C_GREEN}Activo (x${FSR_STRENGTH:-2})${C_RESET}" || echo -e "${C_RED}Apagado${C_RESET}") | ${C_CYAN}HUD FPS:${C_RESET} $([ "$MOSTRAR_HUD_FPS" = "1" ] && echo -e "${C_GREEN}Activo${C_RESET}" || echo -e "${C_RED}Apagado${C_RESET}")"
-    echo -e "${C_CYAN}╚══════════════════════════════════════════════════════════════════════╝${C_RESET}"
-    echo ""
+    # Formateo limpio y compacto de GPU
+    local raw_gpu="${DETECTED_GPU:-NVIDIA MX130}"
+    local clean_gpu=$(echo "$raw_gpu" | sed -E 's/NVIDIA:\s*NVIDIA Corporation\s*//i; s/\[//g; s/\]//g; s/\(rev [a-z0-9]+\)//i; s/GM[0-9]+M//g; s/GeForce //g; s/NVIDIA:\s*//i' | xargs)
+    if [ "$HAS_NVIDIA" = true ]; then
+        clean_gpu="NVIDIA ${clean_gpu} (2 GB)"
+    elif [ "$HAS_AMD_DEDICATED" = true ]; then
+        clean_gpu="AMD ${clean_gpu}"
+    fi
+    local gpu="${clean_gpu:-$raw_gpu}"
+
+    local ram="${RAM_TOTAL_MB:-8192} MB"
+    if [ -n "$RAM_TOTAL_MB" ]; then
+        local ram_gb=$(( (RAM_TOTAL_MB + 512) / 1024 ))
+        ram="${ram_gb} GB"
+    fi
+    local driver="NVIDIA (Vulkan)"
+    [ "$HAS_NVIDIA" = false ] && driver="Mesa (Vulkan)"
+    [ "$RENDERER_IN_USE" = "WineD3D (OpenGL Compatibilidad)" ] && driver="WineD3D (OpenGL)"
+
+    local fsr_st="Apagado"
+    [ "$ACTIVAR_FSR" = "1" ] && fsr_st="Activo (x${FSR_STRENGTH:-2})"
+
+    local hud_st="Apagado"
+    [ "$MOSTRAR_HUD_FPS" = "1" ] && hud_st="Activo"
+
+    local vk_st="Disponible"
+    [ "$HAS_VULKAN" = false ] && vk_st="No disponible"
+
+    local dx_st="Disponible"
+
+    # 1. Header Box
+    echo -e "${C_PURPLE}╭──────────────────────────────────────────────────────────────────────────────────────╮${C_RESET}"
+    echo -e "${C_PURPLE}│${C_RESET}  ${C_WHITE}█▄ ▄█${C_RESET}  ${C_PURPLE}│${C_RESET}                            ${C_WHITE}${C_BOLD}Menu ${C_PURPLE}Win${C_RESET}                              ${C_PURPLE}│${C_RESET}  ${C_WIN_CYAN}██ ██${C_RESET}  ${C_PURPLE}│${C_RESET}"
+    echo -e "${C_PURPLE}│${C_RESET}  ${C_PURPLE}█ ▀ █${C_RESET}  ${C_PURPLE}│${C_RESET}          ${C_GRAY}Gestor y Optimizador de Juegos y Programas de ${C_WHITE}${C_BOLD}Windows${C_RESET}   ${C_PURPLE}│${C_RESET}  ${C_WIN_CYAN}██ ██${C_RESET}  ${C_PURPLE}│${C_RESET}"
+    echo -e "${C_PURPLE}╰──────────────────────────────────────────────────────────────────────────────────────╯${C_RESET}"
+
+    # Formateo fijo para columnas izquierda (44) y derecha (41)
+    local s_distro=$(printf "%-24.24s" "$distro")
+    local s_cpu=$(printf "%-24.24s" "${cpu:0:24}")
+    local s_gpu=$(printf "%-24.24s" "${gpu:0:24}")
+    local s_ram=$(printf "%-24.24s" "$ram")
+    local s_driver=$(printf "%-24.24s" "${driver:0:24}")
+
+    local s_fsr=$(printf "%-23.23s" "$fsr_st")
+    local s_hud=$(printf "%-23.23s" "$hud_st")
+    local s_vk=$(printf "%-23.23s" "$vk_st")
+    local s_dx=$(printf "%-23.23s" "$dx_st")
+
+    # 2. Tarjetas de Información y Estado
+    echo -e "${C_PURPLE}╭─ 🖥️  Información del Sistema ──────────────╮ ╭─ 📊  Estado ────────────────────────────╮${C_RESET}"
+    echo -e "${C_PURPLE}│${C_RESET}                                            ${C_PURPLE}│ │${C_RESET}                                         ${C_PURPLE}│${C_RESET}"
+    echo -e "${C_PURPLE}│${C_RESET}  ⚙️   ${C_PURPLE}Sistema${C_RESET}  :  ${C_WHITE}${s_distro}${C_RESET} ${C_PURPLE}│ │${C_RESET}  ${C_PURPLE}✔${C_RESET}   ${C_PURPLE}FSR${C_RESET}     :  ${C_WHITE}${s_fsr}${C_RESET} ${C_PURPLE}│${C_RESET}"
+    echo -e "${C_PURPLE}│${C_RESET}  🧠   ${C_PURPLE}CPU${C_RESET}      :  ${C_WHITE}${s_cpu}${C_RESET} ${C_PURPLE}│ │${C_RESET}  ${C_PURPLE}✔${C_RESET}   ${C_PURPLE}HUD FPS${C_RESET} :  ${C_WHITE}${s_hud}${C_RESET} ${C_PURPLE}│${C_RESET}"
+    echo -e "${C_PURPLE}│${C_RESET}  📼   ${C_PURPLE}GPU${C_RESET}      :  ${C_WHITE}${s_gpu}${C_RESET} ${C_PURPLE}│ │${C_RESET}  ${C_PURPLE}✔${C_RESET}   ${C_PURPLE}Vulkan${C_RESET}  :  ${C_WHITE}${s_vk}${C_RESET} ${C_PURPLE}│${C_RESET}"
+    echo -e "${C_PURPLE}│${C_RESET}  🎛️   ${C_PURPLE}RAM${C_RESET}      :  ${C_WHITE}${s_ram}${C_RESET} ${C_PURPLE}│ │${C_RESET}  ${C_PURPLE}✔${C_RESET}   ${C_PURPLE}DXVK${C_RESET}    :  ${C_WHITE}${s_dx}${C_RESET} ${C_PURPLE}│${C_RESET}"
+    echo -e "${C_PURPLE}│${C_RESET}  🔌   ${C_PURPLE}Driver${C_RESET}   :  ${C_WHITE}${s_driver}${C_RESET} ${C_PURPLE}│ │${C_RESET}                                         ${C_PURPLE}│${C_RESET}"
+    echo -e "${C_PURPLE}╰────────────────────────────────────────────╯ ╰─────────────────────────────────────────╯${C_RESET}"
 }
 
 pausar() {
     echo ""
-    echo -e "${C_GRAY}──────────────────────────────────────────────────────────────────────${C_RESET}"
-    read -p "$(echo -e "${C_CYAN}Presiona ${C_BOLD}[Enter]${C_RESET}${C_CYAN} para volver al menú...${C_RESET}")" _
+    echo -e "${C_PURPLE}──────────────────────────────────────────────────────────────────────────────────────${C_RESET}"
+    read -p "$(echo -e "  ${C_PURPLE}[Enter]${C_RESET} ${C_WHITE}Presiona Enter para continuar...${C_RESET} ")" _
 }
 
 # ==============================================================================
@@ -1577,7 +1632,46 @@ EOF
 }
 
 # ==============================================================================
-# BUCLE PRINCIPAL
+render_menu_principal() {
+    local cur="${1:-1}"
+
+    mostrar_banner
+
+    # 3. Menú Principal Box
+    echo -e "${C_PURPLE}╭─ 🎮  Menú Principal ─────────────────────────────────────────────────────────────────╮${C_RESET}"
+    echo -e "${C_PURPLE}│${C_RESET}                                                                                      ${C_PURPLE}│${C_RESET}"
+
+    local o1="▶   [1]  Iniciar programa o juego      "
+    local o2="⚙️   [2]  Configurar Programa Win      "
+    local o3="⚙️   [3]  Rendimiento y Motor Gráfico  "
+    local o4="🔧  [4]  Herramientas de Windows       "
+    local o5="📥  [5]  Instalar Recursos / Optimizar "
+    local o0="⏻   [0]  Salir                         "
+
+    local c1 c2 c3 c4 c5 c0
+    [ "$cur" -eq 1 ] && c1="${C_BG_SELECT} ${o1}${C_RESET}" || c1=" ${C_WHITE}${o1}${C_RESET}"
+    [ "$cur" -eq 2 ] && c2="${C_BG_SELECT} ${o2}${C_RESET}" || c2=" ${C_WHITE}${o2}${C_RESET}"
+    [ "$cur" -eq 3 ] && c3="${C_BG_SELECT} ${o3}${C_RESET}" || c3=" ${C_WHITE}${o3}${C_RESET}"
+    [ "$cur" -eq 4 ] && c4="${C_BG_SELECT} ${o4}${C_RESET}" || c4=" ${C_WHITE}${o4}${C_RESET}"
+    [ "$cur" -eq 5 ] && c5="${C_BG_SELECT} ${o5}${C_RESET}" || c5=" ${C_WHITE}${o5}${C_RESET}"
+    [ "$cur" -eq 6 ] && c0="${C_BG_SELECT} ${o0}${C_RESET}" || c0=" ${C_RED}${o0:0:7}${C_RESET}${C_WHITE}${o0:7}${C_RESET}"
+
+    echo -e "${C_PURPLE}│${C_RESET} ${c1}   ${c2}  ${C_PURPLE}│${C_RESET}"
+    echo -e "${C_PURPLE}│${C_RESET}                                                                                      ${C_PURPLE}│${C_RESET}"
+    echo -e "${C_PURPLE}│${C_RESET} ${c3}   ${c4}  ${C_PURPLE}│${C_RESET}"
+    echo -e "${C_PURPLE}│${C_RESET}                                                                                      ${C_PURPLE}│${C_RESET}"
+    echo -e "${C_PURPLE}│${C_RESET} ${c5}   ${c0}  ${C_PURPLE}│${C_RESET}"
+    echo -e "${C_PURPLE}│${C_RESET}                                                                                      ${C_PURPLE}│${C_RESET}"
+    echo -e "${C_PURPLE}╰──────────────────────────────────────────────────────────────────────────────────────╯${C_RESET}"
+
+    # 4. Barra de Navegación Inferior
+    echo -e "${C_PURPLE}╭──────────────────────────────────────────────────────────────────────────────────────╮${C_RESET}"
+    echo -e "${C_PURPLE}│${C_RESET}        ${C_PURPLE}[↑↓]${C_RESET}  ${C_WHITE}Navegar${C_RESET}      ${C_PURPLE}│${C_RESET}      ${C_PURPLE}[Enter]${C_RESET}  ${C_WHITE}Seleccionar${C_RESET}      ${C_PURPLE}│${C_RESET}      ${C_RED}[0]${C_RESET}  ${C_WHITE}Salir${C_RESET}         ${C_PURPLE}│${C_RESET}"
+    echo -e "${C_PURPLE}╰──────────────────────────────────────────────────────────────────────────────────────╯${C_RESET}"
+}
+
+# ==============================================================================
+# BUCLE PRINCIPAL (INTERACTIVO CON FLECHAS Y ACCESOS NUMÉRICOS)
 # ==============================================================================
 
 # 1. Comprobar actualización desde GitHub al abrir
@@ -1586,42 +1680,91 @@ verificar_actualizacion_github
 # 2. Comprobar configuración inicial de la distribución Linux
 comprobar_configuracion_inicial_distro
 
+sel_idx=1
 while true; do
-    mostrar_banner
-    echo -e "  ${C_BOLD}${C_GREEN}[1]${C_RESET} ${C_WHITE}Iniciar programa o juego${C_RESET}"
-    echo -e "  ${C_BOLD}${C_YELLOW}[2]${C_RESET} ${C_WHITE}Configurar Programa Win${C_RESET} ${C_GRAY}(Añadir, accesos de escritorio, mods)${C_RESET}"
-    echo -e "  ${C_BOLD}${C_MAGENTA}[3]${C_RESET} ${C_WHITE}Configuración de Rendimiento y Motor Gráfico${C_RESET} ${C_GRAY}(FPS, FSR, Vulkan/OpenGL)${C_RESET}"
-    echo -e "  ${C_BOLD}${C_BLUE}[4]${C_RESET} ${C_WHITE}Herramientas de Windows y Reparación${C_RESET} ${C_GRAY}(winecfg, regedit, taskmgr, anticheat)${C_RESET}"
-    echo -e "  ${C_BOLD}${C_CYAN}[5]${C_RESET} ${C_WHITE}Instalar Recursos y Optimizar Automáticamente${C_RESET} ${C_GRAY}(Verificación por distro)${C_RESET}"
-    echo ""
-    echo -e "  ${C_BOLD}${C_RED}[0]${C_RESET} ${C_GRAY}Salir${C_RESET}"
-    echo ""
-    read -p "$(echo -e "${C_BOLD}${C_CYAN}Elegir opción (1-5 o 0): ${C_RESET}")" opcion_principal
+    render_menu_principal "$sel_idx"
 
-    case "$opcion_principal" in
+    key=""
+    rest=""
+    IFS= read -rsn1 key
+    if [[ "$key" == $'\x1b' ]]; then
+        read -rsn2 -t 0.05 rest
+        key+="$rest"
+    fi
+
+    case "$key" in
+        $'\x1b[A') # Flecha Arriba
+            case "$sel_idx" in
+                3) sel_idx=1 ;;
+                4) sel_idx=2 ;;
+                5) sel_idx=3 ;;
+                6) sel_idx=4 ;;
+                1) sel_idx=5 ;;
+                2) sel_idx=6 ;;
+            esac
+            ;;
+        $'\x1b[B') # Flecha Abajo
+            case "$sel_idx" in
+                1) sel_idx=3 ;;
+                2) sel_idx=4 ;;
+                3) sel_idx=5 ;;
+                4) sel_idx=6 ;;
+                5) sel_idx=1 ;;
+                6) sel_idx=2 ;;
+            esac
+            ;;
+        $'\x1b[D') # Flecha Izquierda
+            case "$sel_idx" in
+                2) sel_idx=1 ;;
+                4) sel_idx=3 ;;
+                6) sel_idx=5 ;;
+            esac
+            ;;
+        $'\x1b[C') # Flecha Derecha
+            case "$sel_idx" in
+                1) sel_idx=2 ;;
+                3) sel_idx=4 ;;
+                5) sel_idx=6 ;;
+            esac
+            ;;
+        ""|$'\n') # Enter -> Ejecutar la opción actualmente resaltada
+            case "$sel_idx" in
+                1) iniciar_programa ;;
+                2) configurar_programa_win ;;
+                3) menu_configuracion ;;
+                4) menu_herramientas_windows ;;
+                5) instalar_recursos_actualizar ;;
+                6)
+                    echo ""
+                    echo -e "${C_GREEN}¡Hasta luego! Que disfrutes tus juegos.${C_RESET}"
+                    exit 0
+                    ;;
+            esac
+            ;;
         1)
+            sel_idx=1
             iniciar_programa
             ;;
         2)
+            sel_idx=2
             configurar_programa_win
             ;;
         3)
+            sel_idx=3
             menu_configuracion
             ;;
         4)
+            sel_idx=4
             menu_herramientas_windows
             ;;
         5)
+            sel_idx=5
             instalar_recursos_actualizar
             ;;
         0|q|Q)
             echo ""
             echo -e "${C_GREEN}¡Hasta luego! Que disfrutes tus juegos.${C_RESET}"
             exit 0
-            ;;
-        *)
-            echo -e "${C_RED}❌ Opción no reconocida. Por favor ingresa un número del 1 al 5 o 0.${C_RESET}"
-            sleep 1.5
             ;;
     esac
 done
