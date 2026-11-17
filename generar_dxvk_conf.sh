@@ -106,6 +106,26 @@ d3d9.floatEmulation = Strict
 d3d9.clampNegativeLodBias = True
 d3d9.samplerAnisotropy = 16
 d3d9.lenientClear = False
+
+# GameRanger: cliente de lobby 2D / chat con Chromium CEF y ANGLE
+# Evita fallos de swapchains Vulkan (VK_ERROR_OUT_OF_HOST_MEMORY) en subventanas de CEF
+[GameRanger.exe]
+dxvk.tearFree = False
+dxgi.syncInterval = 1
+dxgi.deferSurfaceCreation = True
+dxgi.numBackBuffers = 1
+d3d9.numBackBuffers = 1
+dxvk.allowFse = False
+d3d11.maxTessFactor = 1
+
+[GameRangerSetup.exe]
+dxvk.tearFree = False
+dxgi.syncInterval = 1
+dxgi.deferSurfaceCreation = True
+dxgi.numBackBuffers = 1
+d3d9.numBackBuffers = 1
+dxvk.allowFse = False
+d3d11.maxTessFactor = 1
 EOF
 
 # Si el HUD de FPS está activado

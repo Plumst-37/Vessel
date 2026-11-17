@@ -144,6 +144,20 @@ fi
 TARGET_DIR="$(cd "$(dirname "$TARGET")" && pwd)"
 TARGET_FILE="$(basename "$TARGET")"
 
+# 11.1 Configuración específica para el cliente de lobby GameRanger
+if [[ "$TARGET_FILE" =~ [Gg]ame[Rr]anger ]]; then
+    # GameRanger es una aplicación de escritorio/chat con interfaz Chromium CEF / ANGLE embebida.
+    # Sus subventanas web no son superficies 3D exclusivas y fallan con swapchains Vulkan (VK_ERROR_OUT_OF_HOST_MEMORY).
+    # Desactivamos DXVK para GameRanger y usamos WineD3D nativo, eliminando cualquier cuelgue de UI.
+    export RENDERER_IN_USE="WineD3D (Lobby Compatibilidad)"
+    export PROTON_USE_WINED3D=1
+    export WINEDLLOVERRIDES="$(echo "$WINEDLLOVERRIDES" | sed -E 's/(dxgi|d3d11|d3d10core|d3d9)=n/\1=b/g')"
+    unset DXVK_CONFIG_FILE
+    unset DXVK_STATE_CACHE_PATH
+    unset DXVK_ASYNC
+    unset DXVK_GPLASYNCCACHE
+fi
+
 # Moverse al directorio donde reside el juego (vital para rutas relativas y DLLs)
 cd "$TARGET_DIR"
 

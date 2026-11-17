@@ -1774,7 +1774,17 @@ EOF
     WINEPREFIX="${DIR}/wineprefix" wine reg add "HKEY_CURRENT_USER\Software\Wine\X11 Driver" /v GrabFullscreen /t REG_SZ /d N /f >/dev/null 2>&1 || true
     WINEPREFIX="${DIR}/wineprefix" wine reg add "HKEY_CURRENT_USER\Software\Wine\X11 Driver" /v Decorated /t REG_SZ /d N /f >/dev/null 2>&1 || true
     WINEPREFIX="${DIR}/wineprefix" wine reg add "HKEY_CURRENT_USER\Software\Wine\X11 Driver" /v Managed /t REG_SZ /d Y /f >/dev/null 2>&1 || true
-    echo -e "${C_GREEN}  ✔ Registro de Wine optimizado (multihilo CSMT, captura 3D y cero cuelgues).${C_RESET}"
+
+    # Compatibilidad total para GameRanger (Chromium CEF / ANGLE sin fallos de Vulkan)
+    WINEPREFIX="${DIR}/wineprefix" wine reg add "HKEY_CURRENT_USER\Software\Wine\AppDefaults\GameRanger.exe\DllOverrides" /v d3d11 /t REG_SZ /d builtin /f >/dev/null 2>&1 || true
+    WINEPREFIX="${DIR}/wineprefix" wine reg add "HKEY_CURRENT_USER\Software\Wine\AppDefaults\GameRanger.exe\DllOverrides" /v dxgi /t REG_SZ /d builtin /f >/dev/null 2>&1 || true
+    WINEPREFIX="${DIR}/wineprefix" wine reg add "HKEY_CURRENT_USER\Software\Wine\AppDefaults\GameRanger.exe\DllOverrides" /v d3d9 /t REG_SZ /d builtin /f >/dev/null 2>&1 || true
+    WINEPREFIX="${DIR}/wineprefix" wine reg add "HKEY_CURRENT_USER\Software\Wine\AppDefaults\GameRanger.exe\DllOverrides" /v d3d10core /t REG_SZ /d builtin /f >/dev/null 2>&1 || true
+    WINEPREFIX="${DIR}/wineprefix" wine reg add "HKEY_CURRENT_USER\Software\Wine\AppDefaults\GameRangerSetup.exe\DllOverrides" /v d3d11 /t REG_SZ /d builtin /f >/dev/null 2>&1 || true
+    WINEPREFIX="${DIR}/wineprefix" wine reg add "HKEY_CURRENT_USER\Software\Wine\AppDefaults\GameRangerSetup.exe\DllOverrides" /v dxgi /t REG_SZ /d builtin /f >/dev/null 2>&1 || true
+    WINEPREFIX="${DIR}/wineprefix" wine reg add "HKEY_CURRENT_USER\Software\Wine\AppDefaults\GameRangerSetup.exe\DllOverrides" /v d3d9 /t REG_SZ /d builtin /f >/dev/null 2>&1 || true
+    WINEPREFIX="${DIR}/wineprefix" wine reg add "HKEY_CURRENT_USER\Software\Wine\AppDefaults\GameRangerSetup.exe\DllOverrides" /v d3d10core /t REG_SZ /d builtin /f >/dev/null 2>&1 || true
+    echo -e "${C_GREEN}  ✔ Registro de Wine optimizado (multihilo CSMT, captura 3D y perfil GameRanger).${C_RESET}"
 
     # Verificación de GameRanger predeterminado
     local gr_found=$(find "${DIR}/wineprefix/drive_c" -name "GameRanger.exe" 2>/dev/null | head -n 1)

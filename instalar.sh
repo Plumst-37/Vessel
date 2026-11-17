@@ -396,7 +396,17 @@ WINEPREFIX="${DIR}/wineprefix" wine reg add "HKEY_CURRENT_USER\Software\Wine\X11
 WINEPREFIX="${DIR}/wineprefix" wine reg add "HKEY_CURRENT_USER\Software\Wine\X11 Driver" /v "GrabFullscreen" /t REG_SZ /d "N" /f >/dev/null 2>&1 || true
 WINEPREFIX="${DIR}/wineprefix" wine reg add "HKEY_CURRENT_USER\Software\Wine\X11 Driver" /v "Decorated" /t REG_SZ /d "N" /f >/dev/null 2>&1 || true
 WINEPREFIX="${DIR}/wineprefix" wine reg add "HKEY_CURRENT_USER\Software\Wine\X11 Driver" /v "Managed" /t REG_SZ /d "Y" /f >/dev/null 2>&1 || true
-echo -e "${C_GREEN}✔ Captura de ratón DirectInput 3D, multi-monitor y control de cámara configurados.${C_RESET}"
+
+# 4.3.1 Compatibilidad total para GameRanger (Chromium CEF / ANGLE sin fallos de Vulkan)
+WINEPREFIX="${DIR}/wineprefix" wine reg add "HKEY_CURRENT_USER\Software\Wine\AppDefaults\GameRanger.exe\DllOverrides" /v d3d11 /t REG_SZ /d builtin /f >/dev/null 2>&1 || true
+WINEPREFIX="${DIR}/wineprefix" wine reg add "HKEY_CURRENT_USER\Software\Wine\AppDefaults\GameRanger.exe\DllOverrides" /v dxgi /t REG_SZ /d builtin /f >/dev/null 2>&1 || true
+WINEPREFIX="${DIR}/wineprefix" wine reg add "HKEY_CURRENT_USER\Software\Wine\AppDefaults\GameRanger.exe\DllOverrides" /v d3d9 /t REG_SZ /d builtin /f >/dev/null 2>&1 || true
+WINEPREFIX="${DIR}/wineprefix" wine reg add "HKEY_CURRENT_USER\Software\Wine\AppDefaults\GameRanger.exe\DllOverrides" /v d3d10core /t REG_SZ /d builtin /f >/dev/null 2>&1 || true
+WINEPREFIX="${DIR}/wineprefix" wine reg add "HKEY_CURRENT_USER\Software\Wine\AppDefaults\GameRangerSetup.exe\DllOverrides" /v d3d11 /t REG_SZ /d builtin /f >/dev/null 2>&1 || true
+WINEPREFIX="${DIR}/wineprefix" wine reg add "HKEY_CURRENT_USER\Software\Wine\AppDefaults\GameRangerSetup.exe\DllOverrides" /v dxgi /t REG_SZ /d builtin /f >/dev/null 2>&1 || true
+WINEPREFIX="${DIR}/wineprefix" wine reg add "HKEY_CURRENT_USER\Software\Wine\AppDefaults\GameRangerSetup.exe\DllOverrides" /v d3d9 /t REG_SZ /d builtin /f >/dev/null 2>&1 || true
+WINEPREFIX="${DIR}/wineprefix" wine reg add "HKEY_CURRENT_USER\Software\Wine\AppDefaults\GameRangerSetup.exe\DllOverrides" /v d3d10core /t REG_SZ /d builtin /f >/dev/null 2>&1 || true
+echo -e "${C_GREEN}✔ Captura de ratón DirectInput 3D, multi-monitor y perfil GameRanger configurados.${C_RESET}"
 
 # 4.4 Configuración de GameMode para el usuario (prioridad CPU/GPU y renice -10)
 TARGET_USER="${SUDO_USER:-$USER}"
