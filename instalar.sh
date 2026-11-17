@@ -20,25 +20,71 @@ if [ ! -f "${DIR}/menu-win.sh" ]; then
     echo -e "${C_CYAN}║${C_RESET}             ${C_GREEN}📦  INSTALADOR REMOTO DIRECTO - VESSEL 📦${C_RESET}               ${C_CYAN}║${C_RESET}"
     echo -e "${C_CYAN}╚══════════════════════════════════════════════════════════════════════╝${C_RESET}"
     echo ""
-    TARGET_DIR="$HOME/Vessel"
 
+    # Determinar el usuario real y su carpeta personal (evitar instalar en /root/ si se usa sudo)
+    REAL_USER="${SUDO_USER:-$USER}"
+    REAL_HOME=$(eval echo "~$REAL_USER")
+    TARGET_DIR="$REAL_HOME/Vessel"
+
+    echo -e "${C_WHITE}Carpeta de destino:${C_RESET} ${C_BOLD}${TARGET_DIR}${C_RESET}"
+
+    # En Debian/Ubuntu/Mint: desactivar repositorios 'cdrom:' huérfanos que bloquean 'apt'
+    if command -v apt-get &>/dev/null; then
+        sudo sed -i '/^deb cdrom:/s/^/#/' /etc/apt/sources.list /etc/apt/sources.list.d/*.list 2>/dev/null || true
+    fi
+
+    # Intentar asegurar git si está ausente
     if ! command -v git &>/dev/null; then
-        echo -e "${C_YELLOW}Instalando 'git' necesario para descargar el proyecto...${C_RESET}"
-        if command -v apt-get &>/dev/null; then sudo apt-get update && sudo apt-get install -y git;
-        elif command -v pacman &>/dev/null; then sudo pacman -Sy --noconfirm git;
-        elif command -v dnf &>/dev/null; then sudo dnf install -y git;
-        elif command -v zypper &>/dev/null; then sudo zypper install -y git; fi
+        echo -e "${C_YELLOW}Instalando 'git' para clonar el repositorio...${C_RESET}"
+        if command -v apt-get &>/dev/null; then
+            sudo apt-get update -y 2>/dev/null || true
+            sudo apt-get install -y git 2>/dev/null || sudo apt-get install -y --fix-missing git 2>/dev/null || true
+        elif command -v pacman &>/dev/null; then
+            sudo pacman -Sy --noconfirm git 2>/dev/null || true
+        elif command -v dnf &>/dev/null; then
+            sudo dnf install -y git 2>/dev/null || true
+        elif command -v zypper &>/dev/null; then
+            sudo zypper --non-interactive install git 2>/dev/null || true
+        fi
     fi
 
-    if [ ! -d "$TARGET_DIR/.git" ]; then
-        echo -e "${C_GREEN}Clonando repositorio en: ${C_BOLD}${TARGET_DIR}${C_RESET}..."
-        git clone https://github.com/Plumst-37/Vessel.git "$TARGET_DIR"
+    # Método 1: Clonar o actualizar mediante Git
+    CLONED=false
+    if command -v git &>/dev/null; then
+        if [ ! -d "$TARGET_DIR/.git" ]; then
+            echo -e "${C_GREEN}Clonando repositorio con Git en: ${C_BOLD}${TARGET_DIR}${C_RESET}..."
+            if git clone https://github.com/Plumst-37/Vessel.git "$TARGET_DIR" 2>/dev/null; then
+                CLONED=true
+            fi
+        else
+            echo -e "${C_GREEN}Actualizando repositorio existente en: ${C_BOLD}${TARGET_DIR}${C_RESET}..."
+            (cd "$TARGET_DIR" && git pull 2>/dev/null || true)
+            CLONED=true
+        fi
+    fi
+
+    # Método 2: Fallback infalible con tar.gz (si git falló o no existe)
+    if [ "$CLONED" = false ] || [ ! -f "$TARGET_DIR/instalar.sh" ]; then
+        echo -e "${C_YELLOW}Descargando código fuente directo (tar.gz)...${C_RESET}"
+        mkdir -p "$TARGET_DIR"
+        if command -v curl &>/dev/null; then
+            curl -fsSL https://github.com/Plumst-37/Vessel/archive/refs/heads/main.tar.gz | tar -xz -C "$TARGET_DIR" --strip-components=1 2>/dev/null || true
+        elif command -v wget &>/dev/null; then
+            wget -qO- https://github.com/Plumst-37/Vessel/archive/refs/heads/main.tar.gz | tar -xz -C "$TARGET_DIR" --strip-components=1 2>/dev/null || true
+        fi
+    fi
+
+    # Asegurar permisos correctos
+    chown -R "$REAL_USER:$REAL_USER" "$TARGET_DIR" 2>/dev/null || true
+    chmod +x "$TARGET_DIR"/*.sh "$TARGET_DIR"/*.py 2>/dev/null || true
+
+    if [ -f "${TARGET_DIR}/instalar.sh" ]; then
+        echo -e "${C_GREEN}✔ Archivos descargados correctamente. Iniciando configuración...${C_RESET}"
+        exec bash "${TARGET_DIR}/instalar.sh" "$@"
     else
-        echo -e "${C_GREEN}Actualizando repositorio en: ${C_BOLD}${TARGET_DIR}${C_RESET}..."
-        (cd "$TARGET_DIR" && git pull || true)
+        echo -e "${C_RED}❌ Error: No se pudo descargar el repositorio. Comprueba tu conexión a Internet.${C_RESET}"
+        exit 1
     fi
-
-    exec bash "${TARGET_DIR}/instalar.sh" "$@"
 fi
 
 clear 2>/dev/null || true
@@ -124,6 +170,7 @@ echo -e "      Distribución identificada: ${C_BOLD}${PRETTY_NAME:-$DISTRO_DETEC
 case "$DISTRO_DETECTED" in
     debian)
         echo -e "${C_CYAN}  ⚙️ Configurando Debian GNU/Linux (32 y 64 bits)...${C_RESET}"
+        sudo sed -i '/^deb cdrom:/s/^/#/' /etc/apt/sources.list /etc/apt/sources.list.d/*.list 2>/dev/null || true
         if command -v dpkg &>/dev/null && ! dpkg --print-foreign-architectures 2>/dev/null | grep -q "i386"; then
             sudo dpkg --add-architecture i386 2>/dev/null || true
         fi
@@ -140,6 +187,7 @@ case "$DISTRO_DETECTED" in
         ;;
     ubuntu)
         echo -e "${C_CYAN}  ⚙️ Configurando Ubuntu / Linux Mint / Pop!_OS / Zorin...${C_RESET}"
+        sudo sed -i '/^deb cdrom:/s/^/#/' /etc/apt/sources.list /etc/apt/sources.list.d/*.list 2>/dev/null || true
         if command -v dpkg &>/dev/null && ! dpkg --print-foreign-architectures 2>/dev/null | grep -q "i386"; then
             sudo dpkg --add-architecture i386 2>/dev/null || true
         fi

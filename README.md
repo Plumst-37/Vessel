@@ -5,28 +5,77 @@
 
 ---
 
-## ⚡ Instalación en 1 Solo Paso (Cualquier Linux)
+## ⚡ Instalación Rápida Universal (Cualquier Linux)
 
-Abre cualquier terminal y pega este comando:
+Abre cualquier terminal y pega este comando único:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/Plumst-37/Vessel/main/instalar.sh | bash
 ```
 
-O si prefieres clonar manualmente:
+---
 
+## 📦 Comandos de Descarga e Instalación por Distribución
+
+Si prefieres descargarlo e instalarlo con los comandos específicos de tu distribución, copia y pega el bloque correspondiente a tu sistema:
+
+### 🟢 1. Linux Mint / Ubuntu / Pop!_OS / Zorin OS
 ```bash
+sudo sed -i '/^deb cdrom:/s/^/#/' /etc/apt/sources.list /etc/apt/sources.list.d/*.list 2>/dev/null
+sudo apt-get update && sudo apt-get install -y git curl
 git clone https://github.com/Plumst-37/Vessel.git
-cd Vessel
-./instalar.sh
+cd Vessel && ./instalar.sh
 ```
 
-El instalador:
-1. Detecta automáticamente tu distribución (**Debian / Ubuntu / Linux Mint**, **Arch Linux / Manjaro**, **Fedora / RHEL** o **openSUSE**).
-2. Comprueba e instala dependencias (**Wine, DXVK, GameMode, Winetricks, Zenity, librerías DNS 32-bit/64-bit**).
-3. Optimiza parámetros del kernel del sistema (`vm.max_map_count`, `ip_unprivileged_port_start=0` y `ping_group_range` para multijugador y conexión total).
-4. Genera una configuración `dxvk.conf` ajustada a la cantidad exacta de núcleos e hilos de tu CPU.
-5. Crea el acceso directo **Menu Win (PC)** en tu **Escritorio** y en tu menú de aplicaciones listo para usar.
+### 🔴 2. Debian / Devuan
+```bash
+sudo sed -i '/^deb cdrom:/s/^/#/' /etc/apt/sources.list /etc/apt/sources.list.d/*.list 2>/dev/null
+sudo apt-get update && sudo apt-get install -y git curl
+git clone https://github.com/Plumst-37/Vessel.git
+cd Vessel && ./instalar.sh
+```
+
+### 🔵 3. Arch Linux / Manjaro / EndeavourOS / SteamOS
+```bash
+sudo pacman -Sy --needed --noconfirm git curl
+git clone https://github.com/Plumst-37/Vessel.git
+cd Vessel && ./instalar.sh
+```
+
+### 🎩 4. Fedora / Nobara / RHEL
+```bash
+sudo dnf install -y git curl
+git clone https://github.com/Plumst-37/Vessel.git
+cd Vessel && ./instalar.sh
+```
+
+### 🦎 5. openSUSE (Tumbleweed / Leap)
+```bash
+sudo zypper --non-interactive install git curl
+git clone https://github.com/Plumst-37/Vessel.git
+cd Vessel && ./instalar.sh
+```
+
+---
+
+## 🎮 ¿Cómo Iniciar el Programa?
+
+Una vez terminada la instalación, puedes abrirlo de cualquiera de estas dos formas:
+1. **Desde tu Escritorio o Menú de Aplicaciones:** Haz doble clic en el acceso directo **Menu Win (PC)**.
+2. **Desde la Terminal:**
+```bash
+cd ~/Vessel && ./menu-win.sh
+```
+
+---
+
+## ⚙️ ¿Qué hace el instalador automáticamente?
+
+1. **Detecta tu distribución:** (Debian, Ubuntu, Mint, Arch, Fedora, openSUSE).
+2. **Comprueba e instala dependencias:** (Wine, Wine 32/64 bits, DXVK, Vulkan drivers para AMD/Intel/NVIDIA, Feral GameMode, Winetricks, Zenity).
+3. **Optimiza el Kernel de Linux:** Ajusta `vm.max_map_count = 2147483642`, límites de archivos `nofile = 524288` (Esync/Fsync) y puertos de red para multijugador y GameRanger.
+4. **Genera dxvk.conf dinámico:** Calculado para la cantidad exacta de núcleos e hilos de tu CPU y la tarjeta gráfica detectada.
+5. **Crea accesos directos:** Crea el lanzador de 1-clic en tu Escritorio y en el menú de aplicaciones.
 
 ---
 

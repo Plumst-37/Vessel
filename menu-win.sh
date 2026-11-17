@@ -1521,6 +1521,7 @@ ejecutar_descarga_e_instalacion_automatica() {
     case "$SISTEMA_LINUX" in
         debian)
             echo -e "${C_CYAN}  ⚙️ Configurando Debian GNU/Linux (32 y 64 bits)...${C_RESET}"
+            sudo sed -i '/^deb cdrom:/s/^/#/' /etc/apt/sources.list /etc/apt/sources.list.d/*.list 2>/dev/null || true
             if command -v dpkg &>/dev/null && ! dpkg --print-foreign-architectures 2>/dev/null | grep -q "i386"; then
                 sudo dpkg --add-architecture i386 2>/dev/null || true
             fi
@@ -1537,6 +1538,7 @@ ejecutar_descarga_e_instalacion_automatica() {
             ;;
         ubuntu)
             echo -e "${C_CYAN}  ⚙️ Configurando Ubuntu / Linux Mint / Pop!_OS / Zorin...${C_RESET}"
+            sudo sed -i '/^deb cdrom:/s/^/#/' /etc/apt/sources.list /etc/apt/sources.list.d/*.list 2>/dev/null || true
             if command -v dpkg &>/dev/null && ! dpkg --print-foreign-architectures 2>/dev/null | grep -q "i386"; then
                 sudo dpkg --add-architecture i386 2>/dev/null || true
             fi
