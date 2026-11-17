@@ -1558,7 +1558,7 @@ ejecutar_descarga_e_instalacion_automatica() {
                 sudo dpkg --add-architecture i386 2>/dev/null || true
             fi
             sudo apt-get update -y 2>/dev/null || true
-            sudo apt-get install -y wine wine32:i386 wine64 winetricks cabextract curl p7zip-full mesa-utils vulkan-tools zenity python3 2>/dev/null || sudo apt-get install -y wine winetricks cabextract curl p7zip-full zenity python3 2>/dev/null || true
+            sudo apt-get install -y wine wine32:i386 wine64 winetricks cabextract curl git p7zip-full mesa-utils vulkan-tools zenity python3 wine-gecko wine-mono 2>/dev/null || sudo apt-get install -y wine winetricks cabextract curl git p7zip-full zenity python3 2>/dev/null || true
             sudo apt-get install -y libvulkan1 libvulkan1:i386 mesa-vulkan-drivers mesa-vulkan-drivers:i386 libgl1-mesa-dri:i386 libgl1:i386 2>/dev/null || true
             sudo apt-get install -y gamemode libgamemode0:i386 2>/dev/null || sudo apt-get install -y gamemode 2>/dev/null || true
             if lspci 2>/dev/null | grep -qi "nvidia"; then
@@ -1577,7 +1577,7 @@ ejecutar_descarga_e_instalacion_automatica() {
                 sudo dpkg --add-architecture i386 2>/dev/null || true
             fi
             sudo apt-get update -y 2>/dev/null || true
-            sudo apt-get install -y wine wine32:i386 wine64 winetricks cabextract curl p7zip-full mesa-utils vulkan-tools zenity python3 2>/dev/null || sudo apt-get install -y wine winetricks cabextract curl p7zip-full zenity python3 2>/dev/null || true
+            sudo apt-get install -y wine wine32:i386 wine64 winetricks cabextract curl git p7zip-full mesa-utils vulkan-tools zenity python3 wine-gecko wine-mono 2>/dev/null || sudo apt-get install -y wine winetricks cabextract curl git p7zip-full zenity python3 2>/dev/null || true
             sudo apt-get install -y libvulkan1 libvulkan1:i386 mesa-vulkan-drivers mesa-vulkan-drivers:i386 libgl1-mesa-dri:i386 libgl1:i386 mangohud gamemode libgamemode0:i386 2>/dev/null || true
             if lspci 2>/dev/null | grep -qi "nvidia"; then
                 echo -e "${C_CYAN}  🎮 GPU NVIDIA detectada: Asegurando controladores y librerías de 32 bits...${C_RESET}"
@@ -1600,7 +1600,7 @@ ejecutar_descarga_e_instalacion_automatica() {
                 sudo sed -i '/^#\[multilib\]/{s/^#//;n;s/^#//}' /etc/pacman.conf 2>/dev/null || true
                 sudo pacman -Sy --noconfirm 2>/dev/null || true
             fi
-            sudo pacman -S --needed --noconfirm wine winetricks gamemode lib32-gamemode cabextract curl p7zip mesa-utils vulkan-tools zenity python 2>/dev/null || sudo pacman -S --needed --noconfirm wine winetricks gamemode cabextract curl p7zip mesa-utils vulkan-tools zenity python 2>/dev/null || true
+            sudo pacman -S --needed --noconfirm wine winetricks gamemode lib32-gamemode cabextract curl git p7zip mesa-utils vulkan-tools zenity python wine-gecko wine-mono 2>/dev/null || sudo pacman -S --needed --noconfirm wine winetricks gamemode cabextract curl git p7zip mesa-utils vulkan-tools zenity python 2>/dev/null || true
             sudo pacman -S --needed --noconfirm vulkan-icd-loader lib32-vulkan-icd-loader lib32-mesa lib32-libglvnd mangohud lib32-mangohud lib32-vkd3d 2>/dev/null || true
             if lspci 2>/dev/null | grep -qiE "amd|radeon"; then
                 echo -e "${C_CYAN}  🎮 GPU AMD detectada: Instalando controladores RADV Vulkan (32 y 64 bits)...${C_RESET}"
@@ -1618,7 +1618,7 @@ ejecutar_descarga_e_instalacion_automatica() {
         fedora)
             echo -e "${C_CYAN}  ⚙️ Configurando Fedora / Nobara...${C_RESET}"
             # 1. Paquetes base esenciales (100% oficiales y disponibles en Fedora)
-            sudo dnf install -y wine winetricks gamemode cabextract curl p7zip p7zip-plugins vulkan-tools glx-utils zenity python3 2>/dev/null || sudo dnf install -y wine winetricks gamemode cabextract curl p7zip vulkan-tools zenity python3 2>/dev/null || true
+            sudo dnf install -y wine winetricks gamemode cabextract curl git p7zip p7zip-plugins vulkan-tools glx-utils zenity python3 wine-gecko wine-mono 2>/dev/null || sudo dnf install -y wine winetricks gamemode cabextract curl git p7zip vulkan-tools zenity python3 2>/dev/null || true
 
             # 2. Soporte para juegos y ejecutables de 32 bits (Wine multiarch)
             sudo dnf install -y wine.i686 2>/dev/null || sudo dnf install -y wine-core.i686 2>/dev/null || true
@@ -1653,7 +1653,7 @@ ejecutar_descarga_e_instalacion_automatica() {
             ;;
         opensuse)
             echo -e "${C_CYAN}  ⚙️ Configurando openSUSE...${C_RESET}"
-            sudo zypper --non-interactive --auto-agree-with-licenses install wine wine-32bit winetricks gamemode gamemode-32bit cabextract curl p7zip mesa-utils vulkan-tools zenity python3 2>/dev/null || sudo zypper --non-interactive --auto-agree-with-licenses install wine winetricks gamemode cabextract curl p7zip mesa-utils vulkan-tools zenity python3 2>/dev/null || true
+            sudo zypper --non-interactive --auto-agree-with-licenses install wine wine-32bit winetricks gamemode gamemode-32bit cabextract curl git p7zip mesa-utils vulkan-tools zenity python3 wine-gecko wine-mono 2>/dev/null || sudo zypper --non-interactive --auto-agree-with-licenses install wine winetricks gamemode cabextract curl git p7zip mesa-utils vulkan-tools zenity python3 2>/dev/null || true
             sudo zypper --non-interactive --auto-agree-with-licenses install libvulkan1 libvulkan1-32bit Mesa-dri-32bit libglvnd-32bit mangohud mangohud-32bit 2>/dev/null || true
             if lspci 2>/dev/null | grep -qiE "amd|radeon"; then
                 echo -e "${C_CYAN}  🎮 GPU AMD detectada: Instalando controladores RADV Vulkan...${C_RESET}"
@@ -1843,19 +1843,33 @@ EOF' 2>/dev/null || true
     fi
 
     if [ -f "${DIR}/GameRanger/GameRanger.exe" ]; then
+        mkdir -p "$gr_progfiles" "$gr_roaming" "${gr_roaming}/../GameRanger Prefs"
         cp -r "${DIR}/GameRanger"/* "$gr_progfiles/" 2>/dev/null || true
         cp -r "${DIR}/GameRanger"/* "$gr_roaming/" 2>/dev/null || true
-        gr_found="${gr_progfiles}/GameRanger.exe"
+        gr_found="${gr_roaming}/GameRanger.exe"
     elif [ -f "${DIR}/GameRangerSetup.exe" ]; then
         WINEPREFIX="${DIR}/wineprefix" WINEDLLOVERRIDES="dxgi=b;d3d11=b;d3d10core=b;d3d9=b;" wine "${DIR}/GameRangerSetup.exe" 2>/dev/null || true
-        gr_found=$(find "${DIR}/wineprefix/drive_c" -name "GameRanger.exe" 2>/dev/null | head -n 1)
+        gr_found=$(find "${DIR}/wineprefix/drive_c/users" -name "GameRanger.exe" 2>/dev/null | head -n 1)
+        [ -z "$gr_found" ] && gr_found=$(find "${DIR}/wineprefix/drive_c" -name "GameRanger.exe" 2>/dev/null | head -n 1)
     fi
 
-    # Registrar GameRanger en el registro de Windows de Wine
+    # Registrar GameRanger en el registro de Windows de Wine (Compatibilidad nativa y 0% pantalla negra)
     WINEPREFIX="${DIR}/wineprefix" wine reg add "HKEY_LOCAL_MACHINE\Software\GameRanger" /v "ExecutablePath" /t REG_SZ /d "C:\Program Files\GameRanger\GameRanger.exe" /f >/dev/null 2>&1 || true
     WINEPREFIX="${DIR}/wineprefix" wine reg add "HKEY_CURRENT_USER\Software\GameRanger" /v "ExecutablePath" /t REG_SZ /d "C:\Program Files\GameRanger\GameRanger.exe" /f >/dev/null 2>&1 || true
-    WINEPREFIX="${DIR}/wineprefix" wine reg add "HKEY_CLASSES_ROOT\gameranger" /t REG_SZ /d "URL:GameRanger Protocol" /f >/dev/null 2>&1 || true
-    WINEPREFIX="${DIR}/wineprefix" wine reg add "HKEY_CLASSES_ROOT\gameranger\shell\open\command" /t REG_SZ /d "\"C:\Program Files\GameRanger\GameRanger.exe\" \"%1\"" /f >/dev/null 2>&1 || true
+    WINEPREFIX="${DIR}/wineprefix" wine reg add "HKEY_CURRENT_USER\Software\Wine\AppDefaults\GameRanger.exe" /v "Version" /t REG_SZ /d "win7" /f >/dev/null 2>&1 || true
+    WINEPREFIX="${DIR}/wineprefix" wine reg add "HKEY_CURRENT_USER\Software\Wine\AppDefaults\GameRanger.exe\Direct3D" /v "renderer" /t REG_SZ /d "gl" /f >/dev/null 2>&1 || true
+    WINEPREFIX="${DIR}/wineprefix" wine reg add "HKEY_CURRENT_USER\Software\Wine\AppDefaults\GameRanger.exe\DllOverrides" /v "dxgi" /t REG_SZ /d "b" /f >/dev/null 2>&1 || true
+    WINEPREFIX="${DIR}/wineprefix" wine reg add "HKEY_CURRENT_USER\Software\Wine\AppDefaults\GameRanger.exe\DllOverrides" /v "d3d11" /t REG_SZ /d "b" /f >/dev/null 2>&1 || true
+    WINEPREFIX="${DIR}/wineprefix" wine reg add "HKEY_CURRENT_USER\Software\Wine\AppDefaults\GameRanger.exe\DllOverrides" /v "d3d10core" /t REG_SZ /d "b" /f >/dev/null 2>&1 || true
+    WINEPREFIX="${DIR}/wineprefix" wine reg add "HKEY_CURRENT_USER\Software\Wine\AppDefaults\GameRanger.exe\DllOverrides" /v "d3d9" /t REG_SZ /d "b" /f >/dev/null 2>&1 || true
+    WINEPREFIX="${DIR}/wineprefix" wine reg add "HKEY_CURRENT_USER\Software\Wine\AppDefaults\GameRanger.exe\DllOverrides" /v "dnsapi" /t REG_SZ /d "n,b" /f >/dev/null 2>&1 || true
+    WINEPREFIX="${DIR}/wineprefix" wine reg add "HKEY_CURRENT_USER\Software\Wine\AppDefaults\GameRanger.exe\DllOverrides" /v "dplayx" /t REG_SZ /d "n,b" /f >/dev/null 2>&1 || true
+    WINEPREFIX="${DIR}/wineprefix" wine reg add "HKEY_CURRENT_USER\Software\Wine\AppDefaults\GameRanger.exe\DllOverrides" /v "dpnet" /t REG_SZ /d "n,b" /f >/dev/null 2>&1 || true
+    WINEPREFIX="${DIR}/wineprefix" wine reg add "HKEY_CURRENT_USER\Software\Wine\AppDefaults\GameRanger.exe\DllOverrides" /v "riched20" /t REG_SZ /d "n,b" /f >/dev/null 2>&1 || true
+    WINEPREFIX="${DIR}/wineprefix" wine reg add "HKEY_CURRENT_USER\Software\Wine\AppDefaults\GameRanger.exe\DllOverrides" /v "riched32" /t REG_SZ /d "n,b" /f >/dev/null 2>&1 || true
+    WINEPREFIX="${DIR}/wineprefix" wine reg add "HKEY_CLASSES_ROOT\gameranger" /v "" /t REG_SZ /d "URL:GameRanger Protocol" /f >/dev/null 2>&1 || true
+    WINEPREFIX="${DIR}/wineprefix" wine reg add "HKEY_CLASSES_ROOT\gameranger" /v "URL Protocol" /t REG_SZ /d "" /f >/dev/null 2>&1 || true
+    WINEPREFIX="${DIR}/wineprefix" wine reg add "HKEY_CLASSES_ROOT\gameranger\shell\open\command" /v "" /t REG_SZ /d "\"C:\Program Files\GameRanger\GameRanger.exe\" \"%1\"" /f >/dev/null 2>&1 || true
 
     # Acceso directo en el menú de aplicaciones y escritorio
     mkdir -p "$target_home/.local/share/applications"
@@ -1884,6 +1898,7 @@ EOF
     # Registrar en programas.db
     touch "${DIR}/programas.db"
     if ! grep -qi "GameRanger" "${DIR}/programas.db" 2>/dev/null; then
+        [ -z "$gr_found" ] && gr_found=$(find "${DIR}/wineprefix/drive_c/users" -name "GameRanger.exe" 2>/dev/null | head -n 1)
         [ -z "$gr_found" ] && [ -f "${DIR}/GameRanger/GameRanger.exe" ] && gr_found="${DIR}/GameRanger/GameRanger.exe"
         if [ -n "$gr_found" ]; then
             echo "GameRanger|${gr_found}|compartido" >> "${DIR}/programas.db"

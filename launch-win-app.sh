@@ -47,24 +47,33 @@ export WINEPREFIX="${DIR}/wineprefix"
 if [[ "$TARGET" != /* ]] && [ -f "${DIR}/${TARGET}" ]; then
     TARGET="${DIR}/${TARGET}"
 fi
-if [ ! -f "$TARGET" ] && [[ "$TARGET" =~ [Gg]ame[Rr]anger ]]; then
-    FOUND_GR=$(find "${DIR}" "${WINEPREFIX}/drive_c" -name "GameRanger.exe" 2>/dev/null | head -n 1)
-    if [ -n "$FOUND_GR" ] && [ -f "$FOUND_GR" ]; then
-        TARGET="$FOUND_GR"
-    elif [ -f "${DIR}/GameRanger/GameRanger.exe" ]; then
-        TARGET="${DIR}/GameRanger/GameRanger.exe"
-    elif [ -f "${DIR}/GameRangerSetup.exe" ]; then
-        echo "[*] GameRanger no encontrado en este equipo. Ejecutando instalador predeterminado..."
-        WINEPREFIX="${WINEPREFIX}" WINEDLLOVERRIDES="winemenubuilder.exe=d;dxgi=b;d3d11=b;d3d10core=b;d3d9=b;" wine "${DIR}/GameRangerSetup.exe" 2>/dev/null || true
-        FOUND_GR=$(find "${WINEPREFIX}/drive_c" -name "GameRanger.exe" 2>/dev/null | head -n 1)
-        [ -n "$FOUND_GR" ] && TARGET="$FOUND_GR"
-    elif command -v curl &>/dev/null; then
-        echo "[*] Descargando GameRanger oficial..."
-        curl -fsSL https://www.gameranger.com/download/GameRangerSetup.exe -o "${DIR}/GameRangerSetup.exe" 2>/dev/null || true
-        if [ -f "${DIR}/GameRangerSetup.exe" ]; then
+if [[ "$TARGET" =~ [Gg]ame[Rr]anger ]] || [ ! -f "$TARGET" ]; then
+    if [[ "$TARGET" =~ [Gg]ame[Rr]anger ]]; then
+        FOUND_GR=$(find "${WINEPREFIX}/drive_c/users" -name "GameRanger.exe" 2>/dev/null | head -n 1)
+        [ -z "$FOUND_GR" ] && [ -f "${WINEPREFIX}/drive_c/Program Files/GameRanger/GameRanger.exe" ] && FOUND_GR="${WINEPREFIX}/drive_c/Program Files/GameRanger/GameRanger.exe"
+        if [ -z "$FOUND_GR" ] && [ -f "${DIR}/GameRanger/GameRanger.exe" ]; then
+            TARGET_USER="${SUDO_USER:-$USER}"
+            GR_ROAMING="${WINEPREFIX}/drive_c/users/${TARGET_USER}/AppData/Roaming/GameRanger/GameRanger"
+            mkdir -p "$GR_ROAMING" "${GR_ROAMING}/../GameRanger Prefs" "${WINEPREFIX}/drive_c/Program Files/GameRanger"
+            cp -r "${DIR}/GameRanger"/* "$GR_ROAMING/" 2>/dev/null || true
+            cp -r "${DIR}/GameRanger"/* "${WINEPREFIX}/drive_c/Program Files/GameRanger/" 2>/dev/null || true
+            FOUND_GR="${GR_ROAMING}/GameRanger.exe"
+        fi
+        if [ -n "$FOUND_GR" ] && [ -f "$FOUND_GR" ]; then
+            TARGET="$FOUND_GR"
+        elif [ -f "${DIR}/GameRangerSetup.exe" ]; then
+            echo "[*] Instalando GameRanger oficial en el entorno..."
             WINEPREFIX="${WINEPREFIX}" WINEDLLOVERRIDES="winemenubuilder.exe=d;dxgi=b;d3d11=b;d3d10core=b;d3d9=b;" wine "${DIR}/GameRangerSetup.exe" 2>/dev/null || true
             FOUND_GR=$(find "${WINEPREFIX}/drive_c" -name "GameRanger.exe" 2>/dev/null | head -n 1)
             [ -n "$FOUND_GR" ] && TARGET="$FOUND_GR"
+        elif command -v curl &>/dev/null; then
+            echo "[*] Descargando GameRanger oficial..."
+            curl -fsSL https://www.gameranger.com/download/GameRangerSetup.exe -o "${DIR}/GameRangerSetup.exe" 2>/dev/null || true
+            if [ -f "${DIR}/GameRangerSetup.exe" ]; then
+                WINEPREFIX="${WINEPREFIX}" WINEDLLOVERRIDES="winemenubuilder.exe=d;dxgi=b;d3d11=b;d3d10core=b;d3d9=b;" wine "${DIR}/GameRangerSetup.exe" 2>/dev/null || true
+                FOUND_GR=$(find "${WINEPREFIX}/drive_c" -name "GameRanger.exe" 2>/dev/null | head -n 1)
+                [ -n "$FOUND_GR" ] && TARGET="$FOUND_GR"
+            fi
         fi
     fi
 fi
@@ -109,11 +118,14 @@ if [ ! -f "${WINEPREFIX}/system.reg" ]; then
 fi
 
 # 6. Configuración de ratón ultra-fluido (movimiento libre 1:1 por toda la pantalla sin bloqueos)
-wine reg add "HKEY_CURRENT_USER\Software\Wine\DirectInput" /v MouseWarpOverride /t REG_SZ /d enable /f >/dev/null 2>&1 || true
-wine reg add "HKEY_CURRENT_USER\Software\Wine\X11 Driver" /v UseTakeFocus /t REG_SZ /d Y /f >/dev/null 2>&1 || true
-wine reg add "HKEY_CURRENT_USER\Software\Wine\X11 Driver" /v GrabFullscreen /t REG_SZ /d Y /f >/dev/null 2>&1 || true
-wine reg add "HKEY_CURRENT_USER\Software\Wine\X11 Driver" /v Decorated /t REG_SZ /d Y /f >/dev/null 2>&1 || true
-wine reg add "HKEY_CURRENT_USER\Software\Wine\X11 Driver" /v Managed /t REG_SZ /d Y /f >/dev/null 2>&1 || true
+if [ ! -f "${WINEPREFIX}/.vessel_reg_ok" ]; then
+    wine reg add "HKEY_CURRENT_USER\Software\Wine\DirectInput" /v MouseWarpOverride /t REG_SZ /d enable /f >/dev/null 2>&1 || true
+    wine reg add "HKEY_CURRENT_USER\Software\Wine\X11 Driver" /v UseTakeFocus /t REG_SZ /d Y /f >/dev/null 2>&1 || true
+    wine reg add "HKEY_CURRENT_USER\Software\Wine\X11 Driver" /v GrabFullscreen /t REG_SZ /d Y /f >/dev/null 2>&1 || true
+    wine reg add "HKEY_CURRENT_USER\Software\Wine\X11 Driver" /v Decorated /t REG_SZ /d Y /f >/dev/null 2>&1 || true
+    wine reg add "HKEY_CURRENT_USER\Software\Wine\X11 Driver" /v Managed /t REG_SZ /d Y /f >/dev/null 2>&1 || true
+    touch "${WINEPREFIX}/.vessel_reg_ok" 2>/dev/null || true
+fi
 
 # 7. Generar archivo DXVK optimizado según la CPU y límite de FPS configurado
 if [ "$RENDERER_IN_USE" != "WineD3D (OpenGL Compatibilidad)" ]; then
@@ -153,21 +165,38 @@ TARGET_DIR="$(cd "$(dirname "$TARGET")" && pwd)"
 TARGET_FILE="$(basename "$TARGET")"
 
 # 11.1 Configuración específica para el cliente de lobby GameRanger
+EXTRA_APP_ARGS=""
 if [[ "$TARGET_FILE" =~ [Gg]ame[Rr]anger ]]; then
     # GameRanger es una aplicación de escritorio/chat con interfaz Chromium CEF / ANGLE embebida.
     # Sus subventanas web no son superficies 3D exclusivas y fallan con swapchains Vulkan (VK_ERROR_OUT_OF_HOST_MEMORY).
     # Desactivamos DXVK para GameRanger y usamos WineD3D nativo, eliminando cualquier cuelgue de UI.
     export RENDERER_IN_USE="WineD3D (Lobby Compatibilidad)"
     export PROTON_USE_WINED3D=1
-    export WINEDLLOVERRIDES="$(echo "$WINEDLLOVERRIDES" | sed -E 's/(dxgi|d3d11|d3d10core|d3d9)=n/\1=b/g');ws2_32=b;dnsapi=b;secur32=b;wininet=b;iphlpapi=b"
+    export WINEDLLOVERRIDES="winemenubuilder.exe=d;dxgi=b;d3d11=b;d3d10core=b;d3d9=b;dnsapi=n,b;dplayx=n,b;dpnet=n,b;dpwsockx=n,b;riched20=n,b;riched32=n,b;ws2_32=b;wininet=b;iphlpapi=b;secur32=b"
     unset DXVK_CONFIG_FILE
     unset DXVK_STATE_CACHE_PATH
     unset DXVK_ASYNC
     unset DXVK_GPLASYNCCACHE
 
+    # Forzar modo Windows 7 y renderer GL en registro Wine AppDefaults para GameRanger
+    wine reg add "HKEY_CURRENT_USER\Software\Wine\AppDefaults\GameRanger.exe" /v "Version" /t REG_SZ /d "win7" /f >/dev/null 2>&1 || true
+    wine reg add "HKEY_CURRENT_USER\Software\Wine\AppDefaults\GameRanger.exe\Direct3D" /v "renderer" /t REG_SZ /d "gl" /f >/dev/null 2>&1 || true
+
     # Asegurar privilegios de red para multijugador y ping ICMP en GameRanger
     sysctl -w net.ipv4.ping_group_range="0 2147483647" 2>/dev/null || true
     sysctl -w net.ipv4.ip_unprivileged_port_start=0 2>/dev/null || true
+
+    # Apertura de firewall para el puerto UDP 16000 de GameRanger (matchmaking y lista de partidas)
+    if command -v firewall-cmd &>/dev/null && systemctl is-active firewalld &>/dev/null; then
+        sudo firewall-cmd --permanent --add-port=16000/udp 2>/dev/null || true
+        sudo firewall-cmd --reload 2>/dev/null || true
+    fi
+    if command -v ufw &>/dev/null; then
+        sudo ufw allow 16000/udp 2>/dev/null || true
+    fi
+
+    # Argumentos críticos para Chromium CEF: eliminan pantalla negra y fuerzan renderizado fluido por software en CPU
+    EXTRA_APP_ARGS="--disable-gpu --disable-gpu-compositing --in-process-gpu --no-sandbox"
 fi
 
 # Moverse al directorio donde reside el juego (vital para rutas relativas y DLLs)
@@ -428,9 +457,9 @@ elif [[ "$TARGET_FILE" =~ \.(lnk|ink|LNK|INK)$ ]]; then
     fi
 else
     if [ -n "$RUN_PREFIX" ]; then
-        $GAMEMODE "$WINE_CMD" $RUN_PREFIX "$TARGET_FILE" "$@"
+        $GAMEMODE "$WINE_CMD" $RUN_PREFIX "$TARGET_FILE" "$@" $EXTRA_APP_ARGS
     else
-        $GAMEMODE "$WINE_CMD" "$TARGET_FILE" "$@"
+        $GAMEMODE "$WINE_CMD" "$TARGET_FILE" "$@" $EXTRA_APP_ARGS
     fi
 fi
 EXIT_STATUS=$?
