@@ -506,12 +506,67 @@ StartupNotify=true
     else:
         print(f"\n{RED}❌ No se encontró la carpeta de Escritorio.{RESET}")
 
+def seleccionar_archivo_mouse(titulo="Seleccionar Juego o Programa"):
+    """Abre el explorador de archivos gráfico nativo (kdialog / zenity / tkinter) para seleccionar con el mouse."""
+    # 1. Probar kdialog (Nativo de KDE Plasma / Konsole)
+    if shutil.which("kdialog") and (os.environ.get("DISPLAY") or os.environ.get("WAYLAND_DISPLAY")):
+        try:
+            init_dir = "/media" if os.path.exists("/media") else os.path.expanduser("~")
+            cmd = [
+                "kdialog",
+                "--title", titulo,
+                "--getopenfilename", init_dir,
+                "*.exe *.bat *.cmd *.lnk *.ink *.msi *.EXE *.BAT *.CMD *.LNK *.INK *.MSI | Ejecutables y Accesos (*.exe, *.bat, *.lnk, *.msi)\n* | Todos los archivos (*)"
+            ]
+            res = subprocess.check_output(cmd, stderr=subprocess.DEVNULL, text=True).strip()
+            if res and os.path.exists(res):
+                return res
+        except Exception:
+            pass
+
+    # 2. Probar zenity (GNOME / GTK)
+    if shutil.which("zenity") and (os.environ.get("DISPLAY") or os.environ.get("WAYLAND_DISPLAY")):
+        try:
+            cmd = [
+                "zenity", "--file-selection",
+                f"--title={titulo}",
+                "--file-filter=Ejecutables y Juegos (*.exe, *.bat, *.lnk, *.msi) | *.exe *.bat *.cmd *.lnk *.ink *.msi *.EXE *.BAT *.CMD *.LNK *.INK *.MSI",
+                "--file-filter=Todos los archivos (*) | *"
+            ]
+            res = subprocess.check_output(cmd, stderr=subprocess.DEVNULL, text=True).strip()
+            if res and os.path.exists(res):
+                return res
+        except Exception:
+            pass
+
+    # 3. Fallback con tkinter
+    try:
+        import tkinter as tk
+        from tkinter import filedialog
+        root = tk.Tk()
+        root.withdraw()
+        root.attributes('-topmost', True)
+        res = filedialog.askopenfilename(
+            title=titulo,
+            filetypes=[
+                ("Ejecutables y Juegos", "*.exe *.bat *.cmd *.lnk *.ink *.msi"),
+                ("Todos los archivos", "*.*")
+            ]
+        )
+        root.destroy()
+        if res and os.path.exists(res):
+            return res
+    except Exception:
+        pass
+
+    return None
+
 # ==============================================================================
 # SUBMENÚ 2: CONFIGURAR PROGRAMA WIN
 # ==============================================================================
 
 def menu_configurar_programas(hw, cfg):
-    """Submenú 2: Configurar programas (Añadir, eliminar, accesos de escritorio, mods)."""
+    """Submenú 2: Configurar programas (Añadir con mouse, teclado, renombrar, eliminar, accesos de escritorio, mods)."""
     while True:
         opciones = [
             ("1", "➕ Añadir Programa Portable (.exe, .bat, .lnk)"),
@@ -526,29 +581,103 @@ def menu_configurar_programas(hw, cfg):
         if sel == "0":
             break
         elif sel == "1":
-            os.system("clear")
-            print(f"{PURPLE}➕ [ AÑADIR PROGRAMA PORTABLE ]{RESET}\n")
-            print(f"{WHITE}Arrastra el archivo .exe / .bat / .lnk a la terminal o escribe su ruta:{RESET}")
-            ruta = input(f"{CYAN}Ruta: {RESET}").strip().strip("'").strip('"')
-            if os.path.exists(ruta):
-                nombre = os.path.splitext(os.path.basename(ruta))[0]
-                nombre = nombre.replace("_", " ").replace("-", " ")
-                with open(DB_FILE, "a", encoding="utf-8") as f:
-                    f.write(f"{nombre}|{ruta}|compartido\n")
-                print(f"\n{GREEN}✔ Programa '{nombre}' añadido con éxito a la lista.{RESET}")
-                
-                # Ofrecer crear acceso directo inmediatamente
-                crear = input(f"\n{WHITE}¿Deseas crear acceso directo en el Escritorio ahora? (S/n): {RESET}").strip().lower()
-                if crear != 'n':
-                    crear_desktop_entry(nombre, ruta)
+            # Menú de selección interactiva: mouse o teclado
+            sub_metodo = [
+                ("1", "🖱️  Seleccionar con el Mouse (Abrir ventana gráfica de archivos)"),
+                ("2", "⌨️  Escribir o pegar la ruta manualmente en la terminal"),
+                ("0", "↩️  Cancelar")
+            ]
+            m_opc = submenu_interactivo("➕  ¿Cómo deseas buscar el juego o programa?", sub_metodo, hw, cfg)
+            ruta = ""
+            if m_opc == "1":
+                os.system("clear")
+                print(f"{CYAN}🖱️  Abriendo explorador de archivos... Haz clic y selecciona tu juego.{RESET}\n")
+                ruta = seleccionar_archivo_mouse("Seleccionar Ejecutable o Juego (.exe, .bat, .lnk)")
+                if not ruta:
+                    print(f"{YELLOW}⚠️  No se seleccionó ningún archivo con el explorador.{RESET}")
+                    pausar()
+                    continue
+            elif m_opc == "2":
+                os.system("clear")
+                print(f"{PURPLE}➕ [ AÑADIR PROGRAMA PORTABLE MANUALMENTE ]{RESET}\n")
+                print(f"{WHITE}Arrastra el archivo .exe / .bat / .lnk a la terminal o escribe su ruta:{RESET}")
+                ruta = input(f"{CYAN}Ruta: {RESET}").strip().strip("'").strip('"')
             else:
-                print(f"\n{RED}❌ La ruta especificada no existe.{RESET}")
+                continue
+
+            if not ruta or not os.path.exists(ruta):
+                print(f"\n{RED}❌ El archivo no existe o la ruta especificada es inválida.{RESET}")
+                pausar()
+                continue
+
+            # Resolución inteligente de accesos directos .lnk si aplica
+            nombre_sugerido = os.path.splitext(os.path.basename(ruta))[0]
+            if ruta.lower().endswith(('.lnk', '.ink')):
+                try:
+                    sys.path.insert(0, DIR)
+                    from resolver_lnk import resolve_lnk
+                    res_lnk = resolve_lnk(ruta, WINEPREFIX)
+                    if res_lnk.get("status") == "RESOLVED" and os.path.isfile(res_lnk.get("path", "")):
+                        ruta = res_lnk["path"]
+                        if res_lnk.get("name"):
+                            nombre_sugerido = res_lnk["name"]
+                except Exception:
+                    pass
+
+            nombre_sugerido = nombre_sugerido.replace("_", " ").replace("-", " ")
+
+            # Permitir al usuario poner el nombre exacto que desea
+            os.system("clear")
+            print(f"{PURPLE}🎮 [ ASIGNAR NOMBRE AL JUEGO ]{RESET}\n")
+            print(f"  {WHITE}Archivo seleccionado :{RESET} {CYAN}{ruta}{RESET}")
+            print(f"  {WHITE}Nombre sugerido      :{RESET} {BOLD}{WHITE}{nombre_sugerido}{RESET}\n")
+            print(f"{WHITE}Escribe el nombre que deseas mostrar en el menú:{RESET}")
+            print(f"{GRAY}(Presiona Enter para usar '{nombre_sugerido}' o escribe tu nombre personalizado){RESET}")
+            nombre_custom = input(f"{CYAN}➤ Nombre: {RESET}").strip()
+            if not nombre_custom:
+                nombre_custom = nombre_sugerido
+
+            with open(DB_FILE, "a", encoding="utf-8") as f:
+                f.write(f"{nombre_custom}|{ruta}|compartido\n")
+
+            print(f"\n{GREEN}✔ ¡Juego '{nombre_custom}' registrado exitosamente en la lista!{RESET}")
+
+            # Ofrecer crear acceso directo inmediatamente
+            crear = input(f"\n{WHITE}¿Deseas crear acceso directo en el Escritorio ahora? (S/n): {RESET}").strip().lower()
+            if crear != 'n':
+                crear_desktop_entry(nombre_custom, ruta)
+
+            # Ofrecer iniciar ahora
+            ini = input(f"\n{PURPLE}¿Deseas iniciar '{nombre_custom}' ahora mismo? (s/N): {RESET}").strip().lower()
+            if ini == 's':
+                os.system("clear")
+                print(f"{GREEN}🚀 Iniciando: {BOLD}{nombre_custom}{RESET}...\n")
+                subprocess.run(["bash", LAUNCHER, ruta])
             pausar()
         elif sel == "2":
-            os.system("clear")
-            print(f"{PURPLE}💿 [ INSTALAR PROGRAMA CON INSTALADOR ]{RESET}\n")
-            ruta = input(f"{CYAN}Ruta al instalador (Setup.exe / instalador): {RESET}").strip().strip("'").strip('"')
-            if os.path.exists(ruta):
+            sub_metodo = [
+                ("1", "🖱️  Seleccionar Instalador con el Mouse (Ventana gráfica)"),
+                ("2", "⌨️  Escribir o pegar la ruta manualmente en la terminal"),
+                ("0", "↩️  Cancelar")
+            ]
+            m_opc = submenu_interactivo("💿  Seleccionar Instalador", sub_metodo, hw, cfg)
+            ruta = ""
+            if m_opc == "1":
+                os.system("clear")
+                print(f"{CYAN}🖱️  Abriendo explorador de archivos... Selecciona el Setup.exe o instalador.{RESET}\n")
+                ruta = seleccionar_archivo_mouse("Seleccionar Instalador (Setup.exe, .msi)")
+                if not ruta:
+                    print(f"{YELLOW}⚠️  No se seleccionó ningún instalador.{RESET}")
+                    pausar()
+                    continue
+            elif m_opc == "2":
+                os.system("clear")
+                print(f"{PURPLE}💿 [ INSTALAR PROGRAMA CON INSTALADOR ]{RESET}\n")
+                ruta = input(f"{CYAN}Ruta al instalador (Setup.exe / instalador): {RESET}").strip().strip("'").strip('"')
+            else:
+                continue
+
+            if ruta and os.path.exists(ruta):
                 print(f"\n{GREEN}🚀 Iniciando instalador en Wine... Sigue los pasos del asistente.{RESET}\n")
                 subprocess.run(["bash", LAUNCHER, ruta])
                 print(f"\n{CYAN}💡 Si el instalador creó un ejecutable en 'Program Files', puedes registrarlo con la opción 1.{RESET}")
