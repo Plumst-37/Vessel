@@ -1559,7 +1559,7 @@ ejecutar_descarga_e_instalacion_automatica() {
             fi
             sudo apt-get update -y 2>/dev/null || true
             sudo apt-get install -y wine wine32:i386 wine64 winetricks cabextract curl p7zip-full mesa-utils vulkan-tools zenity python3 2>/dev/null || sudo apt-get install -y wine winetricks cabextract curl p7zip-full zenity python3 2>/dev/null || true
-            sudo apt-get install -y libvulkan1 libvulkan1:i386 mesa-vulkan-drivers mesa-vulkan-drivers:i386 2>/dev/null || true
+            sudo apt-get install -y libvulkan1 libvulkan1:i386 mesa-vulkan-drivers mesa-vulkan-drivers:i386 libgl1-mesa-dri:i386 libgl1:i386 2>/dev/null || true
             sudo apt-get install -y gamemode libgamemode0:i386 2>/dev/null || sudo apt-get install -y gamemode 2>/dev/null || true
             if lspci 2>/dev/null | grep -qi "nvidia"; then
                 echo -e "${C_CYAN}  🎮 GPU NVIDIA detectada: Asegurando librerías gráficas de 32 bits...${C_RESET}"
@@ -1578,7 +1578,7 @@ ejecutar_descarga_e_instalacion_automatica() {
             fi
             sudo apt-get update -y 2>/dev/null || true
             sudo apt-get install -y wine wine32:i386 wine64 winetricks cabextract curl p7zip-full mesa-utils vulkan-tools zenity python3 2>/dev/null || sudo apt-get install -y wine winetricks cabextract curl p7zip-full zenity python3 2>/dev/null || true
-            sudo apt-get install -y libvulkan1 libvulkan1:i386 mesa-vulkan-drivers mesa-vulkan-drivers:i386 mangohud gamemode libgamemode0:i386 2>/dev/null || true
+            sudo apt-get install -y libvulkan1 libvulkan1:i386 mesa-vulkan-drivers mesa-vulkan-drivers:i386 libgl1-mesa-dri:i386 libgl1:i386 mangohud gamemode libgamemode0:i386 2>/dev/null || true
             if lspci 2>/dev/null | grep -qi "nvidia"; then
                 echo -e "${C_CYAN}  🎮 GPU NVIDIA detectada: Asegurando controladores y librerías de 32 bits...${C_RESET}"
                 local nv_ver=$(dpkg -l 2>/dev/null | grep -E '^ii\s+nvidia-driver-[0-9]+' | awk '{print $2}' | grep -oE '[0-9]+' | head -n 1)
@@ -1601,7 +1601,7 @@ ejecutar_descarga_e_instalacion_automatica() {
                 sudo pacman -Sy --noconfirm 2>/dev/null || true
             fi
             sudo pacman -S --needed --noconfirm wine winetricks gamemode lib32-gamemode cabextract curl p7zip mesa-utils vulkan-tools zenity python 2>/dev/null || sudo pacman -S --needed --noconfirm wine winetricks gamemode cabextract curl p7zip mesa-utils vulkan-tools zenity python 2>/dev/null || true
-            sudo pacman -S --needed --noconfirm vulkan-icd-loader lib32-vulkan-icd-loader mangohud lib32-mangohud lib32-vkd3d 2>/dev/null || true
+            sudo pacman -S --needed --noconfirm vulkan-icd-loader lib32-vulkan-icd-loader lib32-mesa lib32-libglvnd mangohud lib32-mangohud lib32-vkd3d 2>/dev/null || true
             if lspci 2>/dev/null | grep -qiE "amd|radeon"; then
                 echo -e "${C_CYAN}  🎮 GPU AMD detectada: Instalando controladores RADV Vulkan (32 y 64 bits)...${C_RESET}"
                 sudo pacman -S --needed --noconfirm vulkan-radeon lib32-vulkan-radeon mesa lib32-mesa 2>/dev/null || true
@@ -1623,9 +1623,9 @@ ejecutar_descarga_e_instalacion_automatica() {
             # 2. Soporte para juegos y ejecutables de 32 bits (Wine multiarch)
             sudo dnf install -y wine.i686 2>/dev/null || sudo dnf install -y wine-core.i686 2>/dev/null || true
 
-            # 3. Controladores Vulkan (64 bits y 32 bits para juegos)
-            sudo dnf install -y vulkan-loader mesa-vulkan-drivers 2>/dev/null || true
-            sudo dnf install -y vulkan-loader.i686 mesa-vulkan-drivers.i686 2>/dev/null || true
+            # 3. Controladores Vulkan y OpenGL 32 bits (Imprescindibles para D3D9, GTA SA y juegos clásicos)
+            sudo dnf install -y vulkan-loader mesa-vulkan-drivers mesa-dri-drivers 2>/dev/null || true
+            sudo dnf install -y vulkan-loader.i686 mesa-vulkan-drivers.i686 mesa-dri-drivers.i686 libglvnd-glx.i686 libglvnd-egl.i686 2>/dev/null || true
 
             # 4. Herramientas complementarias (MangoHud y VKD3D)
             sudo dnf install -y mangohud vkd3d 2>/dev/null || true
@@ -1643,9 +1643,10 @@ ejecutar_descarga_e_instalacion_automatica() {
                 sudo dnf install -y xorg-x11-drv-nvidia-libs.i686 2>/dev/null || true
             fi
 
-            # 6. Decodificadores multimedia GStreamer
+            # 6. Decodificadores multimedia GStreamer y Sonido 32 bits
             sudo dnf install -y gstreamer1-plugins-base.i686 gstreamer1-plugins-good.i686 2>/dev/null || true
             sudo dnf install -y gstreamer1-plugins-ugly.i686 gstreamer1-plugins-bad-free.i686 2>/dev/null || true
+            sudo dnf install -y pipewire-alsa.i686 alsa-plugins-pulseaudio.i686 openal-soft.i686 2>/dev/null || true
 
             # 7. Librerías de red, SSL/TLS y DNS de 32 bits (Multijugador, GameRanger y HTTPS)
             sudo dnf install -y gnutls.i686 systemd-libs.i686 nss-mdns.i686 glibc.i686 2>/dev/null || true
@@ -1653,7 +1654,7 @@ ejecutar_descarga_e_instalacion_automatica() {
         opensuse)
             echo -e "${C_CYAN}  ⚙️ Configurando openSUSE...${C_RESET}"
             sudo zypper --non-interactive --auto-agree-with-licenses install wine wine-32bit winetricks gamemode gamemode-32bit cabextract curl p7zip mesa-utils vulkan-tools zenity python3 2>/dev/null || sudo zypper --non-interactive --auto-agree-with-licenses install wine winetricks gamemode cabextract curl p7zip mesa-utils vulkan-tools zenity python3 2>/dev/null || true
-            sudo zypper --non-interactive --auto-agree-with-licenses install libvulkan1 libvulkan1-32bit mangohud mangohud-32bit 2>/dev/null || true
+            sudo zypper --non-interactive --auto-agree-with-licenses install libvulkan1 libvulkan1-32bit Mesa-dri-32bit libglvnd-32bit mangohud mangohud-32bit 2>/dev/null || true
             if lspci 2>/dev/null | grep -qiE "amd|radeon"; then
                 echo -e "${C_CYAN}  🎮 GPU AMD detectada: Instalando controladores RADV Vulkan...${C_RESET}"
                 sudo zypper --non-interactive --auto-agree-with-licenses install libvulkan_radeon libvulkan_radeon-32bit 2>/dev/null || true
@@ -1832,21 +1833,52 @@ EOF' 2>/dev/null || true
     local target_home=$(eval echo "~$target_user")
     local gr_roaming="${DIR}/wineprefix/drive_c/users/${target_user}/AppData/Roaming/GameRanger/GameRanger"
 
-    if [ -z "$gr_found" ] || [ ! -f "$gr_found" ]; then
-        echo -e "${C_CYAN}  🎮 Instalando e integrando GameRanger en el sistema...${C_RESET}"
-        mkdir -p "$gr_roaming"
-        if [ -f "${DIR}/GameRanger/GameRanger.exe" ]; then
-            cp -r "${DIR}/GameRanger"/* "$gr_roaming/" 2>/dev/null || true
-            gr_found="${gr_roaming}/GameRanger.exe"
-        elif [ -f "${DIR}/GameRangerSetup.exe" ]; then
-            WINEPREFIX="${DIR}/wineprefix" WINEDLLOVERRIDES="dxgi=b;d3d11=b;d3d10core=b;d3d9=b;" wine "${DIR}/GameRangerSetup.exe" 2>/dev/null || true
-            gr_found=$(find "${DIR}/wineprefix/drive_c" -name "GameRanger.exe" 2>/dev/null | head -n 1)
-        elif command -v curl &>/dev/null; then
-            curl -fsSL https://www.gameranger.com/download/GameRangerSetup.exe -o "${DIR}/GameRangerSetup.exe" 2>/dev/null || true
-            [ -f "${DIR}/GameRangerSetup.exe" ] && WINEPREFIX="${DIR}/wineprefix" WINEDLLOVERRIDES="dxgi=b;d3d11=b;d3d10core=b;d3d9=b;" wine "${DIR}/GameRangerSetup.exe" 2>/dev/null || true
-            gr_found=$(find "${DIR}/wineprefix/drive_c" -name "GameRanger.exe" 2>/dev/null | head -n 1)
-        fi
-        echo -e "${C_GREEN}  ✔ GameRanger configurado en el sistema.${C_RESET}"
+    local gr_progfiles="${DIR}/wineprefix/drive_c/Program Files/GameRanger"
+    mkdir -p "$gr_progfiles" "$gr_roaming"
+
+    # Si no está localmente, descargarlo automáticamente de la fuente oficial
+    if [ ! -f "${DIR}/GameRanger/GameRanger.exe" ] && [ ! -f "${DIR}/GameRangerSetup.exe" ]; then
+        echo -e "${C_YELLOW}      Descargando instalador oficial de GameRanger...${C_RESET}"
+        curl -fsSL https://www.gameranger.com/download/GameRangerSetup.exe -o "${DIR}/GameRangerSetup.exe" 2>/dev/null || wget -q https://www.gameranger.com/download/GameRangerSetup.exe -O "${DIR}/GameRangerSetup.exe" 2>/dev/null || true
+    fi
+
+    if [ -f "${DIR}/GameRanger/GameRanger.exe" ]; then
+        cp -r "${DIR}/GameRanger"/* "$gr_progfiles/" 2>/dev/null || true
+        cp -r "${DIR}/GameRanger"/* "$gr_roaming/" 2>/dev/null || true
+        gr_found="${gr_progfiles}/GameRanger.exe"
+    elif [ -f "${DIR}/GameRangerSetup.exe" ]; then
+        WINEPREFIX="${DIR}/wineprefix" WINEDLLOVERRIDES="dxgi=b;d3d11=b;d3d10core=b;d3d9=b;" wine "${DIR}/GameRangerSetup.exe" 2>/dev/null || true
+        gr_found=$(find "${DIR}/wineprefix/drive_c" -name "GameRanger.exe" 2>/dev/null | head -n 1)
+    fi
+
+    # Registrar GameRanger en el registro de Windows de Wine
+    WINEPREFIX="${DIR}/wineprefix" wine reg add "HKEY_LOCAL_MACHINE\Software\GameRanger" /v "ExecutablePath" /t REG_SZ /d "C:\Program Files\GameRanger\GameRanger.exe" /f >/dev/null 2>&1 || true
+    WINEPREFIX="${DIR}/wineprefix" wine reg add "HKEY_CURRENT_USER\Software\GameRanger" /v "ExecutablePath" /t REG_SZ /d "C:\Program Files\GameRanger\GameRanger.exe" /f >/dev/null 2>&1 || true
+    WINEPREFIX="${DIR}/wineprefix" wine reg add "HKEY_CLASSES_ROOT\gameranger" /t REG_SZ /d "URL:GameRanger Protocol" /f >/dev/null 2>&1 || true
+    WINEPREFIX="${DIR}/wineprefix" wine reg add "HKEY_CLASSES_ROOT\gameranger\shell\open\command" /t REG_SZ /d "\"C:\Program Files\GameRanger\GameRanger.exe\" \"%1\"" /f >/dev/null 2>&1 || true
+
+    # Acceso directo en el menú de aplicaciones y escritorio
+    mkdir -p "$target_home/.local/share/applications"
+    cat <<EOF > "$target_home/.local/share/applications/gameranger.desktop"
+[Desktop Entry]
+Type=Application
+Name=GameRanger
+Comment=Juega con tus amigos en línea
+Exec=sh -c '"${DIR}/launch-win-app.sh" "GameRanger.exe"'
+Icon=wine
+Terminal=false
+Categories=Game;Network;
+EOF
+    chown "$target_user:$target_user" "$target_home/.local/share/applications/gameranger.desktop" 2>/dev/null || true
+    chmod +x "$target_home/.local/share/applications/gameranger.desktop" 2>/dev/null || true
+
+    local desk_dir="$target_home/Escritorio"
+    [ ! -d "$desk_dir" ] && desk_dir="$target_home/Desktop"
+    if [ -d "$desk_dir" ]; then
+        cp "$target_home/.local/share/applications/gameranger.desktop" "${desk_dir}/GameRanger.desktop" 2>/dev/null || true
+        chown "$target_user:$target_user" "${desk_dir}/GameRanger.desktop" 2>/dev/null || true
+        chmod +x "${desk_dir}/GameRanger.desktop" 2>/dev/null || true
+        gio set "${desk_dir}/GameRanger.desktop" metadata::trusted true 2>/dev/null || true
     fi
 
     # Registrar en programas.db
@@ -1874,6 +1906,7 @@ X-GNOME-Autostart-enabled=true
 EOF
     chown "$target_user:$target_user" "$target_home/.config/autostart/gameranger.desktop" 2>/dev/null || true
     chmod +x "$target_home/.config/autostart/gameranger.desktop" 2>/dev/null || true
+    echo -e "${C_GREEN}  ✔ GameRanger totalmente instalado, pre-configurado y listo para multijugador.${C_RESET}"
     echo ""
 
     # 4. Afinación de DXVK y Shaders para el Hardware de esa Computadora

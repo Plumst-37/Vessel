@@ -106,7 +106,7 @@ aplicar_entorno_hardware() {
     export __GL_SHADER_DISK_CACHE_SIZE=10737418240
     export CUDA_CACHE_MAXSIZE=2147483648
     export MESA_DISK_CACHE_SINGLE_FILE=1
-    export mesa_glthread=true
+    # mesa_glthread omitido globalmente para evitar inestabilidad y crashes en juegos D3D9/Wine (como GTA San Andreas)
     export __GL_YIELD="NOTHING"
     export WINE_CPU_TOPOLOGY="${CPU_CORES}"
     export WINE_HEAP_DELAY_FREE=0

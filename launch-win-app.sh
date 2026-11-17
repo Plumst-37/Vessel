@@ -322,7 +322,7 @@ EOF
     fi
 
     # 3.1 OPTIMIZACIÓN ESPECÍFICA GTA V (Carga rápida sin cuelgues ni saturación de hilos)
-    if [[ "$TARGET_FILE" =~ (GTA5|PlayGTAV|gta5) ]] || [[ "$TARGET_DIR" =~ (GTA|gta) ]]; then
+    if [[ "$TARGET_FILE" =~ (GTA5|PlayGTAV|gta5) ]]; then
         local gta_cmdline="${TARGET_DIR}/commandline.txt"
         if [ -f "$gta_cmdline" ]; then
             sed -i 's/^-FrameQueueLimit 0/-FrameQueueLimit 1/' "$gta_cmdline" 2>/dev/null || true
@@ -333,6 +333,19 @@ EOF
             grep -q '^-disablespecular' "$gta_cmdline" || echo "-disablespecular" >> "$gta_cmdline"
             echo "[+] Archivo commandline.txt de GTA V optimizado (Carga inmediata sin bloqueos de render thread)."
         fi
+    fi
+
+    # 3.2 OPTIMIZACIÓN Y PROTECCIÓN GTA SAN ANDREAS (gta_sa.exe)
+    if [[ "$TARGET_FILE" =~ (gta_sa|gta-sa|gtasa) ]]; then
+        # Limpiar configuración de resolución previa que crashea al cambiar de PC/monitor
+        find "${WINEPREFIX}/drive_c/users" -name "gta_sa.set" -delete 2>/dev/null || true
+        rm -f "$HOME/Documentos/GTA San Andreas User Files/gta_sa.set" 2>/dev/null || true
+        rm -f "$HOME/Documents/GTA San Andreas User Files/gta_sa.set" 2>/dev/null || true
+        # Desactivar GLThread para evitar fallos de renderizado en D3D9 con mods CLEO/ModLoader
+        export mesa_glthread=false
+        # Asegurar overrides esenciales para ASI Loader y librerías de sonido
+        export WINEDLLOVERRIDES="vorbisfile=n,b;vorbishooked=n,b;dinput8=n,b;d3d9=n,b;${WINEDLLOVERRIDES}"
+        echo "[+] GTA San Andreas optimizado: Configuración de monitor limpia y ASI Loader asegurado."
     fi
 
     # 4. UNREAL ENGINE 1/2/2.5 (SWAT 4, Deus Ex, Bioshock, etc.)
@@ -366,9 +379,10 @@ MOD_HOOKS=("ddraw" "d3d8" "d3d9" "d3d11" "d3d12" "dxgi" "dinput8" "dinput" "dsou
 MODS_ACTIVADOS=()
 
 for hook in "${MOD_HOOKS[@]}"; do
-    if [ -f "${hook}.dll" ] || [ -f "${hook}.DLL" ]; then
+    found_hook=$(find . -maxdepth 1 -iname "${hook}.dll" 2>/dev/null | head -n 1)
+    if [ -n "$found_hook" ]; then
         export WINEDLLOVERRIDES="${hook}=n,b;${WINEDLLOVERRIDES}"
-        MODS_ACTIVADOS+=("${hook}.dll")
+        MODS_ACTIVADOS+=("$(basename "$found_hook")")
     fi
 done
 
