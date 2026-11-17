@@ -173,7 +173,7 @@ TextureMipLimite=2
 Resolution=${best_res}
 Aspect=16:9
 RefreshRate=60.00Hz
-FullScreen=OFF
+FullScreen=ON
 VSYNC=OFF
 [SOUNDS]
 SeVoiceNum=128
@@ -196,10 +196,12 @@ EOF
     for dir_c in "${dirs_a_buscar[@]}"; do
         if [ -d "$dir_c" ]; then
             find "$dir_c" -name "config.ini" 2>/dev/null | while read -r cini; do
-                sed -i 's/^FullScreen=ON/FullScreen=OFF/' "$cini" 2>/dev/null || true
+                sed -i 's/^FullScreen=OFF/FullScreen=ON/' "$cini" 2>/dev/null || true
                 sed -i 's/^VSYNC=ON/VSYNC=OFF/' "$cini" 2>/dev/null || true
                 sed -i 's/^MotionBlurEnabled=ON/MotionBlurEnabled=OFF/' "$cini" 2>/dev/null || true
                 sed -i "s/^Resolution=.*/Resolution=${best_res}/" "$cini" 2>/dev/null || true
+                sed -i 's/^RefreshRate=.*/RefreshRate=60.00Hz/' "$cini" 2>/dev/null || true
+                sed -i 's/^Aspect=.*/Aspect=16:9/' "$cini" 2>/dev/null || true
                 sed -i 's/^AntiAlias=.*/AntiAlias=FXAA3HQ/' "$cini" 2>/dev/null || true
                 sed -i 's/^AltAntiAlias=.*/AltAntiAlias=FXAA3HQ/' "$cini" 2>/dev/null || true
                 sed -i 's/^ShadowsDisable=ON/ShadowsDisable=OFF/' "$cini" 2>/dev/null || true
@@ -208,7 +210,6 @@ EOF
                 sed -i 's/^RenderingThread=OFF/RenderingThread=ON/' "$cini" 2>/dev/null || true
                 sed -i 's/^TextureDetail=LOWEST/TextureDetail=HIGH/' "$cini" 2>/dev/null || true
                 sed -i 's/^ScreenQuality=LOW/ScreenQuality=HIGH/' "$cini" 2>/dev/null || true
-                sed -i 's/^Aspect=DEFAULT/Aspect=16:9/' "$cini" 2>/dev/null || true
                 sed -i 's/^MouseBaseSpeed=.*/MouseBaseSpeed=1.500000/' "$cini" 2>/dev/null || true
                 sed -i 's/^MainX=.*/MainX=0/' "$cini" 2>/dev/null || true
                 sed -i 's/^MainY=.*/MainY=0/' "$cini" 2>/dev/null || true
@@ -224,6 +225,8 @@ EOF
             sed -i "s/<ScreenWidth value=\"[0-9]*\"/<ScreenWidth value=\"${best_w}\"/" "$sxml" 2>/dev/null || true
             sed -i "s/<ScreenHeight value=\"[0-9]*\"/<ScreenHeight value=\"${best_h}\"/" "$sxml" 2>/dev/null || true
             sed -i 's/<VSync value="[0-9]*"/<VSync value="0"/' "$sxml" 2>/dev/null || true
+            sed -i 's/<Windowed value="[0-9]*"/<Windowed value="0"/' "$sxml" 2>/dev/null || true
+            sed -i 's/<AspectRatio value="[0-9]*"/<AspectRatio value="0"/' "$sxml" 2>/dev/null || true
             sed -i 's/<AnisotropicFiltering value="[0-9]*"/<AnisotropicFiltering value="16"/' "$sxml" 2>/dev/null || true
             sed -i 's/<FXAA_Enabled value="false"/<FXAA_Enabled value="true"/' "$sxml" 2>/dev/null || true
             sed -i 's/<LodScale value="0.000000"/<LodScale value="1.000000"/' "$sxml" 2>/dev/null || true

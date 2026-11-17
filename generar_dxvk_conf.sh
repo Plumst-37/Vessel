@@ -41,9 +41,10 @@ dxvk.enableAsync = true
 dxvk.gpl = True
 dxvk.useRawSsbo = True
 
-# Optimización de latencia y throughput de GPU
+# Corrección de encuadre, proporción y aspecto 16:9 (elimina distorsión o estiramiento 3D)
+d3d9.forceAspectRatio = "16:9"
+dxvk.allowFse = True
 d3d11.relaxedBarriers = True
-d3d11.maxTessellationFactor = 16
 
 # Calidad y definición ultra-nítida de texturas 3D en cualquier ángulo (Filtrado Anisotrópico 16x)
 d3d11.samplerAnisotropy = 16
