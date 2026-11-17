@@ -74,9 +74,11 @@ if [ ! -f "${WINEPREFIX}/system.reg" ]; then
 fi
 
 # 6. Optimización de captura de ratón en 3D (rotación fluida 360°, sin rebotes ni tirones de cámara)
-wine reg add "HKEY_CURRENT_USER\Software\Wine\DirectInput" /v MouseWarpOverride /t REG_SZ /d enable /f >/dev/null 2>&1 || true
-wine reg add "HKEY_CURRENT_USER\Software\Wine\X11 Driver" /v UseTakeFocus /t REG_SZ /d N /f >/dev/null 2>&1 || true
-wine reg add "HKEY_CURRENT_USER\Software\Wine\X11 Driver" /v GrabFullscreen /t REG_SZ /d Y /f >/dev/null 2>&1 || true
+if ! grep -q '"MouseWarpOverride"="force"' "${WINEPREFIX}/user.reg" 2>/dev/null; then
+    wine reg add "HKEY_CURRENT_USER\Software\Wine\DirectInput" /v MouseWarpOverride /t REG_SZ /d force /f >/dev/null 2>&1 || true
+    wine reg add "HKEY_CURRENT_USER\Software\Wine\X11 Driver" /v UseTakeFocus /t REG_SZ /d N /f >/dev/null 2>&1 || true
+    wine reg add "HKEY_CURRENT_USER\Software\Wine\X11 Driver" /v GrabFullscreen /t REG_SZ /d Y /f >/dev/null 2>&1 || true
+fi
 
 # 7. Generar archivo DXVK optimizado según la CPU y límite de FPS configurado
 if [ "$RENDERER_IN_USE" != "WineD3D (OpenGL Compatibilidad)" ]; then
@@ -158,20 +160,20 @@ auto_optimizar_juegos_3d() {
 MouseBaseSpeed=1.500000
 [GRAPHICS]
 HDR=DEFAULT
-AntiAlias=FXAA3HQ
+AntiAlias=NONE
 AltAntiAlias=FXAA3HQ
 DeferredLightingLight=APPROXIMATE_SPECULAR
 ScreenQuality=HIGH
 SLI=OFF
 Stereo=OFF
 MotionBlurEnabled=OFF
-ShadowsQuality=HIGH
+ShadowsQuality=MEDIUM
 FrameRate=VARIABLE
 TextureDetail=HIGH
 TextureMipLimite=2
 [DISPLAY]
 Resolution=${best_res}
-Aspect=16:9
+Aspect=DEFAULT
 RefreshRate=60.00Hz
 FullScreen=ON
 VSYNC=OFF
@@ -199,13 +201,24 @@ EOF
                 sed -i 's/^FullScreen=OFF/FullScreen=ON/' "$cini" 2>/dev/null || true
                 sed -i 's/^VSYNC=ON/VSYNC=OFF/' "$cini" 2>/dev/null || true
                 sed -i 's/^MotionBlurEnabled=ON/MotionBlurEnabled=OFF/' "$cini" 2>/dev/null || true
-                sed -i "s/^Resolution=.*/Resolution=${best_res}/" "$cini" 2>/dev/null || true
+                
+                # Calibrar resolución universalmente: preservar si es compatible, o ajustar a la pantalla si no existe o es inválida
+                local cur_res
+                cur_res=$(grep -E '^Resolution=' "$cini" 2>/dev/null | cut -d'=' -f2 | tr -d '\r\n ')
+                if [ -z "$cur_res" ] || [ "$cur_res" = "Unknown" ] || [ "$cur_res" = "0x0" ] || ! echo "$cur_res" | grep -qE '^[0-9]+x[0-9]+$'; then
+                    sed -i "s/^Resolution=.*/Resolution=${best_res}/" "$cini" 2>/dev/null || true
+                elif command -v xrandr &>/dev/null && ! xrandr 2>/dev/null | grep -q "\b${cur_res}\b"; then
+                    # Si la resolución guardada no existe en este monitor (evita ERR09: Unsupported function de Capcom)
+                    sed -i "s/^Resolution=.*/Resolution=${best_res}/" "$cini" 2>/dev/null || true
+                fi
+                
                 sed -i 's/^RefreshRate=.*/RefreshRate=60.00Hz/' "$cini" 2>/dev/null || true
-                sed -i 's/^Aspect=.*/Aspect=16:9/' "$cini" 2>/dev/null || true
-                sed -i 's/^AntiAlias=.*/AntiAlias=FXAA3HQ/' "$cini" 2>/dev/null || true
+                sed -i 's/^Aspect=.*/Aspect=DEFAULT/' "$cini" 2>/dev/null || true
+                sed -i 's/^AntiAlias=.*/AntiAlias=NONE/' "$cini" 2>/dev/null || true
                 sed -i 's/^AltAntiAlias=.*/AltAntiAlias=FXAA3HQ/' "$cini" 2>/dev/null || true
                 sed -i 's/^ShadowsDisable=ON/ShadowsDisable=OFF/' "$cini" 2>/dev/null || true
-                sed -i 's/^ShadowsQuality=HIGH/ShadowsQuality=MIDDLE/' "$cini" 2>/dev/null || true
+                sed -i 's/^ShadowsQuality=HIGH/ShadowsQuality=MEDIUM/' "$cini" 2>/dev/null || true
+                sed -i 's/^ShadowsQuality=MIDDLE/ShadowsQuality=MEDIUM/' "$cini" 2>/dev/null || true
                 sed -i 's/^JobThread=.*/JobThread=3/' "$cini" 2>/dev/null || true
                 sed -i 's/^RenderingThread=OFF/RenderingThread=ON/' "$cini" 2>/dev/null || true
                 sed -i 's/^TextureDetail=LOWEST/TextureDetail=HIGH/' "$cini" 2>/dev/null || true
@@ -222,8 +235,10 @@ EOF
     [ ! -d "$rsg_dir" ] && rsg_dir="${WINEPREFIX}/drive_c/users/${USER}/Documents/Rockstar Games"
     if [ -d "$rsg_dir" ]; then
         find "$rsg_dir" -name "settings.xml" 2>/dev/null | while read -r sxml; do
-            sed -i "s/<ScreenWidth value=\"[0-9]*\"/<ScreenWidth value=\"${best_w}\"/" "$sxml" 2>/dev/null || true
-            sed -i "s/<ScreenHeight value=\"[0-9]*\"/<ScreenHeight value=\"${best_h}\"/" "$sxml" 2>/dev/null || true
+            if grep -q '<ScreenWidth value="0"' "$sxml" 2>/dev/null || ! grep -q '<ScreenWidth' "$sxml" 2>/dev/null; then
+                sed -i "s/<ScreenWidth value=\"[0-9]*\"/<ScreenWidth value=\"${best_w}\"/" "$sxml" 2>/dev/null || true
+                sed -i "s/<ScreenHeight value=\"[0-9]*\"/<ScreenHeight value=\"${best_h}\"/" "$sxml" 2>/dev/null || true
+            fi
             sed -i 's/<VSync value="[0-9]*"/<VSync value="0"/' "$sxml" 2>/dev/null || true
             sed -i 's/<Windowed value="[0-9]*"/<Windowed value="0"/' "$sxml" 2>/dev/null || true
             sed -i 's/<AspectRatio value="[0-9]*"/<AspectRatio value="0"/' "$sxml" 2>/dev/null || true
@@ -263,7 +278,7 @@ auto_optimizar_juegos_3d
 # Detecta automáticamente librerías de mods locales y activa el override nativo (n,b)
 # para que funcionen inmediatamente sin tocar winecfg
 # ==============================================================================
-MOD_HOOKS=("ddraw" "d3d8" "d3d9" "d3d11" "d3d12" "dxgi" "dinput8" "dinput" "dsound" "dplayx" "dpnet" "version" "winmm" "xinput1_3" "xinput1_4" "xinput9_1_0" "x3daudio1_7" "binkw32" "binkw64" "bink2w64" "dbghelp" "msimg32" "opengl32")
+MOD_HOOKS=("ddraw" "d3d8" "d3d9" "d3d11" "d3d12" "dxgi" "dinput8" "dinput" "dsound" "dplayx" "dpnet" "version" "winmm" "vorbisfile" "xinput1_3" "xinput1_4" "xinput9_1_0" "x3daudio1_7" "binkw32" "binkw64" "bink2w64" "dbghelp" "msimg32" "opengl32")
 MODS_ACTIVADOS=()
 
 for hook in "${MOD_HOOKS[@]}"; do
