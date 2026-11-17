@@ -42,13 +42,18 @@ El instalador:
 - **Intel Graphics:** Optimiza la traducción a Vulkan o realiza fallback suave a **WineD3D (OpenGL)** en computadoras antiguas sin Vulkan.
 - **Sincronización:** Detecta automáticamente **Fsync nativo (Futex2)** o **Esync**.
 
-### 🎮 3. Control Gráfico en Tiempo Real y Cero Pantalla Negra / Tirones
-- **Perfiles de Rendimiento:** *Máximo Rendimiento* (GameMode al 100%), *Equilibrado* y *Ahorro de Batería*.
-- **Límite de FPS:** Fija topes de 30, 60, 120 FPS o Ilimitado para evitar sobrecalentamiento.
-- **Buffer Anti-Tirones (Zero-Stuttering):** Cola de fotogramas sincronizada (`maxFrameLatency = 2`) y compilación asíncrona de shaders GPL que eliminan caídas de frames y micro-parones.
-- **Selección Inteligente y Universal de GPU:** Soporta nativamente cualquier tarjeta gráfica (Intel HD/Iris/Arc, AMD Radeon y NVIDIA GeForce), activando PRIME offload en portátiles híbridas sin romper la aceleración de Xwayland u OpenGL.
-- **Auto-Fix Capcom (`ERR09`) y Calidad 3D:** Detecta y corrige automáticamente los archivos `config.ini` de Capcom MT Framework (Resident Evil 4/5/6, Revelations, DMC, etc.), aplicando resolución nativa del monitor del usuario, VSync activo para eliminar tearing y desactivando motion blur para máxima nitidez y estabilidad de cámara en 3D.
-- **Optimizaciones para Juegos Pesados AAA:** Filtrado anisotrópico 16x (`samplerAnisotropy = 16`) para texturas 3D ultra-nítidas en todos los ángulos, compilación asíncrona de shaders por hardware (`GPL` y `dxvk.enableAsync`), buffer de latencia sincronizado (`maxFrameLatency = 2`), sincronización vertical suave (`presentInterval = 1`, `syncInterval = 1`), 4GB de direccionamiento para juegos de 32 bits (`Large Address Aware`), y compatibilidad completa con DirectX 9, 10, 11 y 12 (VKD3D).
+### 🎮 3. Control Gráfico en Tiempo Real y Máximo Rendimiento Hardware
+- **Perfiles de Rendimiento:** *Máximo Rendimiento* (GameMode al 100%, Governor Performance, GPU High y renice -10), *Equilibrado* y *Ahorro de Batería*.
+- **Límite de FPS Inteligente:** Fija topes de 30, 60, 120 FPS o Ilimitado para evitar sobrecalentamiento y caídas bruscas.
+- **Modo Mailbox Present (Triple-Buffering Tear-Free):** Sustituye la sincronización vertical rígida (FIFO) por Mailbox Vulkan (`dxvk.tearFree = True`, `dxgi.syncInterval = 0`, `numBackBuffers = 3`). Elimina las caídas bruscas de 60 a 30 FPS al fluctuar los fotogramas y suprime completamente el desgarro de pantalla.
+- **Rotación de Cámara 3D Ultra-Fluida (1:1):** Registro DirectInput con `MouseWarpOverride=force` y latencia de 1 cuadro (`maxFrameLatency = 1`) que eliminan el lag de ratón, saltos de cámara y trabas al girar la vista en juegos de primera y tercera persona.
+- **Selección Automática y Dinámica de GPU Dedicada:** Consulta la capa Vulkan de Linux y fuerza el uso prioritario de la tarjeta dedicada (`MESA_VK_DEVICE_SELECT` y `DXVK_FILTER_DEVICE_NAME`) en cualquier portátil híbrida (NVIDIA GeForce o AMD Radeon) frente a la gráfica integrada, aprovechando el 100% de la potencia gráfica.
+- **Detección Dinámica de Monitor Primario:** Auto-detecta la resolución nativa de la pantalla activa del usuario (`1280x720`, `1366x768`, `1920x1080`, `1440p`, etc.) evitando reescalados borrosos o pérdidas de rendimiento por resoluciones desfasadas.
+- **Auto-Fix por Motor Gráfico:**
+  - **Capcom MT Framework (Resident Evil 4/5/6, Revelations, DMC, etc.):** Desactiva motion blur molesto, inyecta resolución nativa, previene `ERR09` con modo borderless y suaviza la sensibilidad del ratón.
+  - **Rockstar Games (GTA V, GTA IV):** Adapta `settings.xml` a la resolución real, activa filtrado 16x, FXAA y actualiza la descripción de la GPU.
+  - **Unreal Engine (SWAT 4, etc.):** Ajusta `Swat4.ini`, activa filtrado 16x y reduce el retardo del cursor (`ReduceMouseLag=True`).
+- **Optimizaciones para Juegos Pesados AAA:** Filtrado anisotrópico 16x (`samplerAnisotropy = 16`) para texturas 3D ultra-nítidas en todos los ángulos, compilación asíncrona de shaders por hardware (`GPL` y `dxvk.enableAsync`), 4GB de direccionamiento para juegos de 32 bits (`Large Address Aware`), y compatibilidad completa con DirectX 9, 10, 11 y 12 (VKD3D).
 - **Soporte Retro DirectDraw y DirectPlay:** Carga automáticamente envoltorios nativos (`ddraw.dll`, `cnc-ddraw`, `d3d8to9`) eliminando pantallas negras y corrupción de texturas de 8 bits (P8) en juegos clásicos como Age of Empires II o StarCraft.
 - **Decodificación de Cinemáticas y Videos:** Soporte multiarch completo para decodificadores de video (H.264, MPEG-4, WMV3, Bink, Media Foundation y DirectShow vía GStreamer 32/64 bits), solucionando el problema donde se escuchaba el audio pero la pantalla quedaba negra.
 - **🖥️ Modo Escritorio Virtual Configurable:** Soluciona pantallas negras al cambiar de resolución (juegos retro a 4:3 o 800x600) y en configuraciones con múltiples monitores.

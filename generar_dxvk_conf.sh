@@ -50,12 +50,16 @@ d3d11.samplerAnisotropy = 16
 d3d9.samplerAnisotropy = 16
 d3d9.textureLodBias = 0
 
-# Cero Desgarro de Pantalla (Tearing) y Cámara Fluida 1:1 sin Lag
-# Latencia 1 cuadro elimina el retraso y movimiento pesado de la cámara 3D
+# Modo Mailbox Present (Triple Buffering Tear-Free de Ultra-Baja Latencia)
+# Elimina desgarro de pantalla (tearing) SIN caídas bruscas a 30 FPS ni tirones de cámara
+# Garantiza movimiento de cámara 1:1 ultra-suave y respuesta inmediata
+dxvk.tearFree = True
+dxgi.syncInterval = 0
+d3d9.presentInterval = 0
+dxgi.numBackBuffers = 3
+d3d9.numBackBuffers = 3
 d3d9.maxFrameLatency = 1
 dxgi.maxFrameLatency = 1
-d3d9.presentInterval = 1
-dxgi.syncInterval = 1
 
 # Compatibilidad con cambios de resolución y modo ventana/borde
 d3d9.deferSurfaceCreation = True

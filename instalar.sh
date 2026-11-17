@@ -134,6 +134,38 @@ fi
 # 4.2 Optimización de hilos gráficos Direct3D (CSMT multithread)
 WINEPREFIX="${DIR}/wineprefix" wine reg add "HKEY_CURRENT_USER\Software\Wine\Direct3D" /v "csmt" /t REG_DWORD /d 1 /f >/dev/null 2>&1 || true
 echo -e "${C_GREEN}✔ Motor Direct3D CSMT multithread configurado.${C_RESET}"
+
+# 4.3 Optimización de captura de ratón en 3D (elimina giros bruscos, saltos de cámara y límites de rotación)
+WINEPREFIX="${DIR}/wineprefix" wine reg add "HKEY_CURRENT_USER\Software\Wine\DirectInput" /v "MouseWarpOverride" /t REG_SZ /d "force" /f >/dev/null 2>&1 || true
+WINEPREFIX="${DIR}/wineprefix" wine reg add "HKEY_CURRENT_USER\Software\Wine\X11 Driver" /v "UseTakeFocus" /t REG_SZ /d "N" /f >/dev/null 2>&1 || true
+echo -e "${C_GREEN}✔ Captura de ratón DirectInput 3D y control de cámara configurados.${C_RESET}"
+
+# 4.4 Configuración de GameMode para el usuario (prioridad CPU/GPU y renice -10)
+TARGET_USER="${SUDO_USER:-$USER}"
+TARGET_HOME=$(eval echo "~$TARGET_USER")
+if command -v gamemoded &>/dev/null; then
+    usermod -aG gamemode "$TARGET_USER" 2>/dev/null || true
+    mkdir -p "$TARGET_HOME/.config"
+    cat <<EOF > "$TARGET_HOME/.config/gamemode.ini"
+[general]
+desiredgov=performance
+defaultgov=powersave
+inhibit_screensaver=1
+renice=10
+
+[cpu]
+park_cores=no
+pin_cores=yes
+
+[gpu]
+apply_gpu_optimisations=accept-responsibility
+gpu_device=0
+nv_powermode_level=1
+amd_performance_level=high
+EOF
+    chown "$TARGET_USER:$TARGET_USER" "$TARGET_HOME/.config/gamemode.ini" 2>/dev/null || true
+    echo -e "${C_GREEN}✔ Feral GameMode configurado al máximo rendimiento (CPU Governor + GPU Mode).${C_RESET}"
+fi
 echo ""
 
 # 5. Crear accesos directos universales (Escritorio y Menú del Sistema)

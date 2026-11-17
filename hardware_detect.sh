@@ -95,19 +95,36 @@ aplicar_entorno_hardware() {
     export mesa_glthread=true
 
     # 8. Renderizado según la GPU detectada (Garantiza usar la GPU dedicada en laptops híbridas)
-    # IMPORTANTE: No se fuerza __GLX_VENDOR_LIBRARY_NAME ni filtros fijos para garantizar compatibilidad universal con Xwayland, Intel y AMD
-    if [ "$HAS_NVIDIA" = true ] && [ "$HAS_INTEL" = true ]; then
-        # Laptop Híbrida Intel + NVIDIA: Activar capas de PRIME render offload Vulkan
+    # Detección dinámica y universal de GPU dedicada (NVIDIA GeForce o AMD Radeon)
+    local discrete_info
+    discrete_info=$(MESA_VK_DEVICE_SELECT=list vulkaninfo 2>&1 | grep -i 'discrete GPU' | head -n 1 || true)
+    if [ -n "$discrete_info" ]; then
+        local discrete_pci_id
+        discrete_pci_id=$(echo "$discrete_info" | awk '{print $3}')
+        local discrete_name
+        discrete_name=$(echo "$discrete_info" | grep -oE '"[^"]+"' | tr -d '"')
+
+        if [ -n "$discrete_pci_id" ]; then
+            export MESA_VK_DEVICE_SELECT="${discrete_pci_id}!"
+            export MESA_VK_DEVICE_SELECT_FORCE_DEFAULT_DEVICE=1
+        fi
+        if [ -n "$discrete_name" ]; then
+            export DXVK_FILTER_DEVICE_NAME="${discrete_name}"
+        fi
+    fi
+
+    if [ "$HAS_NVIDIA" = true ]; then
+        # Activar capas y optimizaciones NVIDIA (PRIME offload, hilos OpenGL y sincronización limpia)
         export __NV_PRIME_RENDER_OFFLOAD=1
         export __VK_LAYER_NV_optimus=NVIDIA_only
         export VKD3D_CONFIG="dxr11,dxr"
-    elif [ "$HAS_AMD_DEDICATED" = true ] && [ "$HAS_INTEL" = true ]; then
-        # Laptop Híbrida Intel + AMD Radeon
+        export __GL_THREADED_OPTIMIZATIONS=1
+        export __GL_SYNC_TO_VBLANK=0
+    elif [ "$HAS_AMD_DEDICATED" = true ]; then
+        # Activar optimizaciones AMD Radeon (PRIME, compilador ACO y SAM)
         export DRI_PRIME=1
         export RADV_PERFTEST=aco,sam,dcc
-    elif [ "$HAS_AMD_DEDICATED" = true ]; then
-        # GPU AMD dedicada (sobremesa o APU)
-        export RADV_PERFTEST=aco,sam,dcc
+        export vblank_mode=0
     fi
 
     # 9. Puentes y compatibilidad para Anti-Cheat (EAC / BattlEye en juegos con soporte Linux)
@@ -116,8 +133,9 @@ aplicar_entorno_hardware() {
     export PROTON_EAC_ASYNC=1
     export WINE_DISABLE_FAST_SYNC=0
 
-    # 10. Prevención universal de pantalla negra en cambios de resolución, cinemáticas y videos
+    # 10. Prevención universal de pantalla negra y stutter de movimiento en Wayland/X11
     export SDL_VIDEO_MINIMIZE_ON_FOCUS_LOSS=0
     export WINE_FULLSCREEN_INTEGER_SCALING=0
     export GST_PLUGIN_FEATURE_RANK="libav:MAX,ugly:MAX,bad:MAX"
+    export KWIN_DRM_NO_DIRECT_SCANOUT=1
 }

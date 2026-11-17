@@ -58,6 +58,12 @@ if [ ! -f "${WINEPREFIX}/system.reg" ]; then
     fi
 fi
 
+# 6. Optimización de captura de ratón en 3D (elimina giros bruscos, saltos de cámara y límites de rotación)
+if [ -f "${WINEPREFIX}/user.reg" ] && ! grep -q "MouseWarpOverride" "${WINEPREFIX}/user.reg" 2>/dev/null; then
+    wine reg add "HKEY_CURRENT_USER\Software\Wine\DirectInput" /v MouseWarpOverride /t REG_SZ /d force /f >/dev/null 2>&1 || true
+    wine reg add "HKEY_CURRENT_USER\Software\Wine\X11 Driver" /v UseTakeFocus /t REG_SZ /d N /f >/dev/null 2>&1 || true
+fi
+
 # 7. Generar archivo DXVK optimizado según la CPU y límite de FPS configurado
 if [ "$RENDERER_IN_USE" != "WineD3D (OpenGL Compatibilidad)" ]; then
     export DXVK_CONFIG_FILE="${DIR}/dxvk.conf"
@@ -113,12 +119,13 @@ auto_optimizar_juegos_3d() {
     # 1. Detectar resolución óptima del monitor principal en cualquier PC (Intel, AMD, NVIDIA)
     local best_res
     if command -v xrandr &>/dev/null; then
-        best_res=$(xrandr 2>/dev/null | grep -E '\bconnected\b' | grep -oE '[0-9]{3,4}x[0-9]{3,4}' | sort -rn -t 'x' -k1 -k2 | head -n 1)
+        best_res=$(xrandr 2>/dev/null | grep -E ' connected primary' | grep -oE '[0-9]{3,4}x[0-9]{3,4}' | head -n 1)
+        [ -z "$best_res" ] && best_res=$(xrandr 2>/dev/null | grep -E '\bconnected\b' | grep -oE '[0-9]{3,4}x[0-9]{3,4}' | head -n 1)
     fi
     if [ -z "$best_res" ]; then
-        best_res=$(cat /sys/class/drm/*/modes 2>/dev/null | grep -oE '^[0-9]{3,4}x[0-9]{3,4}' | sort -rn -t 'x' -k1 -k2 | head -n 1)
+        best_res=$(cat /sys/class/drm/*/modes 2>/dev/null | grep -oE '^[0-9]{3,4}x[0-9]{3,4}' | head -n 1)
     fi
-    [ -z "$best_res" ] && best_res="1920x1080"
+    [ -z "$best_res" ] && best_res="1280x720"
 
     local best_w best_h
     best_w=$(echo "$best_res" | cut -dx -f1)
@@ -134,7 +141,7 @@ auto_optimizar_juegos_3d() {
         if [ ! -f "$re6_cfg" ]; then
             cat <<EOF > "$re6_cfg"
 [GAME]
-MouseBaseSpeed=2.000000
+MouseBaseSpeed=1.500000
 [GRAPHICS]
 HDR=DEFAULT
 AntiAlias=FXAA3HQ
@@ -153,7 +160,7 @@ Resolution=${best_res}
 Aspect=16:9
 RefreshRate=60.00Hz
 FullScreen=OFF
-VSYNC=ON
+VSYNC=OFF
 [SOUNDS]
 SeVoiceNum=128
 [CPU]
@@ -163,24 +170,34 @@ RenderingThread=ON
 MainX=0
 MainY=0
 EOF
-            echo "[+] Configuración de alta fidelidad 3D generada para Resident Evil 6 (${best_res}, VSYNC=ON)."
+            echo "[+] Configuración de alta fidelidad 3D generada para Resident Evil 6 (${best_res}, nitidez total)."
         fi
     fi
 
-    if [ -d "$capcom_dir" ]; then
-        find "$capcom_dir" -name "config.ini" 2>/dev/null | while read -r cini; do
-            sed -i 's/^FullScreen=ON/FullScreen=OFF/' "$cini" 2>/dev/null || true
-            sed -i 's/^VSYNC=OFF/VSYNC=ON/' "$cini" 2>/dev/null || true
-            sed -i 's/^MotionBlurEnabled=ON/MotionBlurEnabled=OFF/' "$cini" 2>/dev/null || true
-            sed -i "s/^Resolution=[0-9]*x[0-9]*/Resolution=${best_res}/" "$cini" 2>/dev/null || true
-            sed -i 's/^AntiAlias=NONE/AntiAlias=FXAA3HQ/' "$cini" 2>/dev/null || true
-            sed -i 's/^AltAntiAlias=NONE/AltAntiAlias=FXAA3HQ/' "$cini" 2>/dev/null || true
-            sed -i 's/^ShadowsDisable=ON/ShadowsDisable=OFF/' "$cini" 2>/dev/null || true
-            sed -i 's/^TextureDetail=LOWEST/TextureDetail=HIGH/' "$cini" 2>/dev/null || true
-            sed -i 's/^ScreenQuality=LOW/ScreenQuality=HIGH/' "$cini" 2>/dev/null || true
-            sed -i 's/^Aspect=DEFAULT/Aspect=16:9/' "$cini" 2>/dev/null || true
-        done
-    fi
+    # Corregir configs existentes de Capcom para máxima calidad 3D, nitidez y cero tirones:
+    local dirs_a_buscar=("$capcom_dir")
+    [ -d "${TARGET_DIR}/gamedata/optimization" ] && dirs_a_buscar+=("${TARGET_DIR}/gamedata/optimization")
+    [ -d "${TARGET_DIR}/optimization" ] && dirs_a_buscar+=("${TARGET_DIR}/optimization")
+
+    for dir_c in "${dirs_a_buscar[@]}"; do
+        if [ -d "$dir_c" ]; then
+            find "$dir_c" -name "config.ini" 2>/dev/null | while read -r cini; do
+                sed -i 's/^FullScreen=ON/FullScreen=OFF/' "$cini" 2>/dev/null || true
+                sed -i 's/^VSYNC=ON/VSYNC=OFF/' "$cini" 2>/dev/null || true
+                sed -i 's/^MotionBlurEnabled=ON/MotionBlurEnabled=OFF/' "$cini" 2>/dev/null || true
+                sed -i "s/^Resolution=.*/Resolution=${best_res}/" "$cini" 2>/dev/null || true
+                sed -i 's/^AntiAlias=.*/AntiAlias=FXAA3HQ/' "$cini" 2>/dev/null || true
+                sed -i 's/^AltAntiAlias=.*/AltAntiAlias=FXAA3HQ/' "$cini" 2>/dev/null || true
+                sed -i 's/^ShadowsDisable=ON/ShadowsDisable=OFF/' "$cini" 2>/dev/null || true
+                sed -i 's/^TextureDetail=LOWEST/TextureDetail=HIGH/' "$cini" 2>/dev/null || true
+                sed -i 's/^ScreenQuality=LOW/ScreenQuality=HIGH/' "$cini" 2>/dev/null || true
+                sed -i 's/^Aspect=DEFAULT/Aspect=16:9/' "$cini" 2>/dev/null || true
+                sed -i 's/^MouseBaseSpeed=.*/MouseBaseSpeed=1.500000/' "$cini" 2>/dev/null || true
+                sed -i 's/^MainX=.*/MainX=0/' "$cini" 2>/dev/null || true
+                sed -i 's/^MainY=.*/MainY=0/' "$cini" 2>/dev/null || true
+            done
+        fi
+    done
 
     # 3. ROCKSTAR GAMES (GTA V, GTA IV, Max Payne 3, etc.)
     local rsg_dir="$HOME/Documentos/Rockstar Games"
@@ -189,7 +206,7 @@ EOF
         find "$rsg_dir" -name "settings.xml" 2>/dev/null | while read -r sxml; do
             sed -i "s/<ScreenWidth value=\"[0-9]*\"/<ScreenWidth value=\"${best_w}\"/" "$sxml" 2>/dev/null || true
             sed -i "s/<ScreenHeight value=\"[0-9]*\"/<ScreenHeight value=\"${best_h}\"/" "$sxml" 2>/dev/null || true
-            sed -i 's/<VSync value="[0-9]*"/<VSync value="1"/' "$sxml" 2>/dev/null || true
+            sed -i 's/<VSync value="[0-9]*"/<VSync value="0"/' "$sxml" 2>/dev/null || true
             sed -i 's/<AnisotropicFiltering value="[0-9]*"/<AnisotropicFiltering value="16"/' "$sxml" 2>/dev/null || true
             sed -i 's/<FXAA_Enabled value="false"/<FXAA_Enabled value="true"/' "$sxml" 2>/dev/null || true
             sed -i 's/<LodScale value="0.000000"/<LodScale value="1.000000"/' "$sxml" 2>/dev/null || true
@@ -211,10 +228,11 @@ EOF
             sed -i "s/^WindowedViewportY=[0-9]*/WindowedViewportY=${best_h}/" "$ueini" 2>/dev/null || true
         fi
         if grep -q "\[D3DDrv.D3DRenderDevice\]" "$ueini" 2>/dev/null; then
-            sed -i 's/^UseVSync=False/UseVSync=True/' "$ueini" 2>/dev/null || true
+            sed -i 's/^UseVSync=True/UseVSync=False/' "$ueini" 2>/dev/null || true
             sed -i 's/^LevelOfAnisotropy=[0-9]*/LevelOfAnisotropy=16/' "$ueini" 2>/dev/null || true
             sed -i 's/^Use16bit=True/Use16bit=False/' "$ueini" 2>/dev/null || true
             sed -i 's/^Use16bitTextures=True/Use16bitTextures=False/' "$ueini" 2>/dev/null || true
+            sed -i 's/^ReduceMouseLag=False/ReduceMouseLag=True/' "$ueini" 2>/dev/null || true
         fi
     done
 }
@@ -238,9 +256,10 @@ done
 CANT_ASI=$(ls -1 *.asi scripts/*.asi plugins/*.asi 2>/dev/null | wc -l)
 
 # Detección de resolución para modo Escritorio Virtual
-RES_PRIMARIA=$(xrandr 2>/dev/null | grep -E '\bconnected\b' | grep -oE '[0-9]{3,4}x[0-9]{3,4}' | sort -rn -t 'x' -k1 -k2 | head -n 1)
-[ -z "$RES_PRIMARIA" ] && RES_PRIMARIA=$(cat /sys/class/drm/*/modes 2>/dev/null | grep -oE '^[0-9]{3,4}x[0-9]{3,4}' | sort -rn -t 'x' -k1 -k2 | head -n 1)
-[ -z "$RES_PRIMARIA" ] && RES_PRIMARIA="1920x1080"
+RES_PRIMARIA=$(xrandr 2>/dev/null | grep -E ' connected primary' | grep -oE '[0-9]{3,4}x[0-9]{3,4}' | head -n 1)
+[ -z "$RES_PRIMARIA" ] && RES_PRIMARIA=$(xrandr 2>/dev/null | grep -E '\bconnected\b' | grep -oE '[0-9]{3,4}x[0-9]{3,4}' | head -n 1)
+[ -z "$RES_PRIMARIA" ] && RES_PRIMARIA=$(cat /sys/class/drm/*/modes 2>/dev/null | grep -oE '^[0-9]{3,4}x[0-9]{3,4}' | head -n 1)
+[ -z "$RES_PRIMARIA" ] && RES_PRIMARIA="1280x720"
 DESKTOP_RES="${RESOLUCION_ESCRITORIO:-$RES_PRIMARIA}"
 
 RUN_PREFIX=""
