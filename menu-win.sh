@@ -1469,12 +1469,51 @@ instalar_recursos_actualizar() {
     ejecutar_descarga_e_instalacion_automatica
 }
 
+solicitar_permisos_sudo() {
+    echo -e "${C_CYAN}══════════════════════════════════════════════════════════════════════${C_RESET}"
+    echo -e "${C_BOLD}${C_YELLOW}🔐 SE REQUIEREN PERMISOS DE ADMINISTRADOR (CONTRASEÑA ROOT / SUDO)${C_RESET}"
+    echo -e "${C_WHITE}Para instalar los controladores y configurar cada archivo en su lugar:${C_RESET}"
+    echo -e "  ${C_CYAN}•${C_RESET} Controladores Vulkan (32 y 64 bits para tu tarjeta gráfica)"
+    echo -e "  ${C_CYAN}•${C_RESET} Paquetes del sistema Wine, Winetricks y Feral GameMode"
+    echo -e "  ${C_CYAN}•${C_RESET} Parámetros de memoria en /etc/sysctl.d/ y límites en /etc/security/"
+    echo -e "${C_CYAN}══════════════════════════════════════════════════════════════════════${C_RESET}"
+    echo ""
+
+    if [ "$EUID" -eq 0 ]; then
+        echo -e "${C_GREEN}  ✔ Sesión activa con permisos de superusuario (root).${C_RESET}"
+        echo ""
+        return 0
+    fi
+
+    echo -e "${C_WHITE}Por favor, ingresa tu contraseña de administrador para continuar:${C_RESET}"
+    if ! sudo -v; then
+        echo ""
+        echo -e "${C_RED}❌ Error: Contraseña incorrecta o permisos cancelados.${C_RESET}"
+        echo -e "${C_YELLOW}No se modificó ningún archivo del sistema. Regresando al menú...${C_RESET}"
+        return 1
+    fi
+
+    # Mantener el ticket de sudo activo durante la descarga y configuración
+    ( while true; do sudo -n true 2>/dev/null; sleep 45; kill -0 "$$" 2>/dev/null || exit; done ) &
+    SUDO_KEEP_ALIVE_PID=$!
+    trap 'kill "$SUDO_KEEP_ALIVE_PID" 2>/dev/null || true' EXIT INT TERM
+    echo -e "${C_GREEN}  ✔ Permisos de administrador concedidos correctamente.${C_RESET}"
+    echo ""
+    return 0
+}
+
 ejecutar_descarga_e_instalacion_automatica() {
     echo ""
     echo -e "${C_CYAN}══════════════════════════════════════════════════════════════════════${C_RESET}"
     echo -e "${C_GREEN}🚀 INICIANDO ANÁLISIS, DESCARGA Y CONFIGURACIÓN AUTOMÁTICA...${C_RESET}"
     echo -e "${C_CYAN}══════════════════════════════════════════════════════════════════════${C_RESET}"
     echo ""
+
+    # Solicitar credenciales de administrador de forma explícita y segura
+    if ! solicitar_permisos_sudo; then
+        pausar
+        return 1
+    fi
 
     # 1. Paquetes del Sistema Operativo por Distribución Específica
     echo -e "${C_BOLD}[1/5] Comprobando y descargando paquetes para ${DISTRO_NAME:-Linux}...${C_RESET}"
@@ -1704,14 +1743,41 @@ EOF
     fi
     echo ""
 
-    # 5. Acceso directo en el Escritorio (1-Clic)
-    echo -e "${C_BOLD}[5/5] Creando / verificando acceso directo 'Menu Win (PC)' en el Escritorio...${C_RESET}"
+    # 5. Accesos directos y permisos finales (Escritorio, Menú del Sistema y Archivos)
+    echo -e "${C_BOLD}[5/5] Configurando accesos directos y permisos de archivos en sus rutas...${C_RESET}"
     local target_user="${SUDO_USER:-$USER}"
     local target_home=$(eval echo "~$target_user")
+
+    # Asegurar permisos correctos en el directorio del proyecto y prefijo de Wine
+    chmod +x "${DIR}"/*.sh "${DIR}"/*.py 2>/dev/null || true
+    chown -R "$target_user:$target_user" "${DIR}/wineprefix" 2>/dev/null || true
+    chown -R "$target_user:$target_user" "${DIR}"/*.cfg "${DIR}"/*.conf 2>/dev/null || true
+
+    local launch_exec="sh -c 'if command -v konsole >/dev/null 2>&1; then exec konsole -e \"\$0\"; elif command -v gnome-terminal >/dev/null 2>&1; then exec gnome-terminal -- \"\$0\"; else exec x-terminal-emulator -e \"\$0\"; fi' \"${DIR}/menu-win.sh\""
+
+    # Menú del Sistema (~/.local/share/applications)
+    mkdir -p "$target_home/.local/share/applications"
+    cat <<EOF > "$target_home/.local/share/applications/menu-win-pc.desktop"
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=Menu Win (PC)
+Comment=Gestor y Optimizador de Juegos de Windows para PC
+Exec=${launch_exec}
+Icon=wine
+Terminal=false
+Categories=Game;System;
+StartupNotify=true
+EOF
+    chown "$target_user:$target_user" "$target_home/.local/share/applications/menu-win-pc.desktop" 2>/dev/null || true
+    chmod +x "$target_home/.local/share/applications/menu-win-pc.desktop" 2>/dev/null || true
+    gio set "$target_home/.local/share/applications/menu-win-pc.desktop" metadata::trusted true 2>/dev/null || true
+    echo -e "${C_GREEN}  ✔ Acceso directo en Menú de Aplicaciones (.local/share/applications) validado.${C_RESET}"
+
+    # Escritorio del Usuario
     local d_dir="$target_home/Escritorio"
     [ ! -d "$d_dir" ] && d_dir="$target_home/Desktop"
     if [ -d "$d_dir" ]; then
-        local launch_exec="sh -c 'if command -v konsole >/dev/null 2>&1; then exec konsole -e \"\$0\"; elif command -v gnome-terminal >/dev/null 2>&1; then exec gnome-terminal -- \"\$0\"; else exec x-terminal-emulator -e \"\$0\"; fi' \"${DIR}/menu-win.sh\""
         cat <<EOF > "${d_dir}/Menu Win (PC).desktop"
 [Desktop Entry]
 Version=1.0

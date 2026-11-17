@@ -48,6 +48,42 @@ echo -e "${C_CYAN}║${C_RESET}       ${C_BOLD}Configuración y optimización au
 echo -e "${C_CYAN}╚══════════════════════════════════════════════════════════════════════╝${C_RESET}"
 echo ""
 
+solicitar_permisos_sudo() {
+    echo -e "${C_CYAN}══════════════════════════════════════════════════════════════════════${C_RESET}"
+    echo -e "${C_BOLD}${C_YELLOW}🔐 SE REQUIEREN PERMISOS DE ADMINISTRADOR (CONTRASEÑA ROOT / SUDO)${C_RESET}"
+    echo -e "${C_WHITE}Para instalar los controladores y configurar cada archivo en su lugar:${C_RESET}"
+    echo -e "  ${C_CYAN}•${C_RESET} Controladores Vulkan (32 y 64 bits para tu tarjeta gráfica)"
+    echo -e "  ${C_CYAN}•${C_RESET} Paquetes del sistema Wine, Winetricks y Feral GameMode"
+    echo -e "  ${C_CYAN}•${C_RESET} Parámetros de memoria en /etc/sysctl.d/ y límites en /etc/security/"
+    echo -e "${C_CYAN}══════════════════════════════════════════════════════════════════════${C_RESET}"
+    echo ""
+
+    if [ "$EUID" -eq 0 ]; then
+        echo -e "${C_GREEN}  ✔ Sesión activa con permisos de superusuario (root).${C_RESET}"
+        echo ""
+        return 0
+    fi
+
+    echo -e "${C_WHITE}Por favor, ingresa tu contraseña de administrador para continuar:${C_RESET}"
+    if ! sudo -v; then
+        echo ""
+        echo -e "${C_RED}❌ Error: Contraseña incorrecta o permisos cancelados.${C_RESET}"
+        echo -e "${C_YELLOW}Instalación cancelada para proteger el sistema.${C_RESET}"
+        return 1
+    fi
+
+    ( while true; do sudo -n true 2>/dev/null; sleep 45; kill -0 "$$" 2>/dev/null || exit; done ) &
+    SUDO_KEEP_ALIVE_PID=$!
+    trap 'kill "$SUDO_KEEP_ALIVE_PID" 2>/dev/null || true' EXIT INT TERM
+    echo -e "${C_GREEN}  ✔ Permisos de administrador concedidos correctamente.${C_RESET}"
+    echo ""
+    return 0
+}
+
+if ! solicitar_permisos_sudo; then
+    exit 1
+fi
+
 # 1. Detección de Distribución y Descarga Específica con 0% de Fallos
 echo -e "${C_CYAN}[1/5] Detectando distribución de Linux y preparando dependencias...${C_RESET}"
 
@@ -283,6 +319,11 @@ echo -e "${C_CYAN}[5/5] Creando accesos directos en el Escritorio y Menú del Si
 
 TARGET_USER="${SUDO_USER:-$USER}"
 TARGET_HOME=$(eval echo "~$TARGET_USER")
+
+# Asegurar permisos correctos en el directorio del proyecto y prefijo de Wine
+chmod +x "${DIR}"/*.sh "${DIR}"/*.py 2>/dev/null || true
+chown -R "$TARGET_USER:$TARGET_USER" "${DIR}/wineprefix" 2>/dev/null || true
+chown -R "$TARGET_USER:$TARGET_USER" "${DIR}"/*.cfg "${DIR}"/*.conf 2>/dev/null || true
 
 LAUNCH_EXEC="sh -c 'if command -v konsole >/dev/null 2>&1; then exec konsole -e \"\$0\"; elif command -v gnome-terminal >/dev/null 2>&1; then exec gnome-terminal -- \"\$0\"; else exec x-terminal-emulator -e \"\$0\"; fi' \"${DIR}/menu-win.sh\""
 
