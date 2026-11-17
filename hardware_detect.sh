@@ -85,7 +85,12 @@ aplicar_entorno_hardware() {
         export WINEDLLOVERRIDES="winemenubuilder.exe=d;dxgi=n;d3d11=n;d3d10core=n;d3d9=n;${WINEDLLOVERRIDES}"
     fi
 
-    # 7. Caché de shaders universal y optimización de hilos OpenGL/Mesa
+    # 7. Caché de shaders universal en almacenamiento NVMe SSD de ultra-alta velocidad
+    export DXVK_STATE_CACHE_PATH="${HOME}/.cache/dxvk"
+    export __GL_SHADER_DISK_CACHE_PATH="${HOME}/.cache/nvidia"
+    export MESA_GLCACHE_DIR="${HOME}/.cache/mesa_shader_cache"
+    mkdir -p "${HOME}/.cache/dxvk" "${HOME}/.cache/nvidia" "${HOME}/.cache/mesa_shader_cache" 2>/dev/null || true
+
     export STAGING_SHARED_MEMORY=1
     export DXVK_ASYNC=1
     export __GL_SHADER_DISK_CACHE=1
@@ -93,6 +98,9 @@ aplicar_entorno_hardware() {
     export __GL_SHADER_DISK_CACHE_SIZE=10737418240
     export MESA_DISK_CACHE_SINGLE_FILE=1
     export mesa_glthread=true
+    export __GL_YIELD="NOTHING"
+    export WINE_CPU_TOPOLOGY="${CPU_CORES}"
+    export WINE_HEAP_DELAY_FREE=0
 
     # 8. Renderizado según la GPU detectada (Garantiza usar la GPU dedicada en laptops híbridas)
     # Detección dinámica y universal de GPU dedicada (NVIDIA GeForce o AMD Radeon)
@@ -121,6 +129,7 @@ aplicar_entorno_hardware() {
         export VKD3D_CONFIG="dxr11,dxr"
         export __GL_THREADED_OPTIMIZATIONS=1
         export __GL_SYNC_TO_VBLANK=0
+        export __GL_MaxFramesAllowed=1
     elif [ "$HAS_AMD_DEDICATED" = true ]; then
         # Activar optimizaciones AMD Radeon (PRIME, compilador ACO y SAM)
         export DRI_PRIME=1

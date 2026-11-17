@@ -178,7 +178,7 @@ VSYNC=OFF
 [SOUNDS]
 SeVoiceNum=128
 [CPU]
-JobThread=7
+JobThread=3
 RenderingThread=ON
 [Window]
 MainX=0
@@ -203,6 +203,9 @@ EOF
                 sed -i 's/^AntiAlias=.*/AntiAlias=FXAA3HQ/' "$cini" 2>/dev/null || true
                 sed -i 's/^AltAntiAlias=.*/AltAntiAlias=FXAA3HQ/' "$cini" 2>/dev/null || true
                 sed -i 's/^ShadowsDisable=ON/ShadowsDisable=OFF/' "$cini" 2>/dev/null || true
+                sed -i 's/^ShadowsQuality=HIGH/ShadowsQuality=MIDDLE/' "$cini" 2>/dev/null || true
+                sed -i 's/^JobThread=.*/JobThread=3/' "$cini" 2>/dev/null || true
+                sed -i 's/^RenderingThread=OFF/RenderingThread=ON/' "$cini" 2>/dev/null || true
                 sed -i 's/^TextureDetail=LOWEST/TextureDetail=HIGH/' "$cini" 2>/dev/null || true
                 sed -i 's/^ScreenQuality=LOW/ScreenQuality=HIGH/' "$cini" 2>/dev/null || true
                 sed -i 's/^Aspect=DEFAULT/Aspect=16:9/' "$cini" 2>/dev/null || true
@@ -290,6 +293,7 @@ echo "    - Límite de FPS: ${LIMITE_FPS:-60} FPS"
 echo "    - AMD FSR Upscaling: $([ "$ACTIVAR_FSR" = "1" ] && echo "Activado" || echo "Desactivado")"
 echo "    - GameMode: $([ -n "$GAMEMODE" ] && echo "Activo" || echo "Inactivo")"
 echo "    - Modo Pantalla: $([ "$ESCRITORIO_VIRTUAL" = "1" ] && echo "Escritorio Virtual (${DESKTOP_RES})" || echo "Pantalla Completa Nativa")"
+echo "    - Caché de Shaders: NVMe SSD (~/.cache/dxvk)"
 echo "    - Prefijo Wine: ${WINEPREFIX}"
 if [ ${#MODS_ACTIVADOS[@]} -gt 0 ] || [ "$CANT_ASI" -gt 0 ]; then
     echo "    - Mods / Hooks Activos: $([ ${#MODS_ACTIVADOS[@]} -gt 0 ] && echo "${MODS_ACTIVADOS[*]}" || echo "Ninguna DLL especial")"
@@ -301,6 +305,10 @@ limpiar_procesos_al_salir() {
     wineserver -k 2>/dev/null || true
 }
 trap limpiar_procesos_al_salir EXIT INT TERM
+
+# Sincronizar buffers de disco y optimizar prioridad de proceso
+sync 2>/dev/null || true
+renice -n -5 $$ 2>/dev/null || true
 
 if [[ "$TARGET_FILE" =~ \.(msi|MSI)$ ]]; then
     $GAMEMODE "$WINE_CMD" msiexec /i "$TARGET_FILE" "$@"

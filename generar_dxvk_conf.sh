@@ -63,6 +63,12 @@ dxgi.maxFrameLatency = 1
 
 # Compatibilidad con cambios de resolución y modo ventana/borde
 d3d9.deferSurfaceCreation = True
+
+# Optimizaciones de memoria y pipelines DXVK 2.6
+dxvk.trackPipelineLifetime = True
+d3d9.memoryTrackTest = False
+d3d9.shaderModel = 3
+d3d11.samplerLodBias = 0
 EOF
 
 # Si el HUD de FPS está activado
