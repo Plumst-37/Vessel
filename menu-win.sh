@@ -5,6 +5,12 @@
 # ==============================================================================
 
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# Lanzar interfaz TUI interactiva avanzada en Python si se ejecuta como script directo
+if [ "${BASH_SOURCE[0]}" = "$0" ] && [ -z "$MENU_WIN_BASH_ONLY" ] && command -v python3 &>/dev/null && [ -f "${DIR}/menu_tui.py" ]; then
+    exec python3 "${DIR}/menu_tui.py" "$@"
+fi
+
 DB_FILE="${DIR}/programas.db"
 LAUNCHER="${DIR}/launch-win-app.sh"
 DXVK_CONF="${DIR}/dxvk.conf"
