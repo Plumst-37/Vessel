@@ -412,6 +412,31 @@ agregar_programa_portable() {
         fi
     fi
 
+    # DETECCIÓN Y RESOLUCIÓN INTELIGENTE DE SCRIPTS .BAT / .CMD
+    if [[ "$ruta_prog" =~ \.([bB][aA][tT]|[cC][mM][dD])$ ]] && [ -f "$ruta_prog" ]; then
+        echo ""
+        echo -e "${C_CYAN}🔍 Analizando script por lotes de Windows (.bat/.cmd)...${C_RESET}"
+        if [ -f "${DIR}/resolver_bat.py" ]; then
+            local resolved_bat=""
+            resolved_bat=$(python3 "${DIR}/resolver_bat.py" "$ruta_prog" 2>/dev/null || true)
+            local bat_status
+            bat_status=$(echo "$resolved_bat" | grep '^STATUS=' | cut -d= -f2-)
+            local bat_path
+            bat_path=$(echo "$resolved_bat" | grep '^RESOLVED_PATH=' | cut -d= -f2-)
+            local bat_name
+            bat_name=$(echo "$resolved_bat" | grep '^NAME=' | cut -d= -f2-)
+
+            if [ "$bat_status" = "RESOLVED" ] && [ -f "$bat_path" ]; then
+                echo -e "${C_GREEN}✔ ¡Ejecutable real detectado dentro del script .bat!${C_RESET}"
+                echo -e "   ${C_BOLD}Script original:${C_RESET} $(basename "$ruta_prog")"
+                echo -e "   ${C_BOLD}Ejecutable real:${C_RESET} ${C_CYAN}${bat_path}${C_RESET}"
+                echo -e "${C_GRAY}(Se vinculará el ejecutable directo para evitar bucles infinitos de CPU en Wine)${C_RESET}"
+                nombre_sugerido_base="$bat_name"
+                ruta_prog="$bat_path"
+            fi
+        fi
+    fi
+
     # Sugerir nombre limpio basado en el archivo o acceso directo
     local nombre_sugerido
     if [ -n "$nombre_sugerido_base" ]; then

@@ -116,6 +116,7 @@ aplicar_entorno_hardware() {
     if [ "$HAS_NVIDIA" = true ]; then
         # Activar capas y optimizaciones NVIDIA (PRIME offload, hilos OpenGL y sincronización limpia)
         export __NV_PRIME_RENDER_OFFLOAD=1
+        export __GLX_VENDOR_LIBRARY_NAME=nvidia
         export __VK_LAYER_NV_optimus=NVIDIA_only
         export VKD3D_CONFIG="dxr11,dxr"
         export __GL_THREADED_OPTIMIZATIONS=1

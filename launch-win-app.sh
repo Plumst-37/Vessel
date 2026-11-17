@@ -48,6 +48,21 @@ if [[ "$TARGET" =~ \.([lL][nN][kK]|[iI][nN][kK])$ ]] && [ -f "$TARGET" ]; then
     fi
 fi
 
+# 4.2 Resolver scripts por lotes (.bat o .cmd) para omitir bucles infinitos de CPU
+if [[ "$TARGET" =~ \.([bB][aA][tT]|[cC][mM][dD])$ ]] && [ -f "$TARGET" ]; then
+    echo "[*] Script por lotes (.bat/.cmd) detectado: $(basename "$TARGET")."
+    if [ -f "${DIR}/resolver_bat.py" ]; then
+        RESOLVED_BAT=$(python3 "${DIR}/resolver_bat.py" "$TARGET" 2>/dev/null || true)
+        BAT_STATUS=$(echo "$RESOLVED_BAT" | grep '^STATUS=' | cut -d= -f2-)
+        BAT_PATH=$(echo "$RESOLVED_BAT" | grep '^RESOLVED_PATH=' | cut -d= -f2-)
+        if [ "$BAT_STATUS" = "RESOLVED" ] && [ -f "$BAT_PATH" ]; then
+            echo "[+] Ejecutable real detectado y aislado para máximo rendimiento: $BAT_PATH"
+            echo "[+] Omitiendo bucles innecesarios de Windows (tasklist/wmic) para liberar el 100% de la CPU."
+            TARGET="$BAT_PATH"
+        fi
+    fi
+fi
+
 # 5. Auto-inicialización del prefijo si es nuevo
 if [ ! -f "${WINEPREFIX}/system.reg" ]; then
     echo "[*] Configurando nuevo entorno de Windows unificado..."
@@ -58,11 +73,10 @@ if [ ! -f "${WINEPREFIX}/system.reg" ]; then
     fi
 fi
 
-# 6. Optimización de captura de ratón en 3D (elimina giros bruscos, saltos de cámara y límites de rotación)
-if [ -f "${WINEPREFIX}/user.reg" ] && ! grep -q "MouseWarpOverride" "${WINEPREFIX}/user.reg" 2>/dev/null; then
-    wine reg add "HKEY_CURRENT_USER\Software\Wine\DirectInput" /v MouseWarpOverride /t REG_SZ /d force /f >/dev/null 2>&1 || true
-    wine reg add "HKEY_CURRENT_USER\Software\Wine\X11 Driver" /v UseTakeFocus /t REG_SZ /d N /f >/dev/null 2>&1 || true
-fi
+# 6. Optimización de captura de ratón en 3D (rotación fluida 360°, sin rebotes ni tirones de cámara)
+wine reg add "HKEY_CURRENT_USER\Software\Wine\DirectInput" /v MouseWarpOverride /t REG_SZ /d enable /f >/dev/null 2>&1 || true
+wine reg add "HKEY_CURRENT_USER\Software\Wine\X11 Driver" /v UseTakeFocus /t REG_SZ /d N /f >/dev/null 2>&1 || true
+wine reg add "HKEY_CURRENT_USER\Software\Wine\X11 Driver" /v GrabFullscreen /t REG_SZ /d Y /f >/dev/null 2>&1 || true
 
 # 7. Generar archivo DXVK optimizado según la CPU y límite de FPS configurado
 if [ "$RENDERER_IN_USE" != "WineD3D (OpenGL Compatibilidad)" ]; then
