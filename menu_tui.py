@@ -84,7 +84,7 @@ def pad_visual(s, target_width):
     return ''.join(res) + (' ' * (target_width - cur))
 
 def read_key():
-    """Lee una tecla del teclado en modo crudo (raw), detectando flechas, Enter y teclas rápidas."""
+    """Lee una tecla del teclado en modo crudo usando os.read directamente, capturando flechas completas sin latencia ni cuelgues."""
     if not sys.stdin.isatty():
         ch = sys.stdin.read(1)
         if not ch or ch in ('\r', '\n'):
@@ -95,28 +95,29 @@ def read_key():
     old_settings = termios.tcgetattr(fd)
     try:
         tty.setraw(fd)
-        ch = sys.stdin.read(1)
-        if ch == '\x1b':
-            import select
-            r, _, _ = select.select([sys.stdin], [], [], 0.05)
-            if r:
-                ch2 = sys.stdin.read(1)
-                if ch2 == '[':
-                    ch3 = sys.stdin.read(1)
-                    if ch3 == 'A': return 'UP'
-                    elif ch3 == 'B': return 'DOWN'
-                    elif ch3 == 'C': return 'RIGHT'
-                    elif ch3 == 'D': return 'LEFT'
-                    return 'ESC'
-                return 'ESC'
-            return 'ESC'
-        elif ch in ('\r', '\n'):
+        raw = os.read(fd, 32)
+        if not raw:
             return 'ENTER'
-        elif ch == ' ':
+
+        # Secuencias ANSI / VT100 / Konsole / xterm / Linux console
+        if raw in (b'\x1b[A', b'\x1bOA') or (raw.startswith(b'\x1b') and raw.endswith(b'A')):
+            return 'UP'
+        elif raw in (b'\x1b[B', b'\x1bOB') or (raw.startswith(b'\x1b') and raw.endswith(b'B')):
+            return 'DOWN'
+        elif raw in (b'\x1b[C', b'\x1bOC') or (raw.startswith(b'\x1b') and raw.endswith(b'C')):
+            return 'RIGHT'
+        elif raw in (b'\x1b[D', b'\x1bOD') or (raw.startswith(b'\x1b') and raw.endswith(b'D')):
+            return 'LEFT'
+        elif raw in (b'\r', b'\n'):
+            return 'ENTER'
+        elif raw == b' ':
             return 'SPACE'
-        elif ch in ('\x7f', '\x08'):
+        elif raw in (b'\x7f', b'\x08'):
             return 'BACKSPACE'
-        return ch
+        elif raw == b'\x1b':
+            return 'ESC'
+
+        return raw.decode('utf-8', errors='ignore')
     finally:
         termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
 
@@ -1013,10 +1014,12 @@ def main():
         elif k == '5':
             cur_idx = 5
             ejecutar_optimizacion_automatica(hw, cfg)
-        elif k in ('0', 'q', 'Q', 'ESC'):
+        elif k in ('0', 'q', 'Q'):
             os.system("clear")
             print(f"{GREEN}¡Hasta luego! Que disfrutes tus juegos.{RESET}\n")
             sys.exit(0)
+        elif k == 'ESC':
+            pass
 
 if __name__ == '__main__':
     main()
