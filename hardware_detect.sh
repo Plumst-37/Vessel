@@ -93,14 +93,18 @@ aplicar_entorno_hardware() {
 
     export STAGING_SHARED_MEMORY=1
     export DXVK_ASYNC=1
+    export DXVK_GPLASYNCCACHE=1
     export __GL_SHADER_DISK_CACHE=1
     export __GL_SHADER_DISK_CACHE_SKIP_CLEANUP=1
     export __GL_SHADER_DISK_CACHE_SIZE=10737418240
+    export CUDA_CACHE_MAXSIZE=2147483648
     export MESA_DISK_CACHE_SINGLE_FILE=1
     export mesa_glthread=true
     export __GL_YIELD="NOTHING"
     export WINE_CPU_TOPOLOGY="${CPU_CORES}"
     export WINE_HEAP_DELAY_FREE=0
+    export WINE_SIMULATE_WRITECOPY=1
+    export WINE_RT_PRIO=1
 
     # 8. Renderizado según la GPU detectada (Garantiza usar la GPU dedicada en laptops híbridas)
     # Detección dinámica y universal de GPU dedicada (NVIDIA GeForce o AMD Radeon)
@@ -130,6 +134,8 @@ aplicar_entorno_hardware() {
         export __GL_THREADED_OPTIMIZATIONS=1
         export __GL_SYNC_TO_VBLANK=0
         export __GL_MaxFramesAllowed=1
+        export __GL_VRR_ALLOWED=0
+        export __GL_SHOW_GRAPHICS_OSD=0
     elif [ "$HAS_AMD_DEDICATED" = true ]; then
         # Activar optimizaciones AMD Radeon (PRIME, compilador ACO y SAM)
         export DRI_PRIME=1

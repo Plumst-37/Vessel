@@ -89,11 +89,11 @@ if [ ! -f "${WINEPREFIX}/system.reg" ]; then
     fi
 fi
 
-# 6. Optimización de captura de ratón en 3D y pantalla completa borderless sin bordes ni desalineación
-if ! grep -q '"Decorated"="N"' "${WINEPREFIX}/user.reg" 2>/dev/null; then
+# 6. Optimización de captura de ratón en 3D, multi-monitor y pantalla completa borderless sin bordes ni congelamientos
+if ! grep -q '"GrabFullscreen"="N"' "${WINEPREFIX}/user.reg" 2>/dev/null; then
     wine reg add "HKEY_CURRENT_USER\Software\Wine\DirectInput" /v MouseWarpOverride /t REG_SZ /d force /f >/dev/null 2>&1 || true
     wine reg add "HKEY_CURRENT_USER\Software\Wine\X11 Driver" /v UseTakeFocus /t REG_SZ /d N /f >/dev/null 2>&1 || true
-    wine reg add "HKEY_CURRENT_USER\Software\Wine\X11 Driver" /v GrabFullscreen /t REG_SZ /d Y /f >/dev/null 2>&1 || true
+    wine reg add "HKEY_CURRENT_USER\Software\Wine\X11 Driver" /v GrabFullscreen /t REG_SZ /d N /f >/dev/null 2>&1 || true
     wine reg add "HKEY_CURRENT_USER\Software\Wine\X11 Driver" /v Decorated /t REG_SZ /d N /f >/dev/null 2>&1 || true
     wine reg add "HKEY_CURRENT_USER\Software\Wine\X11 Driver" /v Managed /t REG_SZ /d Y /f >/dev/null 2>&1 || true
 fi
@@ -201,7 +201,7 @@ MotionBlurEnabled=OFF
 ShadowsQuality=MEDIUM
 FrameRate=VARIABLE
 TextureDetail=HIGH
-TextureMipLimite=2
+TextureMipLimite=0
 [DISPLAY]
 Resolution=${best_res}
 Aspect=${best_aspect}
@@ -254,6 +254,7 @@ EOF
                 sed -i 's/^RenderingThread=OFF/RenderingThread=ON/' "$cini" 2>/dev/null || true
                 sed -i 's/^TextureDetail=LOWEST/TextureDetail=HIGH/' "$cini" 2>/dev/null || true
                 sed -i 's/^ScreenQuality=LOW/ScreenQuality=HIGH/' "$cini" 2>/dev/null || true
+                sed -i 's/^TextureMipLimite=.*/TextureMipLimite=0/' "$cini" 2>/dev/null || true
                 sed -i 's/^MouseBaseSpeed=.*/MouseBaseSpeed=1.500000/' "$cini" 2>/dev/null || true
                 sed -i 's/^MainX=.*/MainX=0/' "$cini" 2>/dev/null || true
                 sed -i 's/^MainY=.*/MainY=0/' "$cini" 2>/dev/null || true
@@ -271,15 +272,32 @@ EOF
                 sed -i "s/<ScreenHeight value=\"[0-9]*\"/<ScreenHeight value=\"${best_h}\"/" "$sxml" 2>/dev/null || true
             fi
             sed -i 's/<VSync value="[0-9]*"/<VSync value="0"/' "$sxml" 2>/dev/null || true
-            sed -i 's/<Windowed value="[0-9]*"/<Windowed value="0"/' "$sxml" 2>/dev/null || true
+            sed -i 's/<Windowed value="[0-9]*"/<Windowed value="2"/' "$sxml" 2>/dev/null || true
+            sed -i 's/<PauseOnFocusLoss value="[0-9]*"/<PauseOnFocusLoss value="0"/' "$sxml" 2>/dev/null || true
             sed -i 's/<AspectRatio value="[0-9]*"/<AspectRatio value="0"/' "$sxml" 2>/dev/null || true
             sed -i 's/<AnisotropicFiltering value="[0-9]*"/<AnisotropicFiltering value="16"/' "$sxml" 2>/dev/null || true
             sed -i 's/<FXAA_Enabled value="false"/<FXAA_Enabled value="true"/' "$sxml" 2>/dev/null || true
             sed -i 's/<LodScale value="0.000000"/<LodScale value="1.000000"/' "$sxml" 2>/dev/null || true
+            sed -i 's/<PedLodBias value="0.000000"/<PedLodBias value="0.200000"/' "$sxml" 2>/dev/null || true
+            sed -i 's/<VehicleLodBias value="0.000000"/<VehicleLodBias value="0.200000"/' "$sxml" 2>/dev/null || true
             if [ -n "$GPU_NAME" ]; then
                 sed -i "s|<VideoCardDescription>.*</VideoCardDescription>|<VideoCardDescription>${GPU_NAME}</VideoCardDescription>|" "$sxml" 2>/dev/null || true
             fi
         done
+    fi
+
+    # 3.1 OPTIMIZACIÓN ESPECÍFICA GTA V (Carga rápida sin cuelgues ni saturación de hilos)
+    if [[ "$TARGET_FILE" =~ (GTA5|PlayGTAV|gta5) ]] || [[ "$TARGET_DIR" =~ (GTA|gta) ]]; then
+        local gta_cmdline="${TARGET_DIR}/commandline.txt"
+        if [ -f "$gta_cmdline" ]; then
+            sed -i 's/^-FrameQueueLimit 0/-FrameQueueLimit 1/' "$gta_cmdline" 2>/dev/null || true
+            sed -i '/^-hdr/d' "$gta_cmdline" 2>/dev/null || true
+            grep -q '^-StraightIntoFreemode' "$gta_cmdline" || echo "-StraightIntoFreemode" >> "$gta_cmdline"
+            grep -q '^-scOfflineOnly' "$gta_cmdline" || echo "-scOfflineOnly" >> "$gta_cmdline"
+            grep -q '^-novsync' "$gta_cmdline" || echo "-novsync" >> "$gta_cmdline"
+            grep -q '^-disablespecular' "$gta_cmdline" || echo "-disablespecular" >> "$gta_cmdline"
+            echo "[+] Archivo commandline.txt de GTA V optimizado (Carga inmediata sin bloqueos de render thread)."
+        fi
     fi
 
     # 4. UNREAL ENGINE 1/2/2.5 (SWAT 4, Deus Ex, Bioshock, etc.)

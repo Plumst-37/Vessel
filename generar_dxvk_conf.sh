@@ -47,6 +47,14 @@ dxvk.allowFse = True
 d3d9.invariantPosition = True
 d3d11.invariantPosition = True
 d3d9.longMad = True
+d3d9.floatEmulation = Strict
+d3d9.clampNegativeLodBias = True
+d3d11.clampNegativeLodBias = True
+d3d9.samplerAnisotropy = 16
+d3d11.samplerAnisotropy = 16
+d3d11.maxTessFactor = 16
+d3d11.constantBufferRangeCheck = True
+d3d9.lenientClear = False
 d3d9.maxAvailableMemory = 4096
 
 # Modo Mailbox Present (Triple Buffering Tear-Free de Ultra-Baja Latencia)
@@ -64,6 +72,31 @@ dxgi.maxFrameLatency = 1
 dxvk.trackPipelineLifetime = True
 d3d9.memoryTrackTest = False
 d3d9.shaderModel = 3
+
+# Perfiles específicos por ejecutable para máxima estabilidad y rendimiento
+[GTA5.exe]
+d3d11.maxTessFactor = 16
+dxgi.maxFrameLatency = 1
+d3d11.clampNegativeLodBias = True
+d3d11.constantBufferRangeCheck = True
+dxvk.enableAsync = true
+dxvk.gpl = True
+
+[PlayGTAV.exe]
+d3d11.maxTessFactor = 16
+dxgi.maxFrameLatency = 1
+d3d11.clampNegativeLodBias = True
+d3d11.constantBufferRangeCheck = True
+dxvk.enableAsync = true
+dxvk.gpl = True
+
+[BH6.exe]
+d3d9.invariantPosition = True
+d3d9.longMad = True
+d3d9.floatEmulation = Strict
+d3d9.clampNegativeLodBias = True
+d3d9.samplerAnisotropy = 16
+d3d9.lenientClear = False
 EOF
 
 # Si el HUD de FPS está activado
