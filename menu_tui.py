@@ -130,8 +130,6 @@ def cargar_config():
         "FSR_STRENGTH": "2",
         "MOSTRAR_HUD_FPS": "0",
         "RENDERER_BACKEND": "auto",
-        "ESCRITORIO_VIRTUAL": "0",
-        "RESOLUCION_ESCRITORIO": "1280x720",
         "SISTEMA_LINUX": "debian",
         "DISTRO_NAME": "Debian"
     }
@@ -448,40 +446,34 @@ def menu_iniciar_programa(hw, cfg):
 
         # Menú de acción para el juego seleccionado
         opts_juego = [
-            ("1", f"🚀 Iniciar {nombre} Normalmente (Máximo Rendimiento DXVK + GameMode)"),
-            ("2", f"🖥️ Iniciar en Escritorio Virtual (1280x720 / 720p - Anti-Cuelgues)"),
-            ("3", f"📊 Iniciar con HUD de Rendimiento (FPS / Telemetría en Pantalla)"),
-            ("4", f"📂 Abrir Carpeta del Juego (para Mods / Parches / Saves)"),
-            ("5", f"🖥️ Crear Acceso Directo en el Escritorio (1-Clic)"),
-            ("6", f"❌ Eliminar este Juego de la Lista"),
+            ("1", f"🚀 Iniciar {nombre} (Máximo Rendimiento Nativo en Hardware)"),
+            ("2", f"📊 Iniciar con HUD de Rendimiento (FPS / Telemetría en Pantalla)"),
+            ("3", f"📂 Abrir Carpeta del Juego (para Mods / Parches / Saves)"),
+            ("4", f"🖥️ Crear Acceso Directo en el Escritorio (1-Clic)"),
+            ("5", f"❌ Eliminar este Juego de la Lista"),
             ("0", f"↩️  Volver a la Lista de Juegos")
         ]
         accion = submenu_interactivo(f"🎮  Acciones para: {nombre}", opts_juego, hw, cfg)
 
         if accion == "1":
             os.system("clear")
-            print(f"{GREEN}🚀 Iniciando: {BOLD}{nombre}{RESET} con optimizaciones completas...\n")
+            print(f"{GREEN}🚀 Iniciando: {BOLD}{nombre}{RESET} de forma nativa en tu computadora...\n")
             subprocess.run(["bash", LAUNCHER, ruta])
             pausar()
         elif accion == "2":
             os.system("clear")
-            print(f"{CYAN}🖥️ Iniciando: {BOLD}{nombre}{RESET} en Escritorio Virtual 1280x720...\n")
-            subprocess.run(["bash", "-c", f"ENABLE_VIRTUAL_DESKTOP=1 RESOLUCION_ESCRITORIO='1280x720' bash '{LAUNCHER}' '{ruta}'"])
-            pausar()
-        elif accion == "3":
-            os.system("clear")
             print(f"{PURPLE}📊 Iniciando: {BOLD}{nombre}{RESET} con HUD de FPS activo...\n")
             subprocess.run(["bash", "-c", f"ENABLE_DXVK_HUD=1 bash '{LAUNCHER}' '{ruta}'"])
             pausar()
-        elif accion == "4":
+        elif accion == "3":
             carpeta = os.path.dirname(ruta)
             subprocess.run(f"xdg-open '{carpeta}'", shell=True, stderr=subprocess.DEVNULL)
             print(f"\n{GREEN}✔ Carpeta abierta en tu gestor de archivos.{RESET}")
             pausar()
-        elif accion == "5":
+        elif accion == "4":
             crear_desktop_entry(nombre, ruta)
             pausar()
-        elif accion == "6":
+        elif accion == "5":
             del programas[idx]
             with open(DB_FILE, "w", encoding="utf-8") as f:
                 for n, r in programas:
@@ -663,7 +655,6 @@ def menu_rendimiento(hw, cfg):
         fsr_act = f"Activo (x{cfg.get('FSR_STRENGTH', '2')})" if cfg.get("ACTIVAR_FSR") == "1" else "Apagado"
         hud_act = "Activo" if cfg.get("MOSTRAR_HUD_FPS") == "1" else "Apagado"
         mot_act = cfg.get("RENDERER_BACKEND", "auto").upper()
-        scr_act = f"Escritorio Virtual ({cfg.get('RESOLUCION_ESCRITORIO', '1280x720')})" if cfg.get("ESCRITORIO_VIRTUAL") == "1" else "Pantalla Completa"
 
         opciones = [
             ("1", f"⚡ Perfil de Rendimiento (Actual: {p_act})"),
@@ -671,9 +662,8 @@ def menu_rendimiento(hw, cfg):
             ("3", f"🚀 AMD FSR Reescalado (Actual: {fsr_act})"),
             ("4", f"📊 HUD de FPS y Telemetría en Pantalla (Actual: {hud_act})"),
             ("5", f"🎮 Motor Gráfico (Actual: {mot_act})"),
-            ("6", f"🖥️ Modo de Pantalla (Actual: {scr_act})"),
-            ("7", f"🧹 Limpiar Shaders y Caché DXVK (Solucionar Tirones / Descuadres 3D)"),
-            ("8", f"🎛️ Filtrado Anisótropo 16x (Máxima Nitidez de Texturas)"),
+            ("6", f"🧹 Limpiar Shaders y Caché DXVK (Solucionar Tirones / Descuadres 3D)"),
+            ("7", f"🎛️ Filtrado Anisótropo 16x (Máxima Nitidez de Texturas)"),
             ("0", "↩️  Volver al Menú Principal")
         ]
         sel = submenu_interactivo("⚡  Rendimiento y Motor Gráfico", opciones, hw, cfg)
@@ -748,22 +738,6 @@ def menu_rendimiento(hw, cfg):
             elif s == "2": guardar_config("RENDERER_BACKEND", "wined3d")
             elif s == "3": guardar_config("RENDERER_BACKEND", "auto")
         elif sel == "6":
-            sub_scr = [
-                ("1", "Pantalla Completa Nativa (Directa al monitor)"),
-                ("2", "Escritorio Virtual 1280x720 (720p - Anti-cuelgues y multi-pantalla)"),
-                ("3", "Escritorio Virtual 1920x1080 (1080p Full HD)"),
-                ("0", "↩️  Cancelar")
-            ]
-            s = submenu_interactivo("Modo de Pantalla", sub_scr, hw, cfg)
-            if s == "1":
-                guardar_config("ESCRITORIO_VIRTUAL", "0")
-            elif s == "2":
-                guardar_config("ESCRITORIO_VIRTUAL", "1")
-                guardar_config("RESOLUCION_ESCRITORIO", "1280x720")
-            elif s == "3":
-                guardar_config("ESCRITORIO_VIRTUAL", "1")
-                guardar_config("RESOLUCION_ESCRITORIO", "1920x1080")
-        elif sel == "7":
             # Limpiar shaders y caché
             os.system("clear")
             print(f"{PURPLE}🧹 [ LIMPIANDO SHADERS Y CACHÉ GRÁFICA ]{RESET}\n")
@@ -771,7 +745,7 @@ def menu_rendimiento(hw, cfg):
             print(f"{GREEN}✔ Archivos de caché de shaders corruptos eliminados.{RESET}")
             print(f"{WHITE}Los juegos regenerarán shaders frescos sin tirones al iniciar.{RESET}")
             pausar()
-        elif sel == "8":
+        elif sel == "7":
             os.system("clear")
             print(f"{PURPLE}🎛️  [ FILTRADO ANISÓTROPO 16X FORZADO ]{RESET}\n")
             # Activar en dxvk.conf

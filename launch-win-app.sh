@@ -339,17 +339,9 @@ done
 
 CANT_ASI=$(ls -1 *.asi scripts/*.asi plugins/*.asi 2>/dev/null | wc -l)
 
-# Detección de resolución para modo Escritorio Virtual
-RES_PRIMARIA=$(xrandr 2>/dev/null | grep -E ' connected primary' | grep -oE '[0-9]{3,4}x[0-9]{3,4}' | head -n 1)
-[ -z "$RES_PRIMARIA" ] && RES_PRIMARIA=$(xrandr 2>/dev/null | grep -E '\bconnected\b' | grep -oE '[0-9]{3,4}x[0-9]{3,4}' | head -n 1)
-[ -z "$RES_PRIMARIA" ] && RES_PRIMARIA=$(cat /sys/class/drm/*/modes 2>/dev/null | grep -oE '^[0-9]{3,4}x[0-9]{3,4}' | head -n 1)
-[ -z "$RES_PRIMARIA" ] && RES_PRIMARIA="1280x720"
-DESKTOP_RES="${RESOLUCION_ESCRITORIO:-$RES_PRIMARIA}"
-
+# Modo Pantalla Nativo Directo en Hardware (sin capas virtuales)
+ESCRITORIO_VIRTUAL="0"
 RUN_PREFIX=""
-if [ "$ESCRITORIO_VIRTUAL" = "1" ]; then
-    RUN_PREFIX="explorer /desktop=Vessel,${DESKTOP_RES}"
-fi
 
 echo "[+] Ejecutando con Perfil [${PERFIL_RENDIMIENTO:-maximo}]..."
 echo "    - CPU: ${CPU_MODEL} (${CPU_CORES} Hilos)"
@@ -359,7 +351,7 @@ echo "    - Fsync/Esync: $([ "$WINEFSYNC" = "1" ] && echo "Fsync Activo" || echo
 echo "    - Límite de FPS: ${LIMITE_FPS:-60} FPS"
 echo "    - AMD FSR Upscaling: $([ "$ACTIVAR_FSR" = "1" ] && echo "Activado" || echo "Desactivado")"
 echo "    - GameMode: $([ -n "$GAMEMODE" ] && echo "Activo" || echo "Inactivo")"
-echo "    - Modo Pantalla: $([ "$ESCRITORIO_VIRTUAL" = "1" ] && echo "Escritorio Virtual (${DESKTOP_RES})" || echo "Pantalla Completa Nativa")"
+echo "    - Modo Pantalla: Pantalla Completa Nativa Directa (Hardware)"
 echo "    - Caché de Shaders: NVMe SSD (~/.cache/dxvk)"
 echo "    - Prefijo Wine: ${WINEPREFIX}"
 if [ ${#MODS_ACTIVADOS[@]} -gt 0 ] || [ "$CANT_ASI" -gt 0 ]; then

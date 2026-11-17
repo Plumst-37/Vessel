@@ -1066,8 +1066,7 @@ menu_configuracion() {
         echo -e "  ${C_BOLD}${C_CYAN}[3]${C_RESET} ${C_MAGENTA}🚀 AMD FSR Upscaling (Para GPUs modestas o integradas)${C_RESET} (Actual: $([ "$ACTIVAR_FSR" = "1" ] && echo -e "${C_GREEN}ACTIVADO (x${FSR_STRENGTH:-2})${C_RESET}" || echo -e "${C_RED}DESACTIVADO${C_RESET}"))"
         echo -e "  ${C_BOLD}${C_CYAN}[4]${C_RESET} ${C_CYAN}📊 Contador de FPS en pantalla (HUD)${C_RESET} (Actual: $([ "$MOSTRAR_HUD_FPS" = "1" ] && echo -e "${C_GREEN}ACTIVADO${C_RESET}" || echo -e "${C_RED}DESACTIVADO${C_RESET}"))"
         echo -e "  ${C_BOLD}${C_CYAN}[5]${C_RESET} ${C_WHITE}🎮 Cambiar Motor Gráfico (DXVK Vulkan vs. WineD3D OpenGL)${C_RESET} (Actual: ${C_BOLD}${RENDERER_BACKEND:-auto}${C_RESET})"
-        echo -e "  ${C_BOLD}${C_CYAN}[6]${C_RESET} ${C_WHITE}🖥️  Modo Escritorio Virtual (Solución a Pantalla Negra en multimonitor/resolución)${C_RESET} (Actual: $([ "$ESCRITORIO_VIRTUAL" = "1" ] && echo -e "${C_GREEN}ACTIVADO (${RESOLUCION_ESCRITORIO:-Auto})${C_RESET}" || echo -e "${C_RED}DESACTIVADO${C_RESET}"))"
-        echo -e "  ${C_BOLD}${C_CYAN}[7]${C_RESET} ${C_WHITE}🔍 Diagnóstico de Hardware y Controladores${C_RESET}"
+        echo -e "  ${C_BOLD}${C_CYAN}[6]${C_RESET} ${C_WHITE}🔍 Diagnóstico de Hardware y Controladores${C_RESET}"
         echo ""
         echo -e "  ${C_BOLD}${C_RED}[0]${C_RESET} ${C_YELLOW}Volver al menú principal${C_RESET}"
         echo ""
@@ -1090,9 +1089,6 @@ menu_configuracion() {
                 ajustar_motor_grafico
                 ;;
             6)
-                ajustar_escritorio_virtual
-                ;;
-            7)
                 mostrar_diagnostico_hardware
                 ;;
             0|"")
@@ -1117,8 +1113,7 @@ FSR_STRENGTH="${FSR_STRENGTH:-2}"
 RENDERER_BACKEND="${RENDERER_BACKEND:-auto}"
 SISTEMA_LINUX="${SISTEMA_LINUX:-debian}"
 DISTRO_NAME="${DISTRO_NAME:-Debian}"
-ESCRITORIO_VIRTUAL="${ESCRITORIO_VIRTUAL:-0}"
-RESOLUCION_ESCRITORIO="${RESOLUCION_ESCRITORIO:-1280x720}"
+ESCRITORIO_VIRTUAL="0"
 EOF
     # Regenerar dxvk.conf con los nuevos valores
     if [ -x "${DIR}/generar_dxvk_conf.sh" ]; then
