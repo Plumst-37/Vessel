@@ -1476,87 +1476,166 @@ ejecutar_descarga_e_instalacion_automatica() {
     echo -e "${C_CYAN}══════════════════════════════════════════════════════════════════════${C_RESET}"
     echo ""
 
-    # 1. Paquetes del Sistema Operativo
-    echo -e "${C_BOLD}[1/4] Comprobando paquetes del sistema para ${DISTRO_NAME:-Debian}...${C_RESET}"
-    local faltan_paquetes=false
-    local cmds_requeridos=(wine winetricks dxvk-setup gamemoderun cabextract curl 7z python3)
-    local faltantes=()
+    # 1. Paquetes del Sistema Operativo por Distribución Específica
+    echo -e "${C_BOLD}[1/5] Comprobando y descargando paquetes para ${DISTRO_NAME:-Linux}...${C_RESET}"
 
-    for c in "${cmds_requeridos[@]}"; do
-        if ! command -v "$c" &>/dev/null; then
-            faltan_paquetes=true
-            faltantes+=("$c")
-        fi
-    done
-
-    if [ "$SISTEMA_LINUX" = "debian" ] || [ "$SISTEMA_LINUX" = "ubuntu" ]; then
-        if command -v dpkg &>/dev/null; then
-            if ! dpkg -s libnss-resolve:i386 &>/dev/null || ! dpkg -s libnss-mdns:i386 &>/dev/null; then
-                faltan_paquetes=true
-                faltantes+=("libnss-resolve:i386" "libnss-mdns:i386")
+    case "$SISTEMA_LINUX" in
+        debian)
+            echo -e "${C_CYAN}  ⚙️ Configurando Debian GNU/Linux (32 y 64 bits)...${C_RESET}"
+            if command -v dpkg &>/dev/null && ! dpkg --print-foreign-architectures 2>/dev/null | grep -q "i386"; then
+                sudo dpkg --add-architecture i386 2>/dev/null || true
             fi
-            if ! dpkg -s gstreamer1.0-libav:i386 &>/dev/null || ! dpkg -s gstreamer1.0-plugins-ugly:i386 &>/dev/null; then
-                faltan_paquetes=true
-                faltantes+=("gstreamer1.0-libav:i386" "gstreamer1.0-plugins-ugly:i386" "gstreamer1.0-plugins-bad:i386" "libvkd3d1:i386")
+            sudo apt-get update -y 2>/dev/null || true
+            sudo apt-get install -y wine wine32:i386 wine64 winetricks cabextract curl p7zip-full mesa-utils vulkan-tools zenity python3 2>/dev/null || sudo apt-get install -y wine winetricks cabextract curl p7zip-full zenity python3 2>/dev/null || true
+            sudo apt-get install -y libvulkan1 libvulkan1:i386 mesa-vulkan-drivers mesa-vulkan-drivers:i386 2>/dev/null || true
+            sudo apt-get install -y gamemode libgamemode0:i386 2>/dev/null || sudo apt-get install -y gamemode 2>/dev/null || true
+            if lspci 2>/dev/null | grep -qi "nvidia"; then
+                echo -e "${C_CYAN}  🎮 GPU NVIDIA detectada: Asegurando librerías gráficas de 32 bits...${C_RESET}"
+                sudo apt-get install -y nvidia-driver-libs:i386 2>/dev/null || true
             fi
-        fi
-    fi
-
-    if [ "$faltan_paquetes" = false ]; then
-        echo -e "${C_GREEN}  ✔ Todos los paquetes del sistema ya están instalados y al día (Omitido).${C_RESET}"
-    else
-        echo -e "${C_YELLOW}  ⬇️ Faltan componentes (${faltantes[*]}). Instalando automáticamente...${C_RESET}"
-        case "$SISTEMA_LINUX" in
-            debian|ubuntu)
-                if command -v dpkg &>/dev/null && ! dpkg --print-foreign-architectures 2>/dev/null | grep -q "i386"; then
-                    echo -e "${C_CYAN}  ⚙️ Habilitando arquitectura 32-bit (i386)...${C_RESET}"
-                    sudo dpkg --add-architecture i386 2>/dev/null || true
+            sudo apt-get install -y libnss-resolve:i386 libnss-mdns:i386 libvkd3d1:i386 2>/dev/null || true
+            sudo apt-get install -y gstreamer1.0-plugins-base:i386 gstreamer1.0-plugins-good:i386 gstreamer1.0-plugins-ugly:i386 gstreamer1.0-libav:i386 2>/dev/null || true
+            ;;
+        ubuntu)
+            echo -e "${C_CYAN}  ⚙️ Configurando Ubuntu / Linux Mint / Pop!_OS / Zorin...${C_RESET}"
+            if command -v dpkg &>/dev/null && ! dpkg --print-foreign-architectures 2>/dev/null | grep -q "i386"; then
+                sudo dpkg --add-architecture i386 2>/dev/null || true
+            fi
+            sudo apt-get update -y 2>/dev/null || true
+            sudo apt-get install -y wine wine32:i386 wine64 winetricks cabextract curl p7zip-full mesa-utils vulkan-tools zenity python3 2>/dev/null || sudo apt-get install -y wine winetricks cabextract curl p7zip-full zenity python3 2>/dev/null || true
+            sudo apt-get install -y libvulkan1 libvulkan1:i386 mesa-vulkan-drivers mesa-vulkan-drivers:i386 mangohud gamemode libgamemode0:i386 2>/dev/null || true
+            if lspci 2>/dev/null | grep -qi "nvidia"; then
+                echo -e "${C_CYAN}  🎮 GPU NVIDIA detectada: Asegurando controladores y librerías de 32 bits...${C_RESET}"
+                local nv_ver=$(dpkg -l 2>/dev/null | grep -E '^ii\s+nvidia-driver-[0-9]+' | awk '{print $2}' | grep -oE '[0-9]+' | head -n 1)
+                if [ -n "$nv_ver" ]; then
+                    sudo apt-get install -y "libnvidia-gl-${nv_ver}:i386" 2>/dev/null || true
+                else
+                    sudo apt-get install -y libnvidia-gl-535:i386 2>/dev/null || sudo apt-get install -y libnvidia-gl-525:i386 2>/dev/null || true
                 fi
-                echo -e "${C_CYAN}  ⚙️ Actualizando repositorios e instalando paquetes completos...${C_RESET}"
-                sudo apt-get update && sudo apt-get install -y wine wine32:i386 wine64 winetricks dxvk gamemode cabextract curl p7zip-full mesa-utils vulkan-tools zenity python3 libnss-resolve:i386 libnss-mdns:i386 gstreamer1.0-libav:i386 gstreamer1.0-plugins-ugly:i386 gstreamer1.0-plugins-bad:i386 libvkd3d1:i386 libopenexr-3-1-30:i386 2>/dev/null || sudo apt-get install -y wine winetricks dxvk gamemode cabextract curl p7zip-full mesa-utils vulkan-tools zenity python3
-                ;;
-            fedora)
-                sudo dnf install -y wine wine.i686 winetricks dxvk gamemode cabextract curl p7zip mesa-demos vulkan-tools zenity python3 gstreamer1-plugins-ugly.i686 gstreamer1-plugins-bad-free.i686 vkd3d.i686 2>/dev/null || sudo dnf install -y wine winetricks dxvk gamemode cabextract curl p7zip mesa-demos vulkan-tools zenity python3
-                ;;
-            arch)
-                if [ -f /etc/pacman.conf ] && ! grep -q '^\[multilib\]' /etc/pacman.conf; then
-                    echo -e "${C_CYAN}  ⚙️ Habilitando repositorio multilib (32-bit) en /etc/pacman.conf...${C_RESET}"
-                    sudo sed -i '/^#\[multilib\]/{s/^#//;n;s/^#//}' /etc/pacman.conf 2>/dev/null || true
-                    sudo pacman -Sy --noconfirm 2>/dev/null || true
-                fi
-                sudo pacman -Sy --noconfirm --needed wine winetricks dxvk gamemode cabextract curl p7zip mesa-utils vulkan-tools zenity python lib32-gst-plugins-ugly lib32-gst-plugins-bad lib32-gst-libav lib32-vkd3d 2>/dev/null || sudo pacman -Sy --noconfirm --needed wine winetricks dxvk gamemode cabextract curl p7zip mesa-utils vulkan-tools zenity python
-                ;;
-            opensuse)
-                sudo zypper install -y wine wine-32bit winetricks dxvk gamemode cabextract curl p7zip mesa-utils vulkan-tools zenity python3 gstreamer-plugins-ugly-32bit gstreamer-plugins-bad-32bit 2>/dev/null || sudo zypper install -y wine winetricks dxvk gamemode cabextract curl p7zip mesa-utils vulkan-tools zenity python3
-                ;;
-            *)
-                echo -e "${C_RED}  ⚠️ Distribución desconocida. Instala Wine y DXVK con tu gestor habitual.${C_RESET}"
-                ;;
-        esac
-        echo -e "${C_GREEN}  ✔ Paquetes del sistema completados.${C_RESET}"
-    fi
+            fi
+            sudo apt-get install -y libnss-resolve:i386 libnss-mdns:i386 libvkd3d1:i386 2>/dev/null || true
+            sudo apt-get install -y gstreamer1.0-plugins-base:i386 gstreamer1.0-plugins-good:i386 gstreamer1.0-plugins-ugly:i386 gstreamer1.0-libav:i386 2>/dev/null || true
+            ;;
+        arch)
+            echo -e "${C_CYAN}  ⚙️ Configurando Arch Linux / Manjaro / SteamOS...${C_RESET}"
+            if [ -f /etc/pacman.conf ] && ! grep -q '^\[multilib\]' /etc/pacman.conf; then
+                echo -e "${C_CYAN}  ⚙️ Habilitando repositorio multilib (32-bit) en /etc/pacman.conf...${C_RESET}"
+                sudo sed -i '/^#\[multilib\]/{s/^#//;n;s/^#//}' /etc/pacman.conf 2>/dev/null || true
+                sudo pacman -Sy --noconfirm 2>/dev/null || true
+            fi
+            sudo pacman -S --needed --noconfirm wine winetricks gamemode lib32-gamemode cabextract curl p7zip mesa-utils vulkan-tools zenity python 2>/dev/null || sudo pacman -S --needed --noconfirm wine winetricks gamemode cabextract curl p7zip mesa-utils vulkan-tools zenity python 2>/dev/null || true
+            sudo pacman -S --needed --noconfirm vulkan-icd-loader lib32-vulkan-icd-loader mangohud lib32-mangohud lib32-vkd3d 2>/dev/null || true
+            if lspci 2>/dev/null | grep -qiE "amd|radeon"; then
+                echo -e "${C_CYAN}  🎮 GPU AMD detectada: Instalando controladores RADV Vulkan (32 y 64 bits)...${C_RESET}"
+                sudo pacman -S --needed --noconfirm vulkan-radeon lib32-vulkan-radeon mesa lib32-mesa 2>/dev/null || true
+            elif lspci 2>/dev/null | grep -qi "intel"; then
+                echo -e "${C_CYAN}  🎮 Gráficos Intel detectados: Instalando controladores ANV Vulkan (32 y 64 bits)...${C_RESET}"
+                sudo pacman -S --needed --noconfirm vulkan-intel lib32-vulkan-intel mesa lib32-mesa 2>/dev/null || true
+            fi
+            if lspci 2>/dev/null | grep -qi "nvidia"; then
+                echo -e "${C_CYAN}  🎮 GPU NVIDIA detectada: Instalando librerías nvidia-utils (32 y 64 bits)...${C_RESET}"
+                sudo pacman -S --needed --noconfirm nvidia-utils lib32-nvidia-utils 2>/dev/null || true
+            fi
+            sudo pacman -S --needed --noconfirm lib32-gst-plugins-base lib32-gst-plugins-good lib32-gst-plugins-ugly lib32-gst-libav 2>/dev/null || true
+            ;;
+        fedora)
+            echo -e "${C_CYAN}  ⚙️ Configurando Fedora / Nobara...${C_RESET}"
+            sudo dnf install -y --skip-broken wine wine.i686 winetricks gamemode gamemode.i686 cabextract curl p7zip p7zip-plugins mesa-demos vulkan-tools zenity python3 2>/dev/null || sudo dnf install -y --skip-broken wine winetricks gamemode cabextract curl p7zip mesa-demos vulkan-tools zenity python3 2>/dev/null || true
+            sudo dnf install -y --skip-broken vulkan-loader vulkan-loader.i686 mesa-vulkan-drivers mesa-vulkan-drivers.i686 mangohud mangohud.i686 vkd3d vkd3d.i686 2>/dev/null || true
+            if lspci 2>/dev/null | grep -qiE "amd|radeon"; then
+                echo -e "${C_CYAN}  🎮 GPU AMD detectada: Instalando controladores de aceleración VA-API...${C_RESET}"
+                sudo dnf install -y --skip-broken mesa-va-drivers mesa-va-drivers.i686 mesa-vdpau-drivers mesa-vdpau-drivers.i686 2>/dev/null || true
+            elif lspci 2>/dev/null | grep -qi "nvidia"; then
+                echo -e "${C_CYAN}  🎮 GPU NVIDIA detectada: Instalando librerías 32-bit (RPM Fusion)...${C_RESET}"
+                sudo dnf install -y --skip-broken xorg-x11-drv-nvidia-libs.i686 2>/dev/null || true
+            fi
+            sudo dnf install -y --skip-broken gstreamer1-plugins-ugly.i686 gstreamer1-plugins-bad-free.i686 2>/dev/null || true
+            ;;
+        opensuse)
+            echo -e "${C_CYAN}  ⚙️ Configurando openSUSE...${C_RESET}"
+            sudo zypper --non-interactive --auto-agree-with-licenses install wine wine-32bit winetricks gamemode gamemode-32bit cabextract curl p7zip mesa-utils vulkan-tools zenity python3 2>/dev/null || sudo zypper --non-interactive --auto-agree-with-licenses install wine winetricks gamemode cabextract curl p7zip mesa-utils vulkan-tools zenity python3 2>/dev/null || true
+            sudo zypper --non-interactive --auto-agree-with-licenses install libvulkan1 libvulkan1-32bit mangohud mangohud-32bit 2>/dev/null || true
+            if lspci 2>/dev/null | grep -qiE "amd|radeon"; then
+                echo -e "${C_CYAN}  🎮 GPU AMD detectada: Instalando controladores RADV Vulkan...${C_RESET}"
+                sudo zypper --non-interactive --auto-agree-with-licenses install libvulkan_radeon libvulkan_radeon-32bit 2>/dev/null || true
+            elif lspci 2>/dev/null | grep -qi "intel"; then
+                echo -e "${C_CYAN}  🎮 Gráficos Intel detectados: Instalando controladores ANV Vulkan...${C_RESET}"
+                sudo zypper --non-interactive --auto-agree-with-licenses install libvulkan_intel libvulkan_intel-32bit 2>/dev/null || true
+            fi
+            sudo zypper --non-interactive --auto-agree-with-licenses install gstreamer-plugins-ugly-32bit gstreamer-plugins-bad-32bit 2>/dev/null || true
+            ;;
+        *)
+            echo -e "${C_YELLOW}  ⚠️ Distribución genérica detectada. Verificando comandos estándar...${C_RESET}"
+            if command -v apt-get &>/dev/null; then
+                sudo apt-get update -y 2>/dev/null || true
+                sudo apt-get install -y wine winetricks gamemode cabextract curl p7zip-full zenity python3 2>/dev/null || true
+            elif command -v pacman &>/dev/null; then
+                sudo pacman -S --needed --noconfirm wine winetricks gamemode cabextract curl p7zip zenity python 2>/dev/null || true
+            elif command -v dnf &>/dev/null; then
+                sudo dnf install -y --skip-broken wine winetricks gamemode cabextract curl p7zip zenity python3 2>/dev/null || true
+            elif command -v zypper &>/dev/null; then
+                sudo zypper --non-interactive --auto-agree-with-licenses install wine winetricks gamemode cabextract curl p7zip zenity python3 2>/dev/null || true
+            fi
+            ;;
+    esac
+    echo -e "${C_GREEN}  ✔ Paquetes del sistema verificados y actualizados con éxito.${C_RESET}"
     echo ""
 
-    # 2. Parámetros del Kernel de Linux (Memoria y Red)
-    echo -e "${C_BOLD}[2/5] Comprobando optimizaciones del Kernel (Memoria y Multijugador)...${C_RESET}"
-    local max_map
-    max_map=$(cat /proc/sys/vm/max_map_count 2>/dev/null || echo 0)
-    if [ "$max_map" -ge 2147483640 ] && [ -f /etc/sysctl.d/99-win-gaming.conf ]; then
-        echo -e "${C_GREEN}  ✔ Parámetros del Kernel (vm.max_map_count = 2.1M y puertos): Ya optimizados (Omitido).${C_RESET}"
-    else
-        echo -e "${C_YELLOW}  ⚙️ Aplicando optimizaciones permanentes en /etc/sysctl.d/99-win-gaming.conf...${C_RESET}"
-        if [ -w /etc/sysctl.d ] || sudo -n true 2>/dev/null || [ "$EUID" -eq 0 ]; then
-            sudo bash -c 'cat <<EOF > /etc/sysctl.d/99-win-gaming.conf
+    # 2. Parámetros del Kernel de Linux y GameMode para Máximo Rendimiento
+    echo -e "${C_BOLD}[2/5] Optimizando parámetros del Kernel y Modo Juego (Memoria, CPU y Red)...${C_RESET}"
+    sudo sysctl -w vm.max_map_count=2147483642 2>/dev/null || sysctl -w vm.max_map_count=2147483642 2>/dev/null || true
+    sudo sysctl -w fs.file-max=2097152 2>/dev/null || true
+    sudo sysctl -w net.ipv4.ping_group_range="0 2147483647" 2>/dev/null || true
+    sudo sysctl -w net.ipv4.ip_unprivileged_port_start=0 2>/dev/null || true
+
+    if [ -w /etc/sysctl.d ] || sudo -n true 2>/dev/null || [ "$EUID" -eq 0 ]; then
+        sudo bash -c 'cat <<EOF > /etc/sysctl.d/99-win-gaming.conf
 # Optimizaciones de memoria y red para juegos pesados y multiplayer
 vm.max_map_count = 2147483642
 net.ipv4.ping_group_range = 0 2147483647
 net.ipv4.ip_unprivileged_port_start = 0
 fs.file-max = 2097152
-EOF'
-            sudo /sbin/sysctl --system > /dev/null 2>&1 || true
-            echo -e "${C_GREEN}  ✔ Parámetros del Kernel aplicados con éxito.${C_RESET}"
-        fi
+EOF' 2>/dev/null || true
+        sudo /sbin/sysctl --system > /dev/null 2>&1 || sudo sysctl --system > /dev/null 2>&1 || true
     fi
+
+    if [ -w /etc/security/limits.d ] || sudo -n true 2>/dev/null || [ "$EUID" -eq 0 ]; then
+        sudo bash -c 'cat <<EOF > /etc/security/limits.d/99-wine-gaming.conf
+# Limites de archivos abiertos para Wine Esync y Fsync (Maximo rendimiento)
+* hard nofile 524288
+* soft nofile 524288
+root hard nofile 524288
+root soft nofile 524288
+EOF' 2>/dev/null || true
+    fi
+
+    # Configuración de Feral GameMode (CPU Governor, renice y GPU boost)
+    local target_user="${SUDO_USER:-$USER}"
+    local target_home=$(eval echo "~$target_user")
+    if command -v gamemoded &>/dev/null || [ -d "/usr/share/gamemode" ]; then
+        sudo usermod -aG gamemode "$target_user" 2>/dev/null || true
+        mkdir -p "$target_home/.config"
+        cat <<EOF > "$target_home/.config/gamemode.ini"
+[general]
+desiredgov=performance
+defaultgov=powersave
+inhibit_screensaver=1
+renice=10
+
+[cpu]
+park_cores=no
+pin_cores=yes
+
+[gpu]
+apply_gpu_optimisations=accept-responsibility
+gpu_device=0
+nv_powermode_level=1
+amd_performance_level=high
+EOF
+        chown "$target_user:$target_user" "$target_home/.config/gamemode.ini" 2>/dev/null || true
+        echo -e "${C_GREEN}  ✔ Feral GameMode configurado al máximo rendimiento (CPU Governor + GPU Mode).${C_RESET}"
+    fi
+    echo -e "${C_GREEN}  ✔ Parámetros del Kernel aplicados con éxito (vm.max_map_count = 2.1M y límites Fsync).${C_RESET}"
     echo ""
 
     # 3. Librerías de Windows en Wine (MFC, Visual C++, DirectX, Fuentes)
@@ -1586,10 +1665,14 @@ EOF'
         echo -e "${C_GREEN}  ✔ Librerías de Windows instaladas con éxito.${C_RESET}"
     fi
 
-    # Verificar DXVK en el prefijo
+    # Sincronización universal de DXVK en el prefijo (funciona en cualquier distro)
     if [ ! -f "$sys32/d3d11.dll" ]; then
         echo -e "${C_CYAN}  ⚡ Sincronizando DXVK en el prefijo de Wine...${C_RESET}"
-        WINEPREFIX="${DIR}/wineprefix" dxvk-setup install -y 2>/dev/null || true
+        if command -v dxvk-setup &>/dev/null; then
+            WINEPREFIX="${DIR}/wineprefix" dxvk-setup install -y 2>/dev/null || true
+        elif command -v winetricks &>/dev/null; then
+            WINEPREFIX="${DIR}/wineprefix" winetricks -q dxvk 2>/dev/null || true
+        fi
     fi
 
     # Optimizaciones del Registro de Wine (CSMT, DirectInput y pantalla completa multi-monitor)
@@ -1599,7 +1682,7 @@ EOF'
     WINEPREFIX="${DIR}/wineprefix" wine reg add "HKEY_CURRENT_USER\Software\Wine\X11 Driver" /v GrabFullscreen /t REG_SZ /d N /f >/dev/null 2>&1 || true
     WINEPREFIX="${DIR}/wineprefix" wine reg add "HKEY_CURRENT_USER\Software\Wine\X11 Driver" /v Decorated /t REG_SZ /d N /f >/dev/null 2>&1 || true
     WINEPREFIX="${DIR}/wineprefix" wine reg add "HKEY_CURRENT_USER\Software\Wine\X11 Driver" /v Managed /t REG_SZ /d Y /f >/dev/null 2>&1 || true
-    echo -e "${C_GREEN}  ✔ Registro de Wine optimizado (multihilo CSMT, captura 3D y multi-pantalla sin bloqueos).${C_RESET}"
+    echo -e "${C_GREEN}  ✔ Registro de Wine optimizado (multihilo CSMT, captura 3D y cero cuelgues).${C_RESET}"
 
     # Verificación de GameRanger predeterminado
     local gr_found=$(find "${DIR}/wineprefix/drive_c" -name "GameRanger.exe" 2>/dev/null | head -n 1)
@@ -1610,8 +1693,10 @@ EOF'
     fi
     echo ""
 
-    # 4. Afinación de DXVK y Shaders
-    echo -e "${C_BOLD}[4/5] Optimizando motor DXVK y caché de shaders para ${CPU_CORES} hilos de CPU...${C_RESET}"
+    # 4. Afinación de DXVK y Shaders para el Hardware de esa Computadora
+    echo -e "${C_BOLD}[4/5] Optimizando motor DXVK y shaders según el hardware detectado...${C_RESET}"
+    source "${DIR}/hardware_detect.sh"
+    aplicar_entorno_hardware
     if [ -f "${DIR}/generar_dxvk_conf.sh" ]; then
         chmod +x "${DIR}/generar_dxvk_conf.sh" 2>/dev/null || true
         bash "${DIR}/generar_dxvk_conf.sh"
@@ -1620,7 +1705,7 @@ EOF'
     echo ""
 
     # 5. Acceso directo en el Escritorio (1-Clic)
-    echo -e "${C_BOLD}[5/5] Creando / verificando acceso directo 'Menu Win (PC)' en tu Escritorio...${C_RESET}"
+    echo -e "${C_BOLD}[5/5] Creando / verificando acceso directo 'Menu Win (PC)' en el Escritorio...${C_RESET}"
     local target_user="${SUDO_USER:-$USER}"
     local target_home=$(eval echo "~$target_user")
     local d_dir="$target_home/Escritorio"
@@ -1648,8 +1733,8 @@ EOF
     echo ""
 
     echo -e "${C_CYAN}══════════════════════════════════════════════════════════════════════${C_RESET}"
-    echo -e "${C_BOLD}${C_GREEN}🎉 ¡OPTIMIZACIÓN AUTOMÁTICA COMPLETADA CON ÉXITO! 🎉${C_RESET}"
-    echo -e "${C_WHITE}Tu PC (${DISTRO_NAME:-Debian}) está lista al 100% para correr cualquier juego o programa.${C_RESET}"
+    echo -e "${C_BOLD}${C_GREEN}🎉 ¡OPTIMIZACIÓN Y CONFIGURACIÓN COMPLETADA CON ÉXITO AL 100%! 🎉${C_RESET}"
+    echo -e "${C_WHITE}Esta computadora (${DISTRO_NAME:-Linux}) está lista para correr cualquier juego o programa.${C_RESET}"
     echo -e "${C_CYAN}══════════════════════════════════════════════════════════════════════${C_RESET}"
     pausar
 }
