@@ -133,10 +133,64 @@ guardar_configuracion_distro() {
     fi
 }
 
+auto_detectar_distro() {
+    local detected_id=""
+    local detected_like=""
+    if [ -f /etc/os-release ]; then
+        detected_id=$(grep -E '^ID=' /etc/os-release 2>/dev/null | cut -d= -f2 | tr -d '"' | tr '[:upper:]' '[:lower:]')
+        detected_like=$(grep -E '^ID_LIKE=' /etc/os-release 2>/dev/null | cut -d= -f2 | tr -d '"' | tr '[:upper:]' '[:lower:]')
+    fi
+
+    case "$detected_id" in
+        ubuntu|linuxmint|pop|zorin|neon|elementary)
+            SISTEMA_LINUX="ubuntu"
+            DISTRO_NAME="Ubuntu / Linux Mint"
+            ;;
+        debian|devuan|kali)
+            SISTEMA_LINUX="debian"
+            DISTRO_NAME="Debian"
+            ;;
+        fedora|nobara|rhel|centos|almalinux|rocky)
+            SISTEMA_LINUX="fedora"
+            DISTRO_NAME="Fedora / Nobara"
+            ;;
+        arch|manjaro|endeavouros|garuda|steamos)
+            SISTEMA_LINUX="arch"
+            DISTRO_NAME="Arch Linux / Manjaro"
+            ;;
+        opensuse*|suse)
+            SISTEMA_LINUX="opensuse"
+            DISTRO_NAME="openSUSE"
+            ;;
+        *)
+            if [[ "$detected_like" =~ (ubuntu|mint) ]]; then
+                SISTEMA_LINUX="ubuntu"
+                DISTRO_NAME="Ubuntu / Linux Mint"
+            elif [[ "$detected_like" =~ debian ]]; then
+                SISTEMA_LINUX="debian"
+                DISTRO_NAME="Debian"
+            elif [[ "$detected_like" =~ (fedora|rhel) ]]; then
+                SISTEMA_LINUX="fedora"
+                DISTRO_NAME="Fedora / Nobara"
+            elif [[ "$detected_like" =~ arch ]]; then
+                SISTEMA_LINUX="arch"
+                DISTRO_NAME="Arch Linux / Manjaro"
+            elif [[ "$detected_like" =~ (suse|opensuse) ]]; then
+                SISTEMA_LINUX="opensuse"
+                DISTRO_NAME="openSUSE"
+            else
+                SISTEMA_LINUX="debian"
+                DISTRO_NAME="Debian"
+            fi
+            ;;
+    esac
+}
+
 comprobar_configuracion_inicial_distro() {
     [ -f "$CONFIG_USER" ] && source "$CONFIG_USER"
     if [ -z "$SISTEMA_LINUX" ]; then
-        seleccionar_distribucion_interactiva
+        auto_detectar_distro
+        guardar_configuracion_distro
     fi
 }
 
@@ -1376,16 +1430,26 @@ instalar_recursos_actualizar() {
         echo -e "${C_YELLOW}  ⬇️ Faltan componentes (${faltantes[*]}). Instalando automáticamente...${C_RESET}"
         case "$SISTEMA_LINUX" in
             debian|ubuntu)
-                sudo apt-get update && sudo apt-get install -y wine winetricks dxvk gamemode cabextract curl p7zip-full mesa-utils vulkan-tools zenity python3 libnss-resolve:i386 libnss-mdns:i386 gstreamer1.0-libav:i386 gstreamer1.0-plugins-ugly:i386 gstreamer1.0-plugins-bad:i386 libvkd3d1:i386 libopenexr-3-1-30:i386
+                if command -v dpkg &>/dev/null && ! dpkg --print-foreign-architectures 2>/dev/null | grep -q "i386"; then
+                    echo -e "${C_CYAN}  ⚙️ Habilitando arquitectura 32-bit (i386)...${C_RESET}"
+                    sudo dpkg --add-architecture i386 2>/dev/null || true
+                fi
+                echo -e "${C_CYAN}  ⚙️ Actualizando repositorios e instalando paquetes completos...${C_RESET}"
+                sudo apt-get update && sudo apt-get install -y wine wine32:i386 wine64 winetricks dxvk gamemode cabextract curl p7zip-full mesa-utils vulkan-tools zenity python3 libnss-resolve:i386 libnss-mdns:i386 gstreamer1.0-libav:i386 gstreamer1.0-plugins-ugly:i386 gstreamer1.0-plugins-bad:i386 libvkd3d1:i386 libopenexr-3-1-30:i386 2>/dev/null || sudo apt-get install -y wine winetricks dxvk gamemode cabextract curl p7zip-full mesa-utils vulkan-tools zenity python3
                 ;;
             fedora)
-                sudo dnf install -y wine winetricks dxvk gamemode cabextract curl p7zip mesa-demos vulkan-tools zenity python3 gstreamer1-plugins-ugly.i686 gstreamer1-plugins-bad-free.i686 vkd3d.i686
+                sudo dnf install -y wine wine.i686 winetricks dxvk gamemode cabextract curl p7zip mesa-demos vulkan-tools zenity python3 gstreamer1-plugins-ugly.i686 gstreamer1-plugins-bad-free.i686 vkd3d.i686 2>/dev/null || sudo dnf install -y wine winetricks dxvk gamemode cabextract curl p7zip mesa-demos vulkan-tools zenity python3
                 ;;
             arch)
-                sudo pacman -Sy --noconfirm --needed wine winetricks dxvk gamemode cabextract curl p7zip mesa-utils vulkan-tools zenity python lib32-gst-plugins-ugly lib32-gst-plugins-bad lib32-gst-libav lib32-vkd3d
+                if [ -f /etc/pacman.conf ] && ! grep -q '^\[multilib\]' /etc/pacman.conf; then
+                    echo -e "${C_CYAN}  ⚙️ Habilitando repositorio multilib (32-bit) en /etc/pacman.conf...${C_RESET}"
+                    sudo sed -i '/^#\[multilib\]/{s/^#//;n;s/^#//}' /etc/pacman.conf 2>/dev/null || true
+                    sudo pacman -Sy --noconfirm 2>/dev/null || true
+                fi
+                sudo pacman -Sy --noconfirm --needed wine winetricks dxvk gamemode cabextract curl p7zip mesa-utils vulkan-tools zenity python lib32-gst-plugins-ugly lib32-gst-plugins-bad lib32-gst-libav lib32-vkd3d 2>/dev/null || sudo pacman -Sy --noconfirm --needed wine winetricks dxvk gamemode cabextract curl p7zip mesa-utils vulkan-tools zenity python
                 ;;
             opensuse)
-                sudo zypper install -y wine winetricks dxvk gamemode cabextract curl p7zip mesa-utils vulkan-tools zenity python3 gstreamer-plugins-ugly-32bit gstreamer-plugins-bad-32bit
+                sudo zypper install -y wine wine-32bit winetricks dxvk gamemode cabextract curl p7zip mesa-utils vulkan-tools zenity python3 gstreamer-plugins-ugly-32bit gstreamer-plugins-bad-32bit 2>/dev/null || sudo zypper install -y wine winetricks dxvk gamemode cabextract curl p7zip mesa-utils vulkan-tools zenity python3
                 ;;
             *)
                 echo -e "${C_RED}  ⚠️ Distribución desconocida. Instala Wine y DXVK con tu gestor habitual.${C_RESET}"
@@ -1396,7 +1460,7 @@ instalar_recursos_actualizar() {
     echo ""
 
     # 2. Parámetros del Kernel de Linux (Memoria y Red)
-    echo -e "${C_BOLD}[2/4] Comprobando optimizaciones del Kernel (Memoria y Multijugador)...${C_RESET}"
+    echo -e "${C_BOLD}[2/5] Comprobando optimizaciones del Kernel (Memoria y Multijugador)...${C_RESET}"
     local max_map
     max_map=$(cat /proc/sys/vm/max_map_count 2>/dev/null || echo 0)
     if [ "$max_map" -ge 2147483640 ] && [ -f /etc/sysctl.d/99-win-gaming.conf ]; then
@@ -1418,7 +1482,13 @@ EOF'
     echo ""
 
     # 3. Librerías de Windows en Wine (MFC, Visual C++, DirectX, Fuentes)
-    echo -e "${C_BOLD}[3/4] Comprobando entorno de Windows (MFC, Visual C++, DirectX, Fuentes)...${C_RESET}"
+    echo -e "${C_BOLD}[3/5] Comprobando entorno de Windows (MFC, Visual C++, DirectX, Fuentes)...${C_RESET}"
+    mkdir -p "${DIR}/wineprefix"
+    if [ ! -f "${DIR}/wineprefix/system.reg" ]; then
+        echo -e "${C_CYAN}  ⚡ Inicializando nuevo prefijo Wine unificado...${C_RESET}"
+        WINEPREFIX="${DIR}/wineprefix" wineboot -u 2>/dev/null || true
+    fi
+
     local sys32="${DIR}/wineprefix/drive_c/windows/syswow64"
     local fonts="${DIR}/wineprefix/drive_c/windows/Fonts"
     local faltan_win=()
@@ -1444,17 +1514,59 @@ EOF'
         WINEPREFIX="${DIR}/wineprefix" dxvk-setup install -y 2>/dev/null || true
     fi
 
-    # Optimización de hilos gráficos multithread Direct3D (CSMT)
+    # Optimizaciones del Registro de Wine (CSMT, DirectInput y pantalla completa multi-monitor)
     WINEPREFIX="${DIR}/wineprefix" wine reg add "HKEY_CURRENT_USER\Software\Wine\Direct3D" /v "csmt" /t REG_DWORD /d 1 /f >/dev/null 2>&1 || true
-    echo -e "${C_GREEN}  ✔ Motor Direct3D CSMT optimizado para multiprocesamiento multihilo.${C_RESET}"
+    WINEPREFIX="${DIR}/wineprefix" wine reg add "HKEY_CURRENT_USER\Software\Wine\DirectInput" /v MouseWarpOverride /t REG_SZ /d force /f >/dev/null 2>&1 || true
+    WINEPREFIX="${DIR}/wineprefix" wine reg add "HKEY_CURRENT_USER\Software\Wine\X11 Driver" /v UseTakeFocus /t REG_SZ /d N /f >/dev/null 2>&1 || true
+    WINEPREFIX="${DIR}/wineprefix" wine reg add "HKEY_CURRENT_USER\Software\Wine\X11 Driver" /v GrabFullscreen /t REG_SZ /d N /f >/dev/null 2>&1 || true
+    WINEPREFIX="${DIR}/wineprefix" wine reg add "HKEY_CURRENT_USER\Software\Wine\X11 Driver" /v Decorated /t REG_SZ /d N /f >/dev/null 2>&1 || true
+    WINEPREFIX="${DIR}/wineprefix" wine reg add "HKEY_CURRENT_USER\Software\Wine\X11 Driver" /v Managed /t REG_SZ /d Y /f >/dev/null 2>&1 || true
+    echo -e "${C_GREEN}  ✔ Registro de Wine optimizado (multihilo CSMT, captura 3D y multi-pantalla sin bloqueos).${C_RESET}"
+
+    # Verificación de GameRanger predeterminado
+    local gr_found=$(find "${DIR}/wineprefix/drive_c" -name "GameRanger.exe" 2>/dev/null | head -n 1)
+    if [ -z "$gr_found" ] && [ -f "${DIR}/GameRangerSetup.exe" ]; then
+        echo -e "${C_CYAN}  🎮 Instalando GameRanger predeterminado en el prefijo...${C_RESET}"
+        WINEPREFIX="${DIR}/wineprefix" wine "${DIR}/GameRangerSetup.exe" 2>/dev/null || true
+        echo -e "${C_GREEN}  ✔ GameRanger configurado en el sistema.${C_RESET}"
+    fi
     echo ""
 
     # 4. Afinación de DXVK y Shaders
-    echo -e "${C_BOLD}[4/4] Optimizando motor DXVK y caché de shaders para ${CPU_CORES} hilos de CPU...${C_RESET}"
-    if [ -x "${DIR}/generar_dxvk_conf.sh" ]; then
-        "${DIR}/generar_dxvk_conf.sh"
-        echo -e "${C_GREEN}  ✔ Configuración dxvk.conf generada para ${CPU_CORES} hilos y Shaders Asíncronos.${C_RESET}"
+    echo -e "${C_BOLD}[4/5] Optimizando motor DXVK y caché de shaders para ${CPU_CORES} hilos de CPU...${C_RESET}"
+    if [ -f "${DIR}/generar_dxvk_conf.sh" ]; then
+        chmod +x "${DIR}/generar_dxvk_conf.sh" 2>/dev/null || true
+        bash "${DIR}/generar_dxvk_conf.sh"
+        echo -e "${C_GREEN}  ✔ Configuración dxvk.conf generada para ${CPU_CORES} hilos y GPU (${DETECTED_GPU}).${C_RESET}"
     fi
+    echo ""
+
+    # 5. Acceso directo en el Escritorio (1-Clic)
+    echo -e "${C_BOLD}[5/5] Creando / verificando acceso directo 'Menu Win (PC)' en tu Escritorio...${C_RESET}"
+    local target_user="${SUDO_USER:-$USER}"
+    local target_home=$(eval echo "~$target_user")
+    local d_dir="$target_home/Escritorio"
+    [ ! -d "$d_dir" ] && d_dir="$target_home/Desktop"
+    if [ -d "$d_dir" ]; then
+        local launch_exec="sh -c 'if command -v konsole >/dev/null 2>&1; then exec konsole -e \"\$0\"; elif command -v gnome-terminal >/dev/null 2>&1; then exec gnome-terminal -- \"\$0\"; else exec x-terminal-emulator -e \"\$0\"; fi' \"${DIR}/menu-win.sh\""
+        cat <<EOF > "${d_dir}/Menu Win (PC).desktop"
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=Menu Win (PC)
+Comment=Gestor y Optimizador de Juegos de Windows para PC
+Exec=${launch_exec}
+Icon=wine
+Terminal=false
+Categories=Game;System;
+StartupNotify=true
+EOF
+        chown "$target_user:$target_user" "${d_dir}/Menu Win (PC).desktop" 2>/dev/null || true
+        chmod +x "${d_dir}/Menu Win (PC).desktop" 2>/dev/null || true
+        gio set "${d_dir}/Menu Win (PC).desktop" metadata::trusted true 2>/dev/null || true
+        echo -e "${C_GREEN}  ✔ Acceso directo en el Escritorio validado.${C_RESET}"
+    fi
+    echo ""
     echo ""
 
     echo -e "${C_CYAN}══════════════════════════════════════════════════════════════════════${C_RESET}"

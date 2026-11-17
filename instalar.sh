@@ -66,20 +66,27 @@ if [ "$MISSING_DEPS" = false ]; then
 else
     if command -v apt-get &> /dev/null; then
         PKG_MGR="apt"
+        if command -v dpkg &>/dev/null && ! dpkg --print-foreign-architectures 2>/dev/null | grep -q "i386"; then
+            sudo dpkg --add-architecture i386 2>/dev/null || true
+        fi
         INSTALL_CMD="sudo apt-get update && sudo apt-get install -y"
-        PKGS="wine winetricks dxvk gamemode cabextract curl p7zip-full mesa-utils vulkan-tools zenity python3 libnss-resolve:i386 libnss-mdns:i386 gstreamer1.0-libav:i386 gstreamer1.0-plugins-ugly:i386 gstreamer1.0-plugins-bad:i386 libvkd3d1:i386 libopenexr-3-1-30:i386"
+        PKGS="wine wine32:i386 wine64 winetricks dxvk gamemode cabextract curl p7zip-full mesa-utils vulkan-tools zenity python3 libnss-resolve:i386 libnss-mdns:i386 gstreamer1.0-libav:i386 gstreamer1.0-plugins-ugly:i386 gstreamer1.0-plugins-bad:i386 libvkd3d1:i386 libopenexr-3-1-30:i386"
     elif command -v pacman &> /dev/null; then
         PKG_MGR="pacman"
+        if [ -f /etc/pacman.conf ] && ! grep -q '^\[multilib\]' /etc/pacman.conf; then
+            sudo sed -i '/^#\[multilib\]/{s/^#//;n;s/^#//}' /etc/pacman.conf 2>/dev/null || true
+            sudo pacman -Sy --noconfirm 2>/dev/null || true
+        fi
         INSTALL_CMD="sudo pacman -Sy --noconfirm --needed"
         PKGS="wine winetricks dxvk gamemode cabextract curl p7zip mesa-utils vulkan-tools zenity python lib32-gst-plugins-ugly lib32-gst-plugins-bad lib32-gst-libav lib32-vkd3d"
     elif command -v dnf &> /dev/null; then
         PKG_MGR="dnf"
         INSTALL_CMD="sudo dnf install -y"
-        PKGS="wine winetricks dxvk gamemode cabextract curl p7zip mesa-demos vulkan-tools zenity python3 gstreamer1-plugins-ugly.i686 gstreamer1-plugins-bad-free.i686 vkd3d.i686"
+        PKGS="wine wine.i686 winetricks dxvk gamemode cabextract curl p7zip mesa-demos vulkan-tools zenity python3 gstreamer1-plugins-ugly.i686 gstreamer1-plugins-bad-free.i686 vkd3d.i686"
     elif command -v zypper &> /dev/null; then
         PKG_MGR="zypper"
         INSTALL_CMD="sudo zypper install -y"
-        PKGS="wine winetricks dxvk gamemode cabextract curl p7zip mesa-utils vulkan-tools zenity python3 gstreamer-plugins-ugly-32bit gstreamer-plugins-bad-32bit"
+        PKGS="wine wine-32bit winetricks dxvk gamemode cabextract curl p7zip mesa-utils vulkan-tools zenity python3 gstreamer-plugins-ugly-32bit gstreamer-plugins-bad-32bit"
     else
         echo -e "${C_YELLOW}Aviso: No se detectó un gestor de paquetes estándar. Asegúrate de tener Wine y DXVK instalados.${C_RESET}"
         PKG_MGR="manual"
@@ -135,10 +142,13 @@ fi
 WINEPREFIX="${DIR}/wineprefix" wine reg add "HKEY_CURRENT_USER\Software\Wine\Direct3D" /v "csmt" /t REG_DWORD /d 1 /f >/dev/null 2>&1 || true
 echo -e "${C_GREEN}✔ Motor Direct3D CSMT multithread configurado.${C_RESET}"
 
-# 4.3 Optimización de captura de ratón en 3D (elimina giros bruscos, saltos de cámara y límites de rotación)
+# 4.3 Optimización de captura de ratón en 3D y compatibilidad multi-monitor
 WINEPREFIX="${DIR}/wineprefix" wine reg add "HKEY_CURRENT_USER\Software\Wine\DirectInput" /v "MouseWarpOverride" /t REG_SZ /d "force" /f >/dev/null 2>&1 || true
 WINEPREFIX="${DIR}/wineprefix" wine reg add "HKEY_CURRENT_USER\Software\Wine\X11 Driver" /v "UseTakeFocus" /t REG_SZ /d "N" /f >/dev/null 2>&1 || true
-echo -e "${C_GREEN}✔ Captura de ratón DirectInput 3D y control de cámara configurados.${C_RESET}"
+WINEPREFIX="${DIR}/wineprefix" wine reg add "HKEY_CURRENT_USER\Software\Wine\X11 Driver" /v "GrabFullscreen" /t REG_SZ /d "N" /f >/dev/null 2>&1 || true
+WINEPREFIX="${DIR}/wineprefix" wine reg add "HKEY_CURRENT_USER\Software\Wine\X11 Driver" /v "Decorated" /t REG_SZ /d "N" /f >/dev/null 2>&1 || true
+WINEPREFIX="${DIR}/wineprefix" wine reg add "HKEY_CURRENT_USER\Software\Wine\X11 Driver" /v "Managed" /t REG_SZ /d "Y" /f >/dev/null 2>&1 || true
+echo -e "${C_GREEN}✔ Captura de ratón DirectInput 3D, multi-monitor y control de cámara configurados.${C_RESET}"
 
 # 4.4 Configuración de GameMode para el usuario (prioridad CPU/GPU y renice -10)
 TARGET_USER="${SUDO_USER:-$USER}"
