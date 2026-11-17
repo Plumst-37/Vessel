@@ -4,7 +4,18 @@
 # Compatible con: Debian, Ubuntu, Mint, Arch, Manjaro, Fedora y OpenSUSE
 # ==============================================================================
 
-DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" 2>/dev/null && pwd)"
+# Autoprotección multi-shell: Si se ejecuta con dash, sh, zsh o fish, cambiar inmediatamente a bash
+if [ -z "$BASH_VERSION" ]; then
+    if command -v bash >/dev/null 2>&1; then
+        if [ -f "$0" ]; then
+            exec bash "$0" "$@"
+        else
+            exec bash -s -- "$@"
+        fi
+    fi
+fi
+
+DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" 2>/dev/null && pwd)"
 
 # Colores
 C_RESET="\033[0m"
@@ -130,26 +141,27 @@ if ! solicitar_permisos_sudo; then
     exit 1
 fi
 
-# 1. Detección de Distribución y Descarga Específica con 0% de Fallos
-echo -e "${C_CYAN}[1/5] Detectando distribución de Linux y preparando dependencias...${C_RESET}"
+# 1. Detección y Selección de Distribución de Linux (Comandos 100% Nativos)
+echo -e "${C_CYAN}[1/5] Detección y Selección de Distribución de Linux...${C_RESET}"
 
-DISTRO_DETECTED="generic"
+DISTRO_DETECTED="debian"
+DISTRO_LABEL="Debian GNU/Linux"
 if [ -f /etc/os-release ]; then
     . /etc/os-release
     case "$ID" in
-        debian|devuan) DISTRO_DETECTED="debian" ;;
-        ubuntu|linuxmint|pop|zorin|elementary) DISTRO_DETECTED="ubuntu" ;;
-        arch|manjaro|endeavouros|garuda|steamos) DISTRO_DETECTED="arch" ;;
-        fedora|nobara|rhel|centos) DISTRO_DETECTED="fedora" ;;
-        opensuse*|suse) DISTRO_DETECTED="opensuse" ;;
+        debian|devuan) DISTRO_DETECTED="debian"; DISTRO_LABEL="Debian / Devuan" ;;
+        ubuntu|linuxmint|pop|zorin|elementary) DISTRO_DETECTED="ubuntu"; DISTRO_LABEL="Ubuntu / Linux Mint / Pop!_OS / Zorin OS" ;;
+        arch|manjaro|endeavouros|garuda|steamos) DISTRO_DETECTED="arch"; DISTRO_LABEL="Arch Linux / Manjaro / SteamOS" ;;
+        fedora|nobara|rhel|centos) DISTRO_DETECTED="fedora"; DISTRO_LABEL="Fedora / Nobara / RHEL" ;;
+        opensuse*|suse) DISTRO_DETECTED="opensuse"; DISTRO_LABEL="openSUSE (Tumbleweed / Leap)" ;;
         *)
             if [ -n "$ID_LIKE" ]; then
                 case "$ID_LIKE" in
-                    *debian*) DISTRO_DETECTED="debian" ;;
-                    *ubuntu*) DISTRO_DETECTED="ubuntu" ;;
-                    *arch*) DISTRO_DETECTED="arch" ;;
-                    *fedora*|*rhel*) DISTRO_DETECTED="fedora" ;;
-                    *suse*) DISTRO_DETECTED="opensuse" ;;
+                    *debian*) DISTRO_DETECTED="debian"; DISTRO_LABEL="Debian GNU/Linux" ;;
+                    *ubuntu*) DISTRO_DETECTED="ubuntu"; DISTRO_LABEL="Ubuntu / Linux Mint" ;;
+                    *arch*) DISTRO_DETECTED="arch"; DISTRO_LABEL="Arch Linux / Manjaro" ;;
+                    *fedora*|*rhel*) DISTRO_DETECTED="fedora"; DISTRO_LABEL="Fedora / Nobara" ;;
+                    *suse*) DISTRO_DETECTED="opensuse"; DISTRO_LABEL="openSUSE" ;;
                 esac
             fi
             ;;
@@ -157,15 +169,48 @@ if [ -f /etc/os-release ]; then
 fi
 
 # Fallback si no se detectó por /etc/os-release
-if [ "$DISTRO_DETECTED" = "generic" ]; then
-    if command -v apt-get &>/dev/null; then DISTRO_DETECTED="debian";
-    elif command -v pacman &>/dev/null; then DISTRO_DETECTED="arch";
-    elif command -v dnf &>/dev/null; then DISTRO_DETECTED="fedora";
-    elif command -v zypper &>/dev/null; then DISTRO_DETECTED="opensuse";
+if [ "$DISTRO_DETECTED" = "generic" ] || [ -z "$DISTRO_DETECTED" ]; then
+    if command -v apt-get >/dev/null 2>&1; then DISTRO_DETECTED="debian"; DISTRO_LABEL="Debian / Devuan";
+    elif command -v pacman >/dev/null 2>&1; then DISTRO_DETECTED="arch"; DISTRO_LABEL="Arch Linux / Manjaro";
+    elif command -v dnf >/dev/null 2>&1; then DISTRO_DETECTED="fedora"; DISTRO_LABEL="Fedora / Nobara";
+    elif command -v zypper >/dev/null 2>&1; then DISTRO_DETECTED="opensuse"; DISTRO_LABEL="openSUSE";
     fi
 fi
 
-echo -e "      Distribución identificada: ${C_BOLD}${PRETTY_NAME:-$DISTRO_DETECTED}${C_RESET}"
+echo -e "      Distribución detectada en tu PC: ${C_GREEN}${DISTRO_LABEL}${C_RESET}"
+echo ""
+echo -e "  ${C_WHITE}Selecciona tu distribución para ejecutar los comandos adaptados a tu sistema:${C_RESET}"
+echo -e "    ${C_BOLD}[1]${C_RESET} ${C_YELLOW}Debian / Devuan${C_RESET}"
+echo -e "    ${C_BOLD}[2]${C_RESET} ${C_GREEN}Ubuntu / Linux Mint / Pop!_OS / Zorin OS${C_RESET}"
+echo -e "    ${C_BOLD}[3]${C_RESET} ${C_CYAN}Arch Linux / Manjaro / EndeavourOS / SteamOS${C_RESET}"
+echo -e "    ${C_BOLD}[4]${C_RESET} ${C_BLUE}Fedora / Nobara / RHEL${C_RESET}"
+echo -e "    ${C_BOLD}[5]${C_RESET} ${C_MAGENTA}openSUSE (Tumbleweed / Leap)${C_RESET}"
+echo -e "    ${C_BOLD}[Enter]${C_RESET} Usar sistema detectado (${DISTRO_LABEL})"
+echo ""
+read -p "Elige tu sistema (1-5 o Enter): " d_choice
+
+case "$d_choice" in
+    1) DISTRO_DETECTED="debian"; DISTRO_LABEL="Debian GNU/Linux" ;;
+    2) DISTRO_DETECTED="ubuntu"; DISTRO_LABEL="Ubuntu / Linux Mint" ;;
+    3) DISTRO_DETECTED="arch"; DISTRO_LABEL="Arch Linux / Manjaro" ;;
+    4) DISTRO_DETECTED="fedora"; DISTRO_LABEL="Fedora / Nobara" ;;
+    5) DISTRO_DETECTED="opensuse"; DISTRO_LABEL="openSUSE" ;;
+    *) ;;
+esac
+
+echo ""
+echo -e "${C_CYAN}══════════════════════════════════════════════════════════════════════${C_RESET}"
+echo -e "  ${C_BOLD}Sistema seleccionado:${C_RESET} ${C_YELLOW}${DISTRO_LABEL}${C_RESET}"
+echo -e "${C_CYAN}══════════════════════════════════════════════════════════════════════${C_RESET}"
+echo ""
+
+# Guardar selección en archivo de configuración
+CONFIG_USER="${DIR}/config_rendimiento.cfg"
+touch "$CONFIG_USER"
+sed -i '/^SISTEMA_LINUX=/d' "$CONFIG_USER" 2>/dev/null || true
+sed -i '/^DISTRO_NAME=/d' "$CONFIG_USER" 2>/dev/null || true
+echo "SISTEMA_LINUX=\"$DISTRO_DETECTED\"" >> "$CONFIG_USER"
+echo "DISTRO_NAME=\"$DISTRO_LABEL\"" >> "$CONFIG_USER"
 
 case "$DISTRO_DETECTED" in
     debian)

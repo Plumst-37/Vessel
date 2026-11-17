@@ -5,9 +5,18 @@
 # Prefijo Wine Unificado con Compatibilidad Total de Gráficos y Videos
 # ==============================================================================
 
+# Autoprotección multi-shell: Si se ejecuta con dash, sh, zsh o fish, cambiar inmediatamente a bash
+if [ -z "$BASH_VERSION" ]; then
+    if command -v bash >/dev/null 2>&1; then
+        if [ -f "$0" ]; then
+            exec bash "$0" "$@"
+        fi
+    fi
+fi
+
 set -e
 
-DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
 DB_FILE="${DIR}/programas.db"
 
 # 1. Cargar preferencias del usuario y detección de hardware universal

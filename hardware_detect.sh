@@ -4,6 +4,13 @@
 # Compatible con cualquier PC (Intel, AMD, NVIDIA, laptops híbridas y sobremesa)
 # ==============================================================================
 
+# Autoprotección multi-shell: Si se ejecuta con dash, sh, zsh o fish, cambiar a bash
+if [ -z "$BASH_VERSION" ]; then
+    if command -v bash >/dev/null 2>&1; then
+        [ -f "$0" ] && exec bash "$0" "$@"
+    fi
+fi
+
 # Detección de CPU
 CPU_CORES=$(nproc 2>/dev/null || echo 4)
 CPU_MODEL=$(lscpu 2>/dev/null | grep -iE 'model name|nombre del modelo' | cut -d: -f2 | xargs | head -n 1)

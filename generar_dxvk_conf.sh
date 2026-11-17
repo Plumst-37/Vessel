@@ -4,7 +4,16 @@
 # Optimizado para cualquier arquitectura: Intel, AMD Radeon y NVIDIA
 # ==============================================================================
 
-DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# Autoprotección multi-shell: Si se ejecuta con dash, sh, zsh o fish, cambiar inmediatamente a bash
+if [ -z "$BASH_VERSION" ]; then
+    if command -v bash >/dev/null 2>&1; then
+        if [ -f "$0" ]; then
+            exec bash "$0" "$@"
+        fi
+    fi
+fi
+
+DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
 CONF_FILE="${DIR}/dxvk.conf"
 CONFIG_USER="${DIR}/config_rendimiento.cfg"
 

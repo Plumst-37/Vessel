@@ -4,7 +4,14 @@
 # Gestor de Juegos y Programas de Windows con Detección Automática de Hardware
 # ==============================================================================
 
-DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# Autoprotección multi-shell: Si se ejecuta con dash, sh, zsh o fish, cambiar a bash
+if [ -z "$BASH_VERSION" ]; then
+    if command -v bash >/dev/null 2>&1; then
+        exec bash "$0" "$@"
+    fi
+fi
+
+DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
 
 # Lanzar interfaz TUI interactiva avanzada en Python si se ejecuta como script directo
 if [ "${BASH_SOURCE[0]}" = "$0" ] && [ -z "$MENU_WIN_BASH_ONLY" ] && command -v python3 &>/dev/null && [ -f "${DIR}/menu_tui.py" ]; then
@@ -178,25 +185,32 @@ auto_detectar_distro() {
             DISTRO_NAME="openSUSE"
             ;;
         *)
-            if [[ "$detected_like" =~ (ubuntu|mint) ]]; then
-                SISTEMA_LINUX="ubuntu"
-                DISTRO_NAME="Ubuntu / Linux Mint"
-            elif [[ "$detected_like" =~ debian ]]; then
-                SISTEMA_LINUX="debian"
-                DISTRO_NAME="Debian"
-            elif [[ "$detected_like" =~ (fedora|rhel) ]]; then
-                SISTEMA_LINUX="fedora"
-                DISTRO_NAME="Fedora / Nobara"
-            elif [[ "$detected_like" =~ arch ]]; then
-                SISTEMA_LINUX="arch"
-                DISTRO_NAME="Arch Linux / Manjaro"
-            elif [[ "$detected_like" =~ (suse|opensuse) ]]; then
-                SISTEMA_LINUX="opensuse"
-                DISTRO_NAME="openSUSE"
-            else
-                SISTEMA_LINUX="debian"
-                DISTRO_NAME="Debian"
-            fi
+            case "$detected_like" in
+                *ubuntu*|*mint*)
+                    SISTEMA_LINUX="ubuntu"
+                    DISTRO_NAME="Ubuntu / Linux Mint"
+                    ;;
+                *debian*)
+                    SISTEMA_LINUX="debian"
+                    DISTRO_NAME="Debian"
+                    ;;
+                *fedora*|*rhel*)
+                    SISTEMA_LINUX="fedora"
+                    DISTRO_NAME="Fedora / Nobara"
+                    ;;
+                *arch*)
+                    SISTEMA_LINUX="arch"
+                    DISTRO_NAME="Arch Linux / Manjaro"
+                    ;;
+                *suse*|*opensuse*)
+                    SISTEMA_LINUX="opensuse"
+                    DISTRO_NAME="openSUSE"
+                    ;;
+                *)
+                    SISTEMA_LINUX="debian"
+                    DISTRO_NAME="Debian"
+                    ;;
+            esac
             ;;
     esac
 }
@@ -218,7 +232,7 @@ comprobar_configuracion_inicial_distro() {
         echo -e "${C_CYAN}╚══════════════════════════════════════════════════════════════════════╝${C_RESET}"
         echo ""
         read -p "$(echo -e "${C_WHITE}Presiona ${C_GREEN}[Enter]${C_WHITE} para seleccionar tu sistema Linux y continuar... ${C_RESET}")"
-        menu_actualizar_sistema
+        instalar_recursos_actualizar
     fi
 }
 
@@ -1889,97 +1903,99 @@ render_menu_principal() {
 # BUCLE PRINCIPAL (INTERACTIVO CON FLECHAS Y ACCESOS NUMÉRICOS)
 # ==============================================================================
 
-# 1. Comprobar actualización desde GitHub al abrir
-verificar_actualizacion_github
+if [ "${BASH_SOURCE[0]}" = "$0" ]; then
+    # 1. Comprobar actualización desde GitHub al abrir
+    verificar_actualizacion_github
 
-# 2. Comprobar configuración inicial de la distribución Linux
-comprobar_configuracion_inicial_distro
+    # 2. Comprobar configuración inicial de la distribución Linux
+    comprobar_configuracion_inicial_distro
 
-sel_idx=1
-while true; do
-    render_menu_principal "$sel_idx"
+    sel_idx=1
+    while true; do
+        render_menu_principal "$sel_idx"
 
-    key=""
-    rest=""
-    IFS= read -rsn1 key
-    if [[ "$key" == $'\x1b' ]]; then
-        read -rsn2 -t 0.05 rest
-        key+="$rest"
-    fi
+        key=""
+        rest=""
+        IFS= read -rsn1 key
+        if [[ "$key" == $'\x1b' ]]; then
+            read -rsn2 -t 0.05 rest
+            key+="$rest"
+        fi
 
-    case "$key" in
-        $'\x1b[A') # Flecha Arriba
-            case "$sel_idx" in
-                3) sel_idx=1 ;;
-                4) sel_idx=2 ;;
-                5) sel_idx=3 ;;
-                6) sel_idx=4 ;;
-                1) sel_idx=5 ;;
-                2) sel_idx=6 ;;
-            esac
-            ;;
-        $'\x1b[B') # Flecha Abajo
-            case "$sel_idx" in
-                1) sel_idx=3 ;;
-                2) sel_idx=4 ;;
-                3) sel_idx=5 ;;
-                4) sel_idx=6 ;;
-                5) sel_idx=1 ;;
-                6) sel_idx=2 ;;
-            esac
-            ;;
-        $'\x1b[D') # Flecha Izquierda
-            case "$sel_idx" in
-                2) sel_idx=1 ;;
-                4) sel_idx=3 ;;
-                6) sel_idx=5 ;;
-            esac
-            ;;
-        $'\x1b[C') # Flecha Derecha
-            case "$sel_idx" in
-                1) sel_idx=2 ;;
-                3) sel_idx=4 ;;
-                5) sel_idx=6 ;;
-            esac
-            ;;
-        ""|$'\n') # Enter -> Ejecutar la opción actualmente resaltada
-            case "$sel_idx" in
-                1) iniciar_programa ;;
-                2) configurar_programa_win ;;
-                3) menu_configuracion ;;
-                4) menu_herramientas_windows ;;
-                5) instalar_recursos_actualizar ;;
-                6)
-                    echo ""
-                    echo -e "${C_GREEN}¡Hasta luego! Que disfrutes tus juegos.${C_RESET}"
-                    exit 0
-                    ;;
-            esac
-            ;;
-        1)
-            sel_idx=1
-            iniciar_programa
-            ;;
-        2)
-            sel_idx=2
-            configurar_programa_win
-            ;;
-        3)
-            sel_idx=3
-            menu_configuracion
-            ;;
-        4)
-            sel_idx=4
-            menu_herramientas_windows
-            ;;
-        5)
-            sel_idx=5
-            instalar_recursos_actualizar
-            ;;
-        0|q|Q)
-            echo ""
-            echo -e "${C_GREEN}¡Hasta luego! Que disfrutes tus juegos.${C_RESET}"
-            exit 0
-            ;;
-    esac
-done
+        case "$key" in
+            $'\x1b[A') # Flecha Arriba
+                case "$sel_idx" in
+                    3) sel_idx=1 ;;
+                    4) sel_idx=2 ;;
+                    5) sel_idx=3 ;;
+                    6) sel_idx=4 ;;
+                    1) sel_idx=5 ;;
+                    2) sel_idx=6 ;;
+                esac
+                ;;
+            $'\x1b[B') # Flecha Abajo
+                case "$sel_idx" in
+                    1) sel_idx=3 ;;
+                    2) sel_idx=4 ;;
+                    3) sel_idx=5 ;;
+                    4) sel_idx=6 ;;
+                    5) sel_idx=1 ;;
+                    6) sel_idx=2 ;;
+                esac
+                ;;
+            $'\x1b[D') # Flecha Izquierda
+                case "$sel_idx" in
+                    2) sel_idx=1 ;;
+                    4) sel_idx=3 ;;
+                    6) sel_idx=5 ;;
+                esac
+                ;;
+            $'\x1b[C') # Flecha Derecha
+                case "$sel_idx" in
+                    1) sel_idx=2 ;;
+                    3) sel_idx=4 ;;
+                    5) sel_idx=6 ;;
+                esac
+                ;;
+            ""|$'\n') # Enter -> Ejecutar la opción actualmente resaltada
+                case "$sel_idx" in
+                    1) iniciar_programa ;;
+                    2) configurar_programa_win ;;
+                    3) menu_configuracion ;;
+                    4) menu_herramientas_windows ;;
+                    5) instalar_recursos_actualizar ;;
+                    6)
+                        echo ""
+                        echo -e "${C_GREEN}¡Hasta luego! Que disfrutes tus juegos.${C_RESET}"
+                        exit 0
+                        ;;
+                esac
+                ;;
+            1)
+                sel_idx=1
+                iniciar_programa
+                ;;
+            2)
+                sel_idx=2
+                configurar_programa_win
+                ;;
+            3)
+                sel_idx=3
+                menu_configuracion
+                ;;
+            4)
+                sel_idx=4
+                menu_herramientas_windows
+                ;;
+            5)
+                sel_idx=5
+                instalar_recursos_actualizar
+                ;;
+            0|q|Q)
+                echo ""
+                echo -e "${C_GREEN}¡Hasta luego! Que disfrutes tus juegos.${C_RESET}"
+                exit 0
+                ;;
+        esac
+    done
+fi
