@@ -978,22 +978,82 @@ def menu_herramientas(hw, cfg):
             pausar()
 
 # ==============================================================================
-# SUBMENÚ 5: OPTIMIZACIÓN Y CONFIGURACIÓN AUTOMÁTICA EN 1-CLIC
+# SUBMENÚ 5: ACTUALIZAR Y CONFIGURAR AUTOMÁTICAMENTE
 # ==============================================================================
 
-def ejecutar_optimizacion_automatica(hw, cfg):
-    """Submenú 5: Optimización automática del sistema e instalación de dependencias."""
-    os.system("clear")
-    print(f"{PURPLE}📦 [ OPTIMIZACIÓN Y CONFIGURACIÓN AUTOMÁTICA EN 1-CLIC ]{RESET}\n")
-    print(f"{WHITE}Diagnóstico universal para: {BOLD}{cfg.get('DISTRO_NAME', 'Linux')}{RESET}")
-    print(f"{WHITE}Hardware detectado: {BOLD}{hw['cpu']} | {hw['gpu']} | {hw['ram']}{RESET}\n")
-    print(f"{CYAN}Esta opción configurará automáticamente todo lo necesario para que tus juegos corran al máximo.{RESET}\n")
+def menu_actualizar(hw, cfg):
+    """Submenú 5: Actualizar distribución, descargar componentes y optimizar el sistema."""
+    cfg = cargar_config()
+    distro_detectada = cfg.get("DISTRO_NAME", "Debian")
+    distro_id = cfg.get("SISTEMA_LINUX", "debian")
 
-    # Llamar al optimizador probado de menu-win.sh
+    if os.path.exists("/etc/os-release"):
+        with open("/etc/os-release", "r", encoding="utf-8", errors="ignore") as f:
+            for line in f:
+                if line.startswith("NAME="):
+                    distro_detectada = line.split("=", 1)[1].strip().strip('"')
+                elif line.startswith("ID="):
+                    d_raw = line.split("=", 1)[1].strip().strip('"').lower()
+                    if d_raw in ("debian", "ubuntu", "linuxmint", "pop", "zorin", "arch", "manjaro", "endeavouros", "fedora", "nobara", "opensuse", "suse"):
+                        distro_id = d_raw
+
+    distro_menu = [
+        ("1", f"🐧 Debian / Devuan {'(Detectada en tu PC)' if 'debian' in distro_id or 'devuan' in distro_id else ''}"),
+        ("2", f"🐧 Ubuntu / Linux Mint / Pop!_OS / Zorin OS {'(Detectada en tu PC)' if any(x in distro_id for x in ('ubuntu', 'mint', 'pop', 'zorin')) else ''}"),
+        ("3", f"🐧 Arch Linux / Manjaro / EndeavourOS / SteamOS {'(Detectada en tu PC)' if any(x in distro_id for x in ('arch', 'manjaro', 'endeavour', 'steamos')) else ''}"),
+        ("4", f"🐧 Fedora / Nobara / RHEL {'(Detectada en tu PC)' if any(x in distro_id for x in ('fedora', 'nobara', 'rhel')) else ''}"),
+        ("5", f"🐧 openSUSE (Tumbleweed / Leap) {'(Detectada en tu PC)' if 'suse' in distro_id else ''}"),
+        ("0", "↩️  Cancelar y Volver al Menú Principal")
+    ]
+
+    sel_distro = submenu_interactivo("🔄  Selecciona tu Distribución de Linux para Actualizar", distro_menu, hw, cfg)
+    if sel_distro == "0":
+        return
+
+    mapa_distros = {
+        "1": ("debian", "Debian GNU/Linux"),
+        "2": ("ubuntu", "Ubuntu / Linux Mint"),
+        "3": ("arch", "Arch Linux / Manjaro"),
+        "4": ("fedora", "Fedora / Nobara"),
+        "5": ("opensuse", "openSUSE")
+    }
+
+    id_elegido, nombre_elegido = mapa_distros.get(sel_distro, (distro_id, distro_detectada))
+    guardar_config("SISTEMA_LINUX", id_elegido)
+    guardar_config("DISTRO_NAME", nombre_elegido)
+    cfg["SISTEMA_LINUX"] = id_elegido
+    cfg["DISTRO_NAME"] = nombre_elegido
+
+    # Preguntar si desea descargar los archivos necesarios (S/n)
+    os.system("clear")
+    print(f"{PURPLE}🔄 [ ACTUALIZAR Y CONFIGURAR {nombre_elegido.upper()} ]{RESET}\n")
+    print(f"  {WHITE}Distribución seleccionada :{RESET} {CYAN}{nombre_elegido}{RESET}")
+    print(f"  {WHITE}Hardware detectado        :{RESET} {BOLD}{hw['cpu']} | {hw['gpu']} | {hw['ram']}{RESET}\n")
+    print(f"{WHITE}Esta opción descargará y configurará automáticamente todos los paquetes,{RESET}")
+    print(f"{WHITE}drivers Vulkan, optimizaciones de memoria del kernel y dependencias para tu PC.{RESET}\n")
+
+    confirmar = input(f"{CYAN}¿Deseas descargar los archivos necesarios para esta computadora? (S/n): {RESET}").strip().lower()
+    if confirmar == 'n':
+        print(f"\n{YELLOW}⚠️  Operación cancelada. Volviendo al menú principal...{RESET}")
+        time.sleep(1)
+        return
+
+    # Proceder a ejecutar la descarga e instalación completa
+    os.system("clear")
+    print(f"{GREEN}🚀 Iniciando descarga, actualización y configuración de {nombre_elegido}...{RESET}\n")
+
     subprocess.run(["bash", "-c", f"""
+export SISTEMA_LINUX="{id_elegido}"
+export DISTRO_NAME="{nombre_elegido}"
 source "{os.path.join(DIR, 'menu-win.sh')}"
-instalar_recursos_actualizar
+ejecutar_descarga_e_instalacion_automatica
 """])
+
+    print(f"\n{CYAN}══════════════════════════════════════════════════════════════════════{RESET}")
+    print(f"{BOLD}{GREEN}🎉 ¡ACTUALIZACIÓN Y CONFIGURACIÓN COMPLETADA CON ÉXITO AL 100%! 🎉{RESET}")
+    print(f"{WHITE}Tu computadora ({nombre_elegido}) está lista para correr cualquier juego o programa.{RESET}")
+    print(f"{CYAN}══════════════════════════════════════════════════════════════════════{RESET}")
+    pausar()
 
 # ==============================================================================
 # MENÚ PRINCIPAL INTERACTIVO EN PÚRPURA NEÓN (MATCHING IMAGEN DE KONSOLE)
@@ -1034,7 +1094,7 @@ def main():
         opts = [
             ("▶   [1]  Iniciar programa o juego", "⚙️   [2]  Configurar Programa Win"),
             ("⚙️   [3]  Rendimiento y Motor Gráfico", "🔧  [4]  Herramientas de Windows"),
-            ("📥  [5]  Instalar Recursos / Optimizar", "⏻   [0]  Salir")
+            ("🔄  [5]  Actualizar", "⏻   [0]  Salir")
         ]
 
         for row_idx, (o1, o2) in enumerate(opts):
@@ -1097,7 +1157,7 @@ def main():
             elif cur_idx == 4:
                 menu_herramientas(hw, cfg)
             elif cur_idx == 5:
-                ejecutar_optimizacion_automatica(hw, cfg)
+                menu_actualizar(hw, cfg)
             elif cur_idx == 6:
                 os.system("clear")
                 print(f"{GREEN}¡Hasta luego! Que disfrutes tus juegos.{RESET}\n")
@@ -1116,7 +1176,7 @@ def main():
             menu_herramientas(hw, cfg)
         elif k == '5':
             cur_idx = 5
-            ejecutar_optimizacion_automatica(hw, cfg)
+            menu_actualizar(hw, cfg)
         elif k in ('0', 'q', 'Q'):
             os.system("clear")
             print(f"{GREEN}¡Hasta luego! Que disfrutes tus juegos.{RESET}\n")

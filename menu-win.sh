@@ -1424,33 +1424,55 @@ comprobar_compatibilidad_anticheat() {
 }
 
 # ==============================================================================
-# 5) INSTALAR RECURSOS Y OPTIMIZAR AUTOMÁTICAMENTE
+# 5) ACTUALIZAR: INSTALAR RECURSOS Y OPTIMIZAR AUTOMÁTICAMENTE
 # ==============================================================================
 instalar_recursos_actualizar() {
     mostrar_banner
-    echo -e "${C_CYAN}📦 [ INSTALACIÓN Y OPTIMIZACIÓN AUTOMÁTICA DE RECURSOS ]${C_RESET}"
-    echo -e "${C_GRAY}Comprobación inteligente: Solo instala o actualiza lo que falte en tu equipo.${C_RESET}"
+    echo -e "${C_CYAN}🔄 [ ACTUALIZAR Y CONFIGURAR SISTEMA ]${C_RESET}"
+    echo -e "${C_GRAY}Descarga, actualiza y configura todo automáticamente para tu distribución de Linux:${C_RESET}"
     echo ""
-    echo -e "  ${C_BOLD}Distribución configurada:${C_RESET} ${C_YELLOW}${DISTRO_NAME:-Debian}${C_RESET}"
+    echo -e "  ${C_WHITE}Selecciona tu distribución de Linux:${C_RESET}"
+    echo -e "    ${C_BOLD}[1]${C_RESET} ${C_YELLOW}Debian / Devuan${C_RESET}"
+    echo -e "    ${C_BOLD}[2]${C_RESET} ${C_GREEN}Ubuntu / Linux Mint / Pop!_OS / Zorin OS${C_RESET}"
+    echo -e "    ${C_BOLD}[3]${C_RESET} ${C_CYAN}Arch Linux / Manjaro / EndeavourOS / SteamOS${C_RESET}"
+    echo -e "    ${C_BOLD}[4]${C_RESET} ${C_BLUE}Fedora / Nobara / RHEL${C_RESET}"
+    echo -e "    ${C_BOLD}[5]${C_RESET} ${C_MAGENTA}openSUSE (Tumbleweed / Leap)${C_RESET}"
+    echo -e "    ${C_BOLD}[0]${C_RESET} Volver al menú principal"
     echo ""
-    echo -e "  ${C_WHITE}¿Deseas ejecutar la comprobación automática o cambiar de distribución?${C_RESET}"
-    echo -e "    ${C_BOLD}[Enter]${C_RESET} Ejecutar comprobación y optimización automática para ${DISTRO_NAME:-Debian}"
-    echo -e "    ${C_BOLD}[C]${C_RESET}     Cambiar distribución de Linux"
-    echo -e "    ${C_BOLD}[0]${C_RESET}     Volver al menú principal"
-    echo ""
-    read -p "$(echo -e "${C_BOLD}Opción: ${C_RESET}")" opt_c
+    read -p "$(echo -e "${C_BOLD}Selecciona distribución (1-5 o 0): ${C_RESET}")" d_opc
 
-    case "$opt_c" in
-        0) return ;;
-        [cC]*)
-            seleccionar_distribucion_interactiva
-            ;;
-        *) ;;
+    case "$d_opc" in
+        1) guardar_configuracion_distro "debian" "Debian GNU/Linux" ;;
+        2) guardar_configuracion_distro "ubuntu" "Ubuntu / Linux Mint" ;;
+        3) guardar_configuracion_distro "arch" "Arch Linux / Manjaro" ;;
+        4) guardar_configuracion_distro "fedora" "Fedora / Nobara" ;;
+        5) guardar_configuracion_distro "opensuse" "openSUSE" ;;
+        0|"") return ;;
+        *) return ;;
     esac
 
     echo ""
     echo -e "${C_CYAN}══════════════════════════════════════════════════════════════════════${C_RESET}"
-    echo -e "${C_GREEN}🚀 INICIANDO ANÁLISIS Y OPTIMIZACIÓN AUTOMÁTICA...${C_RESET}"
+    echo -e "  ${C_BOLD}Distribución seleccionada:${C_RESET} ${C_YELLOW}${DISTRO_NAME}${C_RESET}"
+    echo -e "${C_CYAN}══════════════════════════════════════════════════════════════════════${C_RESET}"
+    echo ""
+    read -p "$(echo -e "${C_WHITE}¿Deseas descargar los archivos necesarios para esta computadora? (S/n): ${C_RESET}")" conf_descarga
+    case "$conf_descarga" in
+        [nN]*)
+            echo -e "${C_YELLOW}Operación cancelada por el usuario.${C_RESET}"
+            sleep 1.2
+            return
+            ;;
+        *) ;;
+    esac
+
+    ejecutar_descarga_e_instalacion_automatica
+}
+
+ejecutar_descarga_e_instalacion_automatica() {
+    echo ""
+    echo -e "${C_CYAN}══════════════════════════════════════════════════════════════════════${C_RESET}"
+    echo -e "${C_GREEN}🚀 INICIANDO ANÁLISIS, DESCARGA Y CONFIGURACIÓN AUTOMÁTICA...${C_RESET}"
     echo -e "${C_CYAN}══════════════════════════════════════════════════════════════════════${C_RESET}"
     echo ""
 
@@ -1646,7 +1668,7 @@ render_menu_principal() {
     local o2="⚙️   [2]  Configurar Programa Win      "
     local o3="⚙️   [3]  Rendimiento y Motor Gráfico  "
     local o4="🔧  [4]  Herramientas de Windows       "
-    local o5="📥  [5]  Instalar Recursos / Optimizar "
+    local o5="🔄  [5]  Actualizar                    "
     local o0="⏻   [0]  Salir                         "
 
     local c1 c2 c3 c4 c5 c0
