@@ -331,8 +331,20 @@ if [ ! -f "${WINEPREFIX}/system.reg" ]; then
     mkdir -p "${WINEPREFIX}/dosdevices"
     [ ! -e "${WINEPREFIX}/dosdevices/c:" ] && ln -s ../drive_c "${WINEPREFIX}/dosdevices/c:" 2>/dev/null || true
     [ ! -e "${WINEPREFIX}/dosdevices/z:" ] && ln -s / "${WINEPREFIX}/dosdevices/z:" 2>/dev/null || true
-    if command -v dxvk-setup &>/dev/null && [ "$RENDERER_IN_USE" != "WineD3D (OpenGL Compatibilidad)" ]; then
-        dxvk-setup install -y 2>/dev/null || true
+fi
+
+# 7.1 Auto-verificación e integración de DXVK (DirectX 9/10/11 -> Vulkan) en el prefijo activo
+if [ "$RENDERER_IN_USE" != "WineD3D (OpenGL Compatibilidad)" ]; then
+    if [ ! -L "${WINEPREFIX}/drive_c/windows/system32/d3d11.dll" ] && [ -d "${WINEPREFIX}/drive_c/windows/system32" ]; then
+        if command -v dxvk-setup &>/dev/null; then
+            echo "[*] Instalando y vinculando librerías DXVK (DirectX -> Vulkan) en el prefijo..."
+            WINEPREFIX="$WINEPREFIX" dxvk-setup install -y >/dev/null 2>&1 || true
+        elif [ -d "/usr/lib/dxvk/wine64" ]; then
+            for dll in d3d11 d3d10core d3d9 dxgi; do
+                [ -f "/usr/lib/dxvk/wine64/${dll}.dll.so" ] && ln -sf "/usr/lib/dxvk/wine64/${dll}.dll.so" "${WINEPREFIX}/drive_c/windows/system32/${dll}.dll" 2>/dev/null || true
+                [ -f "/usr/lib/dxvk/wine32/${dll}.dll.so" ] && ln -sf "/usr/lib/dxvk/wine32/${dll}.dll.so" "${WINEPREFIX}/drive_c/windows/syswow64/${dll}.dll" 2>/dev/null || true
+            done
+        fi
     fi
 fi
 
@@ -440,7 +452,7 @@ EOF
 optimizar_red_y_wifi
 
 # Overrides universales de gráficos 3D, red, sockets, SSL/TLS, DirectPlay y librerías base
-export WINEDLLOVERRIDES="winemenubuilder.exe=d;dxgi=n,b;d3d11=n,b;d3d10core=n,b;d3d9=n,b;d3d8=n,b;ddraw=n,b;dplayx=n,b;dpnet=n,b;dpwsockx=n,b;secur32=n,b;wininet=n,b;winhttp=n,b;ws2_32=n,b;iphlpapi=n,b;dnsapi=n,b;${WINEDLLOVERRIDES}"
+export WINEDLLOVERRIDES="winemenubuilder.exe=d;dxgi=n,b;d3d11=n,b;d3d10core=n,b;d3d9=n,b;d3d8=n,b;ddraw=n,b;dplayx=n,b;dpnet=n,b;dpwsockx=n,b;secur32=b;wininet=b;winhttp=b;ws2_32=b;iphlpapi=b;dnsapi=b;${WINEDLLOVERRIDES}"
 
 # 11.1 Configuración específica para el cliente de lobby GameRanger
 EXTRA_APP_ARGS=""
@@ -928,19 +940,19 @@ if [[ ! "$TARGET_FILE" =~ ([Gg]ame[Rr]anger|winecfg|regedit|cmd|notepad) ]]; the
     fi
 fi
 
-# Guardián en segundo plano para asegurar pantalla completa universal al detectar la ventana (solo X11)
+# Guardián en segundo plano para asegurar pantalla completa en juegos retro que no manejan fullscreen nativo
 WATCHDOG_PID=""
-if [ "$IS_WAYLAND" -eq 0 ] && [ -n "${DISPLAY:-}" ] && [[ ! "$TARGET_FILE" =~ ([Gg]ame[Rr]anger|winecfg|regedit|cmd|notepad) ]]; then
+if [ "$IS_WAYLAND" -eq 0 ] && [ -n "${DISPLAY:-}" ] && [[ ! "$TARGET_FILE" =~ ([Gg]ame[Rr]anger|winecfg|regedit|cmd|notepad|GTA|GTA5|PlayGTAV) ]]; then
     (
         for i in $(seq 1 30); do
             sleep 0.5
             if command -v wmctrl &>/dev/null; then
-                wmctrl -l 2>/dev/null | grep -iE 'Wine|Resident|Grand Theft|GTA|SWAT|Age of Empires|BioShock|Unreal|Speed|NFS' | grep -viE 'GameRanger|Winecfg|Error|Debug' | while read -r wid rest; do
+                wmctrl -l 2>/dev/null | grep -iE 'Resident|SWAT|Age of Empires|BioShock|Unreal|Speed|NFS' | grep -viE 'GameRanger|Winecfg|Error|Debug|GTA' | while read -r wid rest; do
                     wmctrl -i -r "$wid" -e "0,${ACTIVE_MON_X},${ACTIVE_MON_Y},${best_w},${best_h}" 2>/dev/null || true
                     wmctrl -i -r "$wid" -b add,fullscreen 2>/dev/null || true
                 done
             elif command -v xwininfo &>/dev/null && command -v xprop &>/dev/null; then
-                xwininfo -root -tree 2>/dev/null | grep -iE '("Resident Evil|"GTA|"Grand Theft|"Swat|"PlayGTAV|"BH6|"re4|"Age of Empires|"Wine)' | grep -viE 'GameRanger|Winecfg' | grep -oE '0x[0-9a-fA-F]+' | head -n 3 | while read -r wid; do
+                xwininfo -root -tree 2>/dev/null | grep -iE '("Resident Evil|"Swat|"BH6|"re4|"Age of Empires)' | grep -viE 'GameRanger|Winecfg|GTA' | grep -oE '0x[0-9a-fA-F]+' | head -n 3 | while read -r wid; do
                     xprop -id "$wid" -f _NET_WM_STATE 32a -set _NET_WM_STATE _NET_WM_STATE_FULLSCREEN 2>/dev/null || true
                 done
             fi
