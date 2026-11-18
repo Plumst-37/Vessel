@@ -64,39 +64,6 @@ fi
 TARGET="$1"
 shift || true
 
-# 4. Definir la ruta del WINEPREFIX (Soporte Dual: Prefijo Compartido o Prefijo Aislado por Juego)
-if [ -n "$CUSTOM_PREFIX" ]; then
-    export WINEPREFIX="$CUSTOM_PREFIX"
-else
-    # Comprobar en base de datos si el juego tiene configurado prefijo aislado
-    PREF_TYPE="compartido"
-    for db in "${DIR}/programas_usuario.db" "${DIR}/programas.db"; do
-        if [ -f "$db" ]; then
-            matched_line=$(grep -F "$TARGET" "$db" 2>/dev/null | head -n 1)
-            [ -z "$matched_line" ] && matched_line=$(grep -F "$(basename "$TARGET")" "$db" 2>/dev/null | head -n 1)
-            if [ -n "$matched_line" ]; then
-                db_ptype=$(echo "$matched_line" | cut -d'|' -f3 | tr -d '\r\n ')
-                [ -n "$db_ptype" ] && PREF_TYPE="$db_ptype"
-                break
-            fi
-        fi
-    done
-
-    if [ "$PREF_TYPE" = "aislado" ] || [ "$FORCE_ISOLATED" -eq 1 ]; then
-        SAFE_BASE=$(basename "$TARGET" | sed -E 's/[^a-zA-Z0-9_-]/_/g')
-        HASH_RUTA=$(printf "%s" "$TARGET" | md5sum 2>/dev/null | cut -c1-6 || echo "000000")
-        if [ -d "${DIR}/wineprefixes/${SAFE_BASE}" ] && [ ! -d "${DIR}/wineprefixes/${SAFE_BASE}_${HASH_RUTA}" ]; then
-            SAFE_APP_ID="${SAFE_BASE}"
-        else
-            SAFE_APP_ID="${SAFE_BASE}_${HASH_RUTA}"
-        fi
-        export WINEPREFIX="${DIR}/wineprefixes/${SAFE_APP_ID}"
-        echo "[🛡️] Prefijo Wine Aislado activo para: $(basename "$TARGET") [ID: ${SAFE_APP_ID}]"
-    else
-        export WINEPREFIX="${DIR}/wineprefix"
-    fi
-fi
-
 # 4.0 Auto-reparación transparente de rutas inexistentes o movidas (ej. carpetas ZIP extraídas)
 if [ ! -f "$TARGET" ] && [[ ! "$TARGET" =~ [Gg]ame[Rr]anger ]]; then
     CANDIDATE_PATH=""
@@ -136,10 +103,39 @@ if [[ "$TARGET" != /* ]] && [ -f "${DIR}/${TARGET}" ]; then
     TARGET="${DIR}/${TARGET}"
 fi
 
-# 4.0.2 Priorizar el binario óptimo (.exe) sobre scripts .bat/.cmd para evitar cuelgues de wmic/cacls en Wine
+# 4.1 Resolver accesos directos de Windows (.lnk o .ink) al ejecutable real
+if [[ "$TARGET" =~ \.([lL][nN][kK]|[iI][nN][kK])$ ]] && [ -f "$TARGET" ]; then
+    echo "[*] Acceso directo detectado: $(basename "$TARGET"). Resolviendo ejecutable real..."
+    if [ -f "${DIR}/resolver_lnk.py" ]; then
+        RESOLVED_RES=$(python3 "${DIR}/resolver_lnk.py" "$TARGET" "${WINEPREFIX:-${DIR}/wineprefix}" 2>/dev/null || true)
+        RESOLVED_STATUS=$(echo "$RESOLVED_RES" | grep '^STATUS=' | cut -d= -f2-)
+        RESOLVED_PATH=$(echo "$RESOLVED_RES" | grep '^RESOLVED_PATH=' | cut -d= -f2-)
+        if [ "$RESOLVED_STATUS" = "RESOLVED" ] && [ -f "$RESOLVED_PATH" ]; then
+            echo "[+] Acceso directo resuelto a: $RESOLVED_PATH"
+            TARGET="$RESOLVED_PATH"
+        fi
+    fi
+fi
+
+# 4.2 Resolver scripts por lotes (.bat o .cmd) para omitir bucles infinitos de CPU
+if [[ "$TARGET" =~ \.([bB][aA][tT]|[cC][mM][dD])$ ]] && [ -f "$TARGET" ]; then
+    echo "[*] Script por lotes (.bat/.cmd) detectado: $(basename "$TARGET")."
+    if [ -f "${DIR}/resolver_bat.py" ]; then
+        RESOLVED_BAT=$(python3 "${DIR}/resolver_bat.py" "$TARGET" 2>/dev/null || true)
+        BAT_STATUS=$(echo "$RESOLVED_BAT" | grep '^STATUS=' | cut -d= -f2-)
+        BAT_PATH=$(echo "$RESOLVED_BAT" | grep '^RESOLVED_PATH=' | cut -d= -f2-)
+        if [ "$BAT_STATUS" = "RESOLVED" ] && [ -f "$BAT_PATH" ]; then
+            echo "[+] Ejecutable real detectado y aislado para máximo rendimiento: $BAT_PATH"
+            echo "[+] Omitiendo bucles innecesarios de Windows (tasklist/wmic) para liberar el 100% de la CPU."
+            TARGET="$BAT_PATH"
+        fi
+    fi
+fi
+
+# 4.0.2 Priorizar el binario nativo óptimo (.exe) sobre scripts .bat/.cmd para evitar cuelgues de wmic/cacls en Wine
 if [[ "$TARGET" =~ \.([bB][aA][tT]|[cC][mM][dD])$ ]]; then
     BAT_DIR=$(dirname "$TARGET")
-    for cand in "GTA5.exe" "PlayGTAV.exe" "gta_sa.exe" "speed.exe" "BH6.exe" "re4.exe" "biohazard4.exe" "Swat4.exe"; do
+    for cand in "PlayGTAV.exe" "GTA5.exe" "gta_sa.exe" "speed.exe" "BH6.exe" "re4.exe" "biohazard4.exe" "Swat4.exe"; do
         FOUND_EXE=$(find "$BAT_DIR" -maxdepth 3 -iname "$cand" 2>/dev/null | head -n 1)
         if [ -n "$FOUND_EXE" ] && [ -f "$FOUND_EXE" ]; then
             echo "[+] Binario nativo óptimo detectado: $(basename "$FOUND_EXE") (priorizado sobre $(basename "$TARGET"))"
@@ -149,12 +145,36 @@ if [[ "$TARGET" =~ \.([bB][aA][tT]|[cC][mM][dD])$ ]]; then
     done
 fi
 
-# 4.0.3 Redirigir wrappers/launchers inestables al binario principal del juego (ej. PlayGTAV.exe -> GTA5.exe)
-if [[ "$TARGET" =~ PlayGTAV\.exe$ ]]; then
-    PLAY_DIR=$(dirname "$TARGET")
-    if [ -f "${PLAY_DIR}/GTA5.exe" ]; then
-        echo "[+] Redirigiendo launcher PlayGTAV.exe -> Binario principal estable: GTA5.exe"
-        TARGET="${PLAY_DIR}/GTA5.exe"
+# 4. Definir la ruta del WINEPREFIX (Soporte Dual: Prefijo Compartido o Prefijo Aislado por Juego)
+if [ -n "$CUSTOM_PREFIX" ]; then
+    export WINEPREFIX="$CUSTOM_PREFIX"
+else
+    # Comprobar en base de datos si el juego tiene configurado prefijo aislado
+    PREF_TYPE="compartido"
+    for db in "${DIR}/programas_usuario.db" "${DIR}/programas.db"; do
+        if [ -f "$db" ]; then
+            matched_line=$(grep -F "$TARGET" "$db" 2>/dev/null | head -n 1)
+            [ -z "$matched_line" ] && matched_line=$(grep -F "$(basename "$TARGET")" "$db" 2>/dev/null | head -n 1)
+            if [ -n "$matched_line" ]; then
+                db_ptype=$(echo "$matched_line" | cut -d'|' -f3 | tr -d '\r\n ')
+                [ -n "$db_ptype" ] && PREF_TYPE="$db_ptype"
+                break
+            fi
+        fi
+    done
+
+    if [ "$PREF_TYPE" = "aislado" ] || [ "$FORCE_ISOLATED" -eq 1 ]; then
+        SAFE_BASE=$(basename "$TARGET" | sed -E 's/[^a-zA-Z0-9_-]/_/g')
+        HASH_RUTA=$(printf "%s" "$TARGET" | md5sum 2>/dev/null | cut -c1-6 || echo "000000")
+        if [ -d "${DIR}/wineprefixes/${SAFE_BASE}" ] && [ ! -d "${DIR}/wineprefixes/${SAFE_BASE}_${HASH_RUTA}" ]; then
+            SAFE_APP_ID="${SAFE_BASE}"
+        else
+            SAFE_APP_ID="${SAFE_BASE}_${HASH_RUTA}"
+        fi
+        export WINEPREFIX="${DIR}/wineprefixes/${SAFE_APP_ID}"
+        echo "[🛡️] Prefijo Wine Aislado activo para: $(basename "$TARGET") [ID: ${SAFE_APP_ID}]"
+    else
+        export WINEPREFIX="${DIR}/wineprefix"
     fi
 fi
 if [[ "$TARGET" =~ [Gg]ame[Rr]anger ]] || [ ! -f "$TARGET" ]; then
@@ -207,34 +227,6 @@ if [[ "$TARGET" =~ [Gg]ame[Rr]anger ]] || [ ! -f "$TARGET" ]; then
     fi
 fi
 
-# 4.1 Resolver accesos directos de Windows (.lnk o .ink) al ejecutable real
-if [[ "$TARGET" =~ \.([lL][nN][kK]|[iI][nN][kK])$ ]] && [ -f "$TARGET" ]; then
-    echo "[*] Acceso directo detectado: $(basename "$TARGET"). Resolviendo ejecutable real..."
-    if [ -f "${DIR}/resolver_lnk.py" ]; then
-        RESOLVED_RES=$(python3 "${DIR}/resolver_lnk.py" "$TARGET" "${WINEPREFIX}" 2>/dev/null || true)
-        RESOLVED_STATUS=$(echo "$RESOLVED_RES" | grep '^STATUS=' | cut -d= -f2-)
-        RESOLVED_PATH=$(echo "$RESOLVED_RES" | grep '^RESOLVED_PATH=' | cut -d= -f2-)
-        if [ "$RESOLVED_STATUS" = "RESOLVED" ] && [ -f "$RESOLVED_PATH" ]; then
-            echo "[+] Acceso directo resuelto a: $RESOLVED_PATH"
-            TARGET="$RESOLVED_PATH"
-        fi
-    fi
-fi
-
-# 4.2 Resolver scripts por lotes (.bat o .cmd) para omitir bucles infinitos de CPU
-if [[ "$TARGET" =~ \.([bB][aA][tT]|[cC][mM][dD])$ ]] && [ -f "$TARGET" ]; then
-    echo "[*] Script por lotes (.bat/.cmd) detectado: $(basename "$TARGET")."
-    if [ -f "${DIR}/resolver_bat.py" ]; then
-        RESOLVED_BAT=$(python3 "${DIR}/resolver_bat.py" "$TARGET" 2>/dev/null || true)
-        BAT_STATUS=$(echo "$RESOLVED_BAT" | grep '^STATUS=' | cut -d= -f2-)
-        BAT_PATH=$(echo "$RESOLVED_BAT" | grep '^RESOLVED_PATH=' | cut -d= -f2-)
-        if [ "$BAT_STATUS" = "RESOLVED" ] && [ -f "$BAT_PATH" ]; then
-            echo "[+] Ejecutable real detectado y aislado para máximo rendimiento: $BAT_PATH"
-            echo "[+] Omitiendo bucles innecesarios de Windows (tasklist/wmic) para liberar el 100% de la CPU."
-            TARGET="$BAT_PATH"
-        fi
-    fi
-fi
 
 # 5. Detección de entorno gráfico: Wayland vs X11
 IS_WAYLAND=0
@@ -328,9 +320,14 @@ fi
 # 7. Auto-inicialización del prefijo con wineboot nativo y dosdevices íntegros
 find "${WINEPREFIX}/drive_c/windows" -xtype l -delete 2>/dev/null || true
 if [ ! -f "${WINEPREFIX}/system.reg" ]; then
-    echo "[*] Creando sandbox limpio e íntegro para el juego..."
     mkdir -p "$WINEPREFIX"
-    WINEPREFIX="$WINEPREFIX" "$WINE_CMD" wineboot -u >/dev/null 2>&1 || true
+    if [ -f "${DIR}/wineprefix/system.reg" ] && [ "$WINEPREFIX" != "${DIR}/wineprefix" ]; then
+        echo "[*] Inicializando sandbox aislado de forma ultrarrápida a partir de la plantilla base..."
+        cp -a "${DIR}/wineprefix"/* "${WINEPREFIX}/" 2>/dev/null || true
+    else
+        echo "[*] Creando sandbox limpio e íntegro para el juego..."
+        DISPLAY="" WINEDLLOVERRIDES="mscoree,mshtml=;winemenubuilder.exe=d;" WINEPREFIX="$WINEPREFIX" "$WINE_CMD" wineboot -u >/dev/null 2>&1 || true
+    fi
     mkdir -p "${WINEPREFIX}/dosdevices"
     [ ! -e "${WINEPREFIX}/dosdevices/c:" ] && ln -s ../drive_c "${WINEPREFIX}/dosdevices/c:" 2>/dev/null || true
     [ ! -e "${WINEPREFIX}/dosdevices/z:" ] && ln -s / "${WINEPREFIX}/dosdevices/z:" 2>/dev/null || true
@@ -670,7 +667,6 @@ aplicar_perfil_aislado_juego() {
 -reflectionBlur 0
 -reflection_MipBlur 0
 -noInGameDOF
--StraightIntoFreemode
 -ignoreDifferentVideoCard
 -ShadowQuality 0
 -ReflectionQuality 0
@@ -687,7 +683,7 @@ EOF
             echo "[+] GTA V optimizado: Pantalla completa nativa, sin VSync artificial y configuración 60 FPS aplicada."
 
             # Overrides específicos de DirectX 11, Bink Video, Social Club y ASI Loader
-            export WINEDLLOVERRIDES="bink2w64=n,b;asiloader=n,b;d3dcompiler_46=n,b;d3dcompiler_43=n,b;d3dcsx_46=n,b;socialclub=n,b;steam_api64=n,b;dxgi=n,b;d3d11=n,b;d3d9=n,b;${WINEDLLOVERRIDES}"
+            export WINEDLLOVERRIDES="bink2w64=n,b;asiloader=n,b;dinput8=n,b;d3dcompiler_46=n,b;d3dcompiler_43=n,b;d3dcsx_46=n,b;socialclub=n,b;steam_api64=n,b;dxgi=n,b;d3d11=n,b;d3d9=n,b;${WINEDLLOVERRIDES}"
             ;;
 
         rockstar_gtasa)
