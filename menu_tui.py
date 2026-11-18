@@ -413,6 +413,13 @@ def pausar():
 
 def menu_iniciar_programa(hw, cfg):
     """Submenú 1: Iniciar programa o juego registrado con opciones avanzadas."""
+    # Auto-recuperación de la base de datos si fue vaciada o eliminada accidentalmente
+    if (not os.path.exists(DB_FILE) or os.path.getsize(DB_FILE) == 0) and os.path.exists(DB_FILE + ".bak") and os.path.getsize(DB_FILE + ".bak") > 0:
+        try:
+            shutil.copyfile(DB_FILE + ".bak", DB_FILE)
+        except Exception:
+            pass
+
     if not os.path.exists(DB_FILE) or os.path.getsize(DB_FILE) == 0:
         os.system("clear")
         render_banner(hw, cfg)
@@ -460,11 +467,19 @@ def menu_iniciar_programa(hw, cfg):
         if accion == "1":
             os.system("clear")
             print(f"{GREEN}🚀 Iniciando: {BOLD}{nombre}{RESET} de forma nativa en tu computadora...\n")
+            try:
+                termios.tcflush(sys.stdin, termios.TCIFLUSH)
+            except Exception:
+                pass
             subprocess.run(["bash", LAUNCHER, ruta])
             pausar()
         elif accion == "2":
             os.system("clear")
             print(f"{PURPLE}📊 Iniciando: {BOLD}{nombre}{RESET} con HUD de FPS activo...\n")
+            try:
+                termios.tcflush(sys.stdin, termios.TCIFLUSH)
+            except Exception:
+                pass
             subprocess.run(["bash", "-c", f"ENABLE_DXVK_HUD=1 bash '{LAUNCHER}' '{ruta}'"])
             pausar()
         elif accion == "3":
@@ -480,6 +495,10 @@ def menu_iniciar_programa(hw, cfg):
             with open(DB_FILE, "w", encoding="utf-8") as f:
                 for n, r in programas:
                     f.write(f"{n}|{r}|compartido\n")
+            try:
+                shutil.copyfile(DB_FILE, DB_FILE + ".bak")
+            except Exception:
+                pass
             print(f"\n{GREEN}✔ '{nombre}' ha sido eliminado de la lista.{RESET}")
             pausar()
 
@@ -628,6 +647,36 @@ def menu_configurar_programas(hw, cfg):
 
             nombre_sugerido = nombre_sugerido.replace("_", " ").replace("-", " ")
 
+            # COMPROBACIÓN DE JUEGO DUPLICADO
+            # Evita agregar el juego si ya está en la lista y avisa al usuario
+            real_nueva = os.path.realpath(os.path.abspath(ruta))
+            ya_existe = False
+            nombre_existente = ""
+            ruta_existente = ""
+            if os.path.exists(DB_FILE):
+                with open(DB_FILE, "r", encoding="utf-8", errors="ignore") as f:
+                    for l in f:
+                        parts = l.strip().split("|")
+                        if len(parts) >= 2:
+                            db_nom, db_rut = parts[0].strip(), parts[1].strip()
+                            real_db = os.path.realpath(os.path.abspath(db_rut)) if os.path.exists(db_rut) else db_rut
+                            if real_nueva == real_db or ruta.strip() == db_rut:
+                                ya_existe = True
+                                nombre_existente = db_nom
+                                ruta_existente = db_rut
+                                break
+
+            if ya_existe:
+                os.system("clear")
+                print(f"{YELLOW}══════════════════════════════════════════════════════════════════════{RESET}")
+                print(f"{YELLOW}⚠️  ESTE JUEGO YA SE AGREGÓ ANTERIORMENTE A LA LISTA{RESET}")
+                print(f"{YELLOW}══════════════════════════════════════════════════════════════════════{RESET}\n")
+                print(f"  {WHITE}Nombre en la lista :{RESET} {BOLD}{CYAN}{nombre_existente}{RESET}")
+                print(f"  {WHITE}Ruta del archivo   :{RESET} {GRAY}{ruta_existente}{RESET}\n")
+                print(f"{WHITE}El juego ya está listo para jugar. No se creará una entrada duplicada.{RESET}\n")
+                pausar()
+                continue
+
             # Permitir al usuario poner el nombre exacto que desea
             os.system("clear")
             print(f"{PURPLE}🎮 [ ASIGNAR NOMBRE AL JUEGO ]{RESET}\n")
@@ -641,6 +690,10 @@ def menu_configurar_programas(hw, cfg):
 
             with open(DB_FILE, "a", encoding="utf-8") as f:
                 f.write(f"{nombre_custom}|{ruta}|compartido\n")
+            try:
+                shutil.copyfile(DB_FILE, DB_FILE + ".bak")
+            except Exception:
+                pass
 
             print(f"\n{GREEN}✔ ¡Juego '{nombre_custom}' registrado exitosamente en la lista!{RESET}")
 
@@ -654,6 +707,10 @@ def menu_configurar_programas(hw, cfg):
             if ini == 's':
                 os.system("clear")
                 print(f"{GREEN}🚀 Iniciando: {BOLD}{nombre_custom}{RESET}...\n")
+                try:
+                    termios.tcflush(sys.stdin, termios.TCIFLUSH)
+                except Exception:
+                    pass
                 subprocess.run(["bash", LAUNCHER, ruta])
             pausar()
         elif sel == "2":
@@ -714,6 +771,10 @@ def menu_configurar_programas(hw, cfg):
                 del lines[del_idx]
                 with open(DB_FILE, "w", encoding="utf-8") as f:
                     f.write("\n".join(lines) + ("\n" if lines else ""))
+                try:
+                    shutil.copyfile(DB_FILE, DB_FILE + ".bak")
+                except Exception:
+                    pass
                 print(f"\n{GREEN}✔ '{nom_borrado}' ha sido eliminado con éxito.{RESET}")
                 pausar()
         elif sel == "4":

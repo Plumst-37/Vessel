@@ -600,14 +600,19 @@ WINEPREFIX="${DIR}/wineprefix" wine reg add "HKEY_CLASSES_ROOT\gameranger" /v ""
 WINEPREFIX="${DIR}/wineprefix" wine reg add "HKEY_CLASSES_ROOT\gameranger" /v "URL Protocol" /t REG_SZ /d "" /f >/dev/null 2>&1 || true
 WINEPREFIX="${DIR}/wineprefix" wine reg add "HKEY_CLASSES_ROOT\gameranger\shell\open\command" /v "" /t REG_SZ /d "\"C:\Program Files\GameRanger\GameRanger.exe\" \"%1\"" /f >/dev/null 2>&1 || true
 
-# Registrar GameRanger en programas.db de Vessel
+# Registrar GameRanger en programas.db de Vessel (protegiendo juegos existentes del usuario)
+if [ ! -s "${DIR}/programas.db" ] && [ -s "${DIR}/programas.db.bak" ]; then
+    cp -f "${DIR}/programas.db.bak" "${DIR}/programas.db" 2>/dev/null || true
+fi
 touch "${DIR}/programas.db"
+[ -s "${DIR}/programas.db" ] && cp -f "${DIR}/programas.db" "${DIR}/programas.db.bak" 2>/dev/null || true
 if ! grep -qi "GameRanger" "${DIR}/programas.db" 2>/dev/null; then
     FOUND_GR=$(find "${DIR}/wineprefix/drive_c/users" -name "GameRanger.exe" 2>/dev/null | head -n 1)
     [ -z "$FOUND_GR" ] && [ -f "${DIR}/wineprefix/drive_c/Program Files/GameRanger/GameRanger.exe" ] && FOUND_GR="${DIR}/wineprefix/drive_c/Program Files/GameRanger/GameRanger.exe"
     [ -z "$FOUND_GR" ] && [ -f "${DIR}/GameRanger/GameRanger.exe" ] && FOUND_GR="${DIR}/GameRanger/GameRanger.exe"
     if [ -n "$FOUND_GR" ]; then
         echo "GameRanger|${FOUND_GR}|compartido" >> "${DIR}/programas.db"
+        cp -f "${DIR}/programas.db" "${DIR}/programas.db.bak" 2>/dev/null || true
         echo -e "${C_GREEN}✔ GameRanger registrado en la lista de programas de Vessel.${C_RESET}"
     fi
 fi

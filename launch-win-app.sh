@@ -16,6 +16,9 @@ fi
 
 set -e
 
+# Limpiar cualquier texto o pulsación residual en el búfer de entrada de la terminal
+read -t 0.001 -n 10000 _discard_input 2>/dev/null || true
+
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
 DB_FILE="${DIR}/programas.db"
 
@@ -510,6 +513,20 @@ EOF
     local target_system_dir="$TARGET_DIR"
     [ -d "${TARGET_DIR}/System" ] && target_system_dir="${TARGET_DIR}/System"
     [ -d "${TARGET_DIR}/Content/System" ] && target_system_dir="${TARGET_DIR}/Content/System"
+
+    # Relación de aspecto del monitor para FOV 3D exacto (elimina deformación y estiramiento de armas y modelos)
+    local target_fov="100.000000"
+    if [ "$best_h" -gt 0 ]; then
+        local aspect_ratio_int=$(( (best_w * 100) / best_h ))
+        if [ "$aspect_ratio_int" -ge 170 ]; then
+            target_fov="100.000000"
+        elif [ "$aspect_ratio_int" -ge 150 ]; then
+            target_fov="95.000000"
+        else
+            target_fov="85.000000"
+        fi
+    fi
+
     find "$target_system_dir" -maxdepth 2 -name "*.ini" 2>/dev/null | while read -r ueini; do
         if grep -q "\[WinDrv.WindowsClient\]" "$ueini" 2>/dev/null; then
             sed -i 's/^StartupFullscreen=False/StartupFullscreen=True/' "$ueini" 2>/dev/null || true
@@ -531,6 +548,17 @@ EOF
             sed -i 's/^LastConfirmedFullscreenMode=[0-9]*/LastConfirmedFullscreenMode=0/' "$ueini" 2>/dev/null || true
             sed -i "s/^ResolutionSizeX=[0-9]*/ResolutionSizeX=${best_w}/" "$ueini" 2>/dev/null || true
             sed -i "s/^ResolutionSizeY=[0-9]*/ResolutionSizeY=${best_h}/" "$ueini" 2>/dev/null || true
+        fi
+        # Ajuste de FOV 3D en Unreal Engine 2/2.5 para eliminar deformación de armas y perspectiva
+        if grep -q "DesiredFOV=" "$ueini" 2>/dev/null || grep -q "DefaultFOV=" "$ueini" 2>/dev/null; then
+            sed -i "s/^DesiredFOV=.*/DesiredFOV=${target_fov}/" "$ueini" 2>/dev/null || true
+            sed -i "s/^DefaultFOV=.*/DefaultFOV=${target_fov}/" "$ueini" 2>/dev/null || true
+        fi
+        if grep -q "FirstPersonFOV=" "$ueini" 2>/dev/null; then
+            sed -i "s/^FirstPersonFOV=.*/FirstPersonFOV=${target_fov}/" "$ueini" 2>/dev/null || true
+        fi
+        if grep -q "FovAngleDegrees=" "$ueini" 2>/dev/null; then
+            sed -i "s/^FovAngleDegrees=.*/FovAngleDegrees=${target_fov}/" "$ueini" 2>/dev/null || true
         fi
     done
 
@@ -569,6 +597,7 @@ CANT_ASI=$(ls -1 *.asi scripts/*.asi plugins/*.asi 2>/dev/null | wc -l)
 ESCRITORIO_VIRTUAL="0"
 RUN_PREFIX=""
 
+echo ""
 echo "[+] Ejecutando con Perfil [${PERFIL_RENDIMIENTO:-maximo}]..."
 echo "    - CPU: ${CPU_MODEL} (${CPU_CORES} Hilos)"
 echo "    - GPU: ${DETECTED_GPU}"

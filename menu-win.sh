@@ -68,6 +68,10 @@ verificar_actualizacion_github() {
 
     echo -e "${C_CYAN}🔄 Comprobando actualizaciones en GitHub...${C_RESET}"
 
+    # Proteger base de datos de juegos y configuración del usuario antes de actualizar
+    [ -f "${DIR}/programas.db" ] && cp -f "${DIR}/programas.db" "${DIR}/programas.db.bak" 2>/dev/null || true
+    [ -f "${DIR}/config_rendimiento.cfg" ] && cp -f "${DIR}/config_rendimiento.cfg" "${DIR}/config_rendimiento.cfg.bak" 2>/dev/null || true
+
     # Fetch rápido con timeout de 3 segundos
     if timeout 4 git -C "${DIR}" fetch origin main --quiet 2>/dev/null || timeout 4 git -C "${DIR}" fetch origin --quiet 2>/dev/null; then
         local local_hash
@@ -79,6 +83,13 @@ verificar_actualizacion_github() {
             echo ""
             echo -e "${C_GREEN}⚡ ¡Nueva versión encontrada en GitHub! Actualizando automáticamente...${C_RESET}"
             if git -C "${DIR}" pull --quiet origin main 2>/dev/null || git -C "${DIR}" pull --quiet 2>/dev/null; then
+                # Restaurar base de datos y configuración si quedaron vacías o afectadas
+                if [ ! -s "${DIR}/programas.db" ] && [ -s "${DIR}/programas.db.bak" ]; then
+                    cp -f "${DIR}/programas.db.bak" "${DIR}/programas.db" 2>/dev/null || true
+                fi
+                if [ ! -s "${DIR}/config_rendimiento.cfg" ] && [ -s "${DIR}/config_rendimiento.cfg.bak" ]; then
+                    cp -f "${DIR}/config_rendimiento.cfg.bak" "${DIR}/config_rendimiento.cfg" 2>/dev/null || true
+                fi
                 chmod +x "${DIR}"/*.sh "${DIR}"/*.py 2>/dev/null || true
                 echo -e "${C_GREEN}✔ ¡Vessel actualizado con éxito a la última versión! Reiniciando menú...${C_RESET}"
                 sleep 1.2
@@ -589,6 +600,42 @@ agregar_programa_portable() {
         fi
     fi
 
+    # COMPROBACIÓN DE JUEGO DUPLICADO
+    # Evita agregar el juego si ya está en la lista y avisa al usuario
+    local real_nueva
+    real_nueva=$(realpath -q "$ruta_prog" 2>/dev/null || echo "$ruta_prog")
+    local ya_existe=""
+    local nombre_existente=""
+    local ruta_existente=""
+    if [ -f "$DB_FILE" ]; then
+        while IFS='|' read -r db_nom db_rut db_tip || [ -n "$db_nom" ]; do
+            [ -z "$db_rut" ] && continue
+            local real_db
+            real_db=$(realpath -q "$db_rut" 2>/dev/null || echo "$db_rut")
+            if [ "$real_db" = "$real_nueva" ] || [ "$db_rut" = "$ruta_prog" ]; then
+                ya_existe="1"
+                nombre_existente="$db_nom"
+                ruta_existente="$db_rut"
+                break
+            fi
+        done < "$DB_FILE"
+    fi
+
+    if [ -n "$ya_existe" ]; then
+        echo ""
+        echo -e "${C_YELLOW}══════════════════════════════════════════════════════════════════════${C_RESET}"
+        echo -e "${C_YELLOW}⚠️  ESTE JUEGO YA SE AGREGÓ ANTERIORMENTE A LA LISTA${C_RESET}"
+        echo -e "${C_YELLOW}══════════════════════════════════════════════════════════════════════${C_RESET}"
+        echo ""
+        echo -e "   ${C_BOLD}Nombre en la lista:${C_RESET} ${C_CYAN}${nombre_existente}${C_RESET}"
+        echo -e "   ${C_GRAY}Ruta del archivo:${C_RESET}   ${ruta_existente}"
+        echo ""
+        echo -e "${C_WHITE}El juego ya está listo para jugar. No se creará una entrada duplicada.${C_RESET}"
+        echo ""
+        pausar
+        return
+    fi
+
     # Sugerir nombre limpio basado en el archivo o acceso directo
     local nombre_sugerido
     if [ -n "$nombre_sugerido_base" ]; then
@@ -603,6 +650,7 @@ agregar_programa_portable() {
     [ -z "$nombre_prog" ] && nombre_prog="$nombre_sugerido"
 
     echo "${nombre_prog}|${ruta_prog}|compartido" >> "$DB_FILE"
+    cp -f "$DB_FILE" "${DB_FILE}.bak" 2>/dev/null || true
     echo ""
     echo -e "${C_GREEN}✅ ¡Programa portable registrado exitosamente!${C_RESET}"
     echo -e "   ${C_BOLD}Nombre:${C_RESET} ${nombre_prog}"
@@ -844,7 +892,43 @@ agregar_programa_instalable() {
         return
     fi
 
+    # COMPROBACIÓN DE JUEGO DUPLICADO
+    local real_nueva
+    real_nueva=$(realpath -q "$exe_instalado" 2>/dev/null || echo "$exe_instalado")
+    local ya_existe=""
+    local nombre_existente=""
+    local ruta_existente=""
+    if [ -f "$DB_FILE" ]; then
+        while IFS='|' read -r db_nom db_rut db_tip || [ -n "$db_nom" ]; do
+            [ -z "$db_rut" ] && continue
+            local real_db
+            real_db=$(realpath -q "$db_rut" 2>/dev/null || echo "$db_rut")
+            if [ "$real_db" = "$real_nueva" ] || [ "$db_rut" = "$exe_instalado" ]; then
+                ya_existe="1"
+                nombre_existente="$db_nom"
+                ruta_existente="$db_rut"
+                break
+            fi
+        done < "$DB_FILE"
+    fi
+
+    if [ -n "$ya_existe" ]; then
+        echo ""
+        echo -e "${C_YELLOW}══════════════════════════════════════════════════════════════════════${C_RESET}"
+        echo -e "${C_YELLOW}⚠️  ESTE JUEGO YA SE AGREGÓ ANTERIORMENTE A LA LISTA${C_RESET}"
+        echo -e "${C_YELLOW}══════════════════════════════════════════════════════════════════════${C_RESET}"
+        echo ""
+        echo -e "   ${C_BOLD}Nombre en la lista:${C_RESET} ${C_CYAN}${nombre_existente}${C_RESET}"
+        echo -e "   ${C_GRAY}Ruta del archivo:${C_RESET}   ${ruta_existente}"
+        echo ""
+        echo -e "${C_WHITE}El juego ya está listo para jugar. No se creará una entrada duplicada.${C_RESET}"
+        echo ""
+        pausar
+        return
+    fi
+
     echo "${nombre_prog}|${exe_instalado}|compartido" >> "$DB_FILE"
+    cp -f "$DB_FILE" "${DB_FILE}.bak" 2>/dev/null || true
     echo ""
     echo -e "${C_GREEN}✅ ¡Programa instalado y registrado exitosamente en el Menú Win!${C_RESET}"
     echo -e "   ${C_BOLD}Nombre:${C_RESET}     ${nombre_prog}"

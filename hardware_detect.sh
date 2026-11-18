@@ -123,7 +123,7 @@ aplicar_entorno_hardware() {
         local discrete_name
         discrete_name=$(echo "$discrete_info" | grep -oE '"[^"]+"' | tr -d '"')
 
-        if [ -n "$discrete_pci_id" ]; then
+        if [ -n "$discrete_pci_id" ] && [ "$HAS_NVIDIA" = false ]; then
             export MESA_VK_DEVICE_SELECT="${discrete_pci_id}!"
             export MESA_VK_DEVICE_SELECT_FORCE_DEFAULT_DEVICE=1
         fi
