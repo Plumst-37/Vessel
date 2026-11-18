@@ -59,23 +59,27 @@ C_WIN_CYAN="\033[38;2;0;164;239m"
 # ==============================================================================
 verificar_actualizacion_github() {
     local remote_repo="https://github.com/Plumst-37/Vessel.git"
+    echo ""
+    echo -e "${C_PURPLE}╭──────────────────────────────────────────────────────────────────────╮${C_RESET}"
+    echo -e "${C_PURPLE}│${C_RESET}       ${C_CYAN}${C_BOLD}🔄  VESSEL: Buscando actualizaciones en GitHub...${C_RESET}              ${C_PURPLE}│${C_RESET}"
+    echo -e "${C_PURPLE}╰──────────────────────────────────────────────────────────────────────╯${C_RESET}"
+
     if ! command -v git &>/dev/null; then
+        echo -e "  ${C_YELLOW}⚠️  Git no está instalado. Continuando en modo offline...${C_RESET}\n"
+        sleep 0.8
         return
     fi
 
     # Si no es un repositorio git (usuario descargó el ZIP), inicializar git para recibir actualizaciones
     if [ ! -d "${DIR}/.git" ]; then
+        echo -e "  ${C_CYAN}⚡ Inicializando repositorio Git para actualizaciones automáticas...${C_RESET}"
         git -C "${DIR}" init --quiet 2>/dev/null || true
         git -C "${DIR}" remote add origin "$remote_repo" 2>/dev/null || true
         git -C "${DIR}" fetch --depth=1 origin main --quiet 2>/dev/null || true
         git -C "${DIR}" reset --hard origin/main --quiet 2>/dev/null || true
+    else
+        git -C "${DIR}" remote set-url origin "$remote_repo" 2>/dev/null || git -C "${DIR}" remote add origin "$remote_repo" 2>/dev/null || true
     fi
-
-    local remote_url
-    remote_url=$(git -C "${DIR}" config --get remote.origin.url 2>/dev/null || true)
-    [ -z "$remote_url" ] && return
-
-    echo -e "${C_CYAN}🔄 Comprobando actualizaciones en GitHub...${C_RESET}"
 
     # Proteger base de datos de juegos y configuración del usuario antes de actualizar
     local db_user="${DIR}/programas_usuario.db"
@@ -85,8 +89,13 @@ verificar_actualizacion_github() {
     [ -f "${DIR}/programas.db" ] && cp -f "${DIR}/programas.db" "${DIR}/programas.db.bak" 2>/dev/null || true
     [ -f "${DIR}/config_rendimiento.cfg" ] && cp -f "${DIR}/config_rendimiento.cfg" "${DIR}/config_rendimiento.cfg.bak" 2>/dev/null || true
 
-    # Fetch rápido con timeout de 4 segundos
-    if timeout 4 git -C "${DIR}" fetch origin main --quiet 2>/dev/null || timeout 4 git -C "${DIR}" fetch origin --quiet 2>/dev/null; then
+    local ya_configurado=0
+    if [ -f "${DIR}/.instalado" ] || [ -s "${DIR}/version.txt" ]; then
+        ya_configurado=1
+    fi
+
+    # Fetch con timeout de 7 segundos
+    if timeout 7 git -C "${DIR}" fetch origin main --quiet 2>/dev/null || timeout 7 git -C "${DIR}" fetch origin --quiet 2>/dev/null; then
         local local_hash
         local remote_hash
         local_hash=$(git -C "${DIR}" rev-parse HEAD 2>/dev/null)
@@ -94,25 +103,37 @@ verificar_actualizacion_github() {
 
         if [ -n "$local_hash" ] && [ -n "$remote_hash" ] && [ "$local_hash" != "$remote_hash" ]; then
             echo ""
-            echo -e "${C_GREEN}⚡ ¡Nueva versión encontrada en GitHub! Actualizando automáticamente...${C_RESET}"
+            echo -e "  ${C_YELLOW}${C_BOLD}⚡ ¡Nueva versión encontrada en GitHub!${C_RESET}"
+            echo -e "  ${C_WHITE}Descargando e instalando los últimos parches y mejoras...${C_RESET}"
             if git -C "${DIR}" reset --hard origin/main 2>/dev/null || git -C "${DIR}" pull --quiet origin main 2>/dev/null; then
-                # Restaurar base de datos y configuración si quedaron vacías o afectadas
-                if [ ! -s "${DIR}/programas.db" ] && [ -s "${DIR}/programas.db.bak" ]; then
+                # Restaurar base de datos y configuración
+                if [ -s "${DIR}/programas_usuario.db" ]; then
+                    cat "${DIR}/programas_usuario.db" >> "${DIR}/programas.db" 2>/dev/null || true
+                    sort -u "${DIR}/programas.db" -o "${DIR}/programas.db" 2>/dev/null || true
+                elif [ -s "${DIR}/programas.db.bak" ]; then
                     cp -f "${DIR}/programas.db.bak" "${DIR}/programas.db" 2>/dev/null || true
                 fi
-                if [ ! -s "${DIR}/config_rendimiento.cfg" ] && [ -s "${DIR}/config_rendimiento.cfg.bak" ]; then
+                if [ -s "${DIR}/config_rendimiento.cfg.bak" ]; then
                     cp -f "${DIR}/config_rendimiento.cfg.bak" "${DIR}/config_rendimiento.cfg" 2>/dev/null || true
                 fi
+                if [ "$ya_configurado" -eq 1 ]; then
+                    echo "$VERSION_ACTUAL" > "${DIR}/.instalado" 2>/dev/null || true
+                    echo "$VERSION_ACTUAL" > "${DIR}/version.txt" 2>/dev/null || true
+                fi
                 chmod +x "${DIR}"/*.sh "${DIR}"/*.py 2>/dev/null || true
-                desplegar_gameranger_portable
-                echo -e "${C_GREEN}✔ ¡Vessel actualizado con éxito a la última versión! Reiniciando menú...${C_RESET}"
+                desplegar_gameranger_portable 2>/dev/null || true
+                echo -e "  ${C_GREEN}${C_BOLD}✔ ¡Vessel actualizado con éxito a la última versión! Reiniciando...${C_RESET}\n"
                 sleep 1.2
                 exec "$0" "$@"
             fi
         else
-            echo -e "${C_GREEN}✔ Vessel está en la última versión de GitHub.${C_RESET}"
-            sleep 0.5
+            echo -e "  ${C_GREEN}${C_BOLD}✔ Ya tienes la versión más reciente de Vessel.${C_RESET}"
+            echo -e "  ${C_GRAY}Todos los parches de compatibilidad y rendimiento están al día.${C_RESET}\n"
+            sleep 0.8
         fi
+    else
+        echo -e "  ${C_YELLOW}⚠️  Sin conexión a GitHub (modo offline). Iniciando Vessel...${C_RESET}\n"
+        sleep 0.8
     fi
 }
 
@@ -242,6 +263,9 @@ auto_detectar_distro() {
 
 comprobar_configuracion_inicial_distro() {
     [ -f "$CONFIG_USER" ] && source "$CONFIG_USER"
+    if [ -f "${DIR}/.instalado" ]; then
+        return
+    fi
     local v_content=""
     if [ -f "$VERSION_FILE" ]; then
         v_content=$(cat "$VERSION_FILE" 2>/dev/null | tr -d '[:space:]')
@@ -1664,6 +1688,28 @@ comprobar_compatibilidad_anticheat() {
 # ==============================================================================
 instalar_recursos_actualizar() {
     mostrar_banner
+    echo -e "${C_CYAN}🔄 [ CENTRO DE ACTUALIZACIONES ]${C_RESET}"
+    echo -e "${C_GRAY}Mantén Vessel y tu sistema al día con los últimos parches y optimizaciones:${C_RESET}"
+    echo ""
+    echo -e "  ${C_BOLD}[1]${C_RESET} ${C_GREEN}⚡ Buscar y actualizar Vessel desde GitHub${C_RESET}"
+    echo -e "  ${C_BOLD}[2]${C_RESET} ${C_CYAN}🐧 Descargar paquetes del sistema y drivers Vulkan${C_RESET}"
+    echo -e "  ${C_BOLD}[0]${C_RESET} Volver al menú principal"
+    echo ""
+    read -p "$(echo -e "${C_BOLD}Selecciona una opción (1, 2 o 0): ${C_RESET}")" opc_act
+    case "$opc_act" in
+        1)
+            verificar_actualizacion_github
+            read -p "$(echo -e "${C_WHITE}Presiona [Enter] para continuar...${C_RESET}")" _enter
+            return
+            ;;
+        2)
+            ;;
+        *)
+            return
+            ;;
+    esac
+
+    mostrar_banner
     echo -e "${C_CYAN}🔄 [ ACTUALIZAR Y CONFIGURAR SISTEMA ]${C_RESET}"
     echo -e "${C_GRAY}Descarga, actualiza y configura todo automáticamente para tu distribución de Linux:${C_RESET}"
     echo ""
@@ -2310,6 +2356,8 @@ EOF
     echo -e "${C_CYAN}══════════════════════════════════════════════════════════════════════${C_RESET}"
     echo "$VERSION_ACTUAL" > "$VERSION_FILE" 2>/dev/null || true
     chown "$target_user:$target_user" "$VERSION_FILE" 2>/dev/null || true
+    echo "$VERSION_ACTUAL" > "${DIR}/.instalado" 2>/dev/null || true
+    chown "$target_user:$target_user" "${DIR}/.instalado" 2>/dev/null || true
     pausar
 }
 

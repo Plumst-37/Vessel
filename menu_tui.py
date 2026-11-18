@@ -20,11 +20,13 @@ import time
 DIR = os.path.dirname(os.path.abspath(__file__))
 DB_FILE = os.path.join(DIR, "programas.db")
 DB_USER = os.path.join(DIR, "programas_usuario.db")
+DB_BAK = os.path.join(DIR, "programas.db.bak")
 LAUNCHER = os.path.join(DIR, "launch-win-app.sh")
 DXVK_CONF = os.path.join(DIR, "dxvk.conf")
 CONFIG_USER = os.path.join(DIR, "config_rendimiento.cfg")
 WINEPREFIX = os.path.join(DIR, "wineprefix")
 VERSION_FILE = os.path.join(DIR, "version.txt")
+INSTALADO_MARKER = os.path.join(DIR, ".instalado")
 VERSION_ACTUAL = "3.0.0"
 
 # Paleta de colores Neón Púrpura y Windows 11
@@ -1162,6 +1164,25 @@ def menu_actualizar(hw, cfg, es_primer_inicio=False):
                     if d_raw in ("debian", "ubuntu", "linuxmint", "pop", "zorin", "arch", "manjaro", "endeavouros", "fedora", "nobara", "opensuse", "suse"):
                         distro_id = d_raw
 
+    # Si no es el primer inicio, ofrecer menú para actualizar Vessel desde GitHub o paquetes del sistema
+    if not es_primer_inicio:
+        menu_opcs = [
+            ("1", "⚡ Buscar y descargar actualizaciones de Vessel en GitHub"),
+            ("2", f"🐧 Descargar paquetes del sistema ({distro_detectada}) y drivers Vulkan"),
+            ("0", "↩️  Volver al Menú Principal")
+        ]
+        sel_act = submenu_interactivo("🔄  Centro de Actualizaciones de Vessel", menu_opcs, hw, cfg)
+        if sel_act == "1":
+            os.system("clear")
+            actualizado = verificar_actualizacion_automatica_github(mostrar_notif=True)
+            if not actualizado:
+                pausar()
+            return
+        elif sel_act == "2":
+            pass  # Continúa a la selección de distribución
+        else:
+            return
+
     distro_menu = [
         ("1", f"🐧 Debian / Devuan {'(Detectada en tu PC)' if 'debian' in distro_id or 'devuan' in distro_id else ''}"),
         ("2", f"🐧 Ubuntu / Linux Mint / Pop!_OS / Zorin OS {'(Detectada en tu PC)' if any(x in distro_id for x in ('ubuntu', 'mint', 'pop', 'zorin')) else ''}"),
@@ -1219,10 +1240,12 @@ source "{os.path.join(DIR, 'menu-win.sh')}"
 ejecutar_descarga_e_instalacion_automatica
 """])
 
-    # Si la instalación completó con éxito, registrar versión actual en version.txt
+    # Si la instalación completó con éxito, registrar versión actual en version.txt e INSTALADO_MARKER
     if res.returncode == 0:
         try:
             with open(VERSION_FILE, "w", encoding="utf-8") as f:
+                f.write(VERSION_ACTUAL + "\n")
+            with open(INSTALADO_MARKER, "w", encoding="utf-8") as f:
                 f.write(VERSION_ACTUAL + "\n")
         except Exception:
             pass
@@ -1235,6 +1258,10 @@ ejecutar_descarga_e_instalacion_automatica
 
 def comprobar_primer_inicio(hw, cfg):
     """Comprueba si el usuario entra por primera vez (version.txt vacío o diferente versión)."""
+    # Si ya se marcó como instalado, no repetir el asistente
+    if os.path.exists(INSTALADO_MARKER):
+        return
+
     # Si no existe el archivo version.txt, crearlo vacío
     if not os.path.exists(VERSION_FILE):
         try:
@@ -1280,9 +1307,30 @@ def comprobar_primer_inicio(hw, cfg):
         # Preinstalar y dejar GameRanger portable listo en la PC desde el primer inicio
         desplegar_gameranger_portable(mostrar_notif=True)
 
-def verificar_actualizacion_automatica_github(mostrar_notif=False):
-    """Verifica e instala actualizaciones desde GitHub automáticamente para todos los usuarios."""
+        try:
+            with open(INSTALADO_MARKER, "w", encoding="utf-8") as f:
+                f.write(VERSION_ACTUAL + "\n")
+        except Exception:
+            pass
+
+def verificar_actualizacion_automatica_github(mostrar_notif=True):
+    """Verifica e instala actualizaciones desde GitHub automáticamente para todos los usuarios.
+    Muestra mensajes claros al usuario: buscando actualización, nueva versión encontrada o al día.
+    """
+    total_w = get_terminal_width()
+    inner_w = max(total_w - 2, 60)
+
+    # Notificación visible de búsqueda de actualizaciones
+    print(f"\n{PURPLE}╭{'─' * inner_w}╮{RESET}")
+    title = "🔄  VESSEL - BUSCANDO ACTUALIZACIONES EN GITHUB..."
+    pad = max((inner_w - visual_width(title)) // 2, 0)
+    print(f"{PURPLE}│{RESET}{' ' * pad}{CYAN}{BOLD}{title}{RESET}{' ' * max(inner_w - pad - visual_width(title), 0)}{PURPLE}│{RESET}")
+    print(f"{PURPLE}╰{'─' * inner_w}╯{RESET}")
+    sys.stdout.flush()
+
     if not shutil.which("git"):
+        print(f"  {YELLOW}⚠️  Git no está instalado. Continuando en modo offline...{RESET}\n")
+        time.sleep(0.8)
         return False
 
     git_dir = os.path.join(DIR, ".git")
@@ -1291,26 +1339,50 @@ def verificar_actualizacion_automatica_github(mostrar_notif=False):
     # Si no es un repositorio git (ej. usuario descargó ZIP), inicializar git para recibir actualizaciones
     if not os.path.exists(git_dir):
         try:
+            print(f"  {CYAN}⚡ Configurando repositorio para recibir actualizaciones automáticas...{RESET}")
             subprocess.run(
-                f"cd '{DIR}' && git init && git remote add origin {remote_repo} && git fetch --depth=1 origin main && git reset --hard origin/main",
-                shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=12
+                f"cd '{DIR}' && git init && git remote add origin '{remote_repo}' && git fetch --depth=1 origin main && git reset --hard origin/main",
+                shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=15
             )
         except Exception:
+            print(f"  {YELLOW}⚠️  No se pudo conectar con GitHub. Continuando en modo offline...{RESET}\n")
+            time.sleep(0.8)
             return False
+    else:
+        # Asegurar que remote origin siempre apunte al repositorio oficial
+        subprocess.run(
+            f"cd '{DIR}' && (git remote set-url origin '{remote_repo}' 2>/dev/null || git remote add origin '{remote_repo}' 2>/dev/null)",
+            shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
+        )
 
     try:
-        # 1. Proteger juegos propios del usuario antes de actualizar
-        if os.path.exists(DB_USER):
-            pass
-        elif os.path.exists(DB_FILE):
-            shutil.copyfile(DB_FILE, DB_USER)
+        # 1. Proteger juegos del usuario antes de actualizar
+        if os.path.exists(DB_FILE) and os.path.getsize(DB_FILE) > 0:
+            shutil.copyfile(DB_FILE, DB_BAK)
+            if not os.path.exists(DB_USER) or os.path.getsize(DB_USER) == 0:
+                shutil.copyfile(DB_FILE, DB_USER)
+            else:
+                try:
+                    progs_act = cargar_lista_programas()
+                    guardar_lista_programas(progs_act)
+                except Exception:
+                    pass
 
-        # 2. Comprobar actualizaciones remotas
+        cfg_file = os.path.join(DIR, "config_rendimiento.cfg")
+        if os.path.exists(cfg_file):
+            shutil.copyfile(cfg_file, cfg_file + ".bak")
+
+        # Recordar si el usuario ya tenía configurado el sistema
+        ya_configurado = os.path.exists(INSTALADO_MARKER) or (os.path.exists(VERSION_FILE) and os.path.getsize(VERSION_FILE) > 0)
+
+        # 2. Comprobar actualizaciones remotas con timeout de 7 segundos
         res = subprocess.run(
             f"cd '{DIR}' && git fetch origin main --quiet",
-            shell=True, timeout=5, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
+            shell=True, timeout=7, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
         )
         if res.returncode != 0:
+            print(f"  {YELLOW}⚠️  Sin conexión a GitHub (modo offline). Iniciando Vessel...{RESET}\n")
+            time.sleep(0.8)
             return False
 
         # 3. Comparar commit local vs remoto
@@ -1318,36 +1390,59 @@ def verificar_actualizacion_automatica_github(mostrar_notif=False):
         remote_hash = subprocess.check_output(f"cd '{DIR}' && git rev-parse origin/main", shell=True, text=True).strip()
 
         if local_hash and remote_hash and local_hash != remote_hash:
-            print(f"\n{CYAN}⚡ ¡Nueva actualización encontrada en GitHub! Actualizando automáticamente...{RESET}")
-            # Guardar backup
-            if os.path.exists(DB_FILE):
-                shutil.copyfile(DB_FILE, DB_BAK)
-            cfg_file = os.path.join(DIR, "config_rendimiento.cfg")
-            if os.path.exists(cfg_file):
-                shutil.copyfile(cfg_file, cfg_file + ".bak")
+            print(f"\n  {YELLOW}{BOLD}⚡ ¡Nueva actualización encontrada en GitHub!{RESET}")
+            print(f"  {WHITE}Descargando e instalando los últimos parches y mejoras para tus juegos...{RESET}")
 
             # Aplicar actualización limpia
             subprocess.run(
                 f"cd '{DIR}' && git reset --hard origin/main",
-                shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=15
+                shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=25
             )
+
+            # Restaurar bases de datos y configuraciones
+            if os.path.exists(DB_USER):
+                try:
+                    progs = cargar_lista_programas()
+                    guardar_lista_programas(progs)
+                except Exception:
+                    pass
+            elif os.path.exists(DB_BAK):
+                shutil.copyfile(DB_BAK, DB_FILE)
+
+            if os.path.exists(cfg_file + ".bak"):
+                shutil.copyfile(cfg_file + ".bak", cfg_file)
+
+            # Si el usuario ya estaba configurado, restaurar marcadores
+            if ya_configurado:
+                try:
+                    with open(INSTALADO_MARKER, "w", encoding="utf-8") as f:
+                        f.write(VERSION_ACTUAL + "\n")
+                    with open(VERSION_FILE, "w", encoding="utf-8") as f:
+                        f.write(VERSION_ACTUAL + "\n")
+                except Exception:
+                    pass
 
             # Restaurar permisos y desplegar componentes
             subprocess.run(f"chmod +x '{DIR}'/*.sh '{DIR}'/*.py 2>/dev/null", shell=True)
             desplegar_gameranger_portable()
 
-            print(f"{GREEN}✔ ¡Vessel se ha actualizado con éxito a la última versión! Reiniciando...{RESET}")
+            print(f"\n  {GREEN}{BOLD}✔ ¡Vessel se ha actualizado con éxito a la última versión!{RESET}")
+            print(f"  {CYAN}Reiniciando la aplicación con los nuevos cambios...{RESET}\n")
             time.sleep(1.2)
 
             # Reiniciar el script con la versión nueva
             os.execv(sys.executable, [sys.executable] + sys.argv)
             return True
-        elif mostrar_notif:
-            print(f"\n{GREEN}✔ Vessel ya está en la versión más reciente de GitHub.{RESET}")
-            time.sleep(1.0)
-    except Exception:
-        pass
-    return False
+        else:
+            if mostrar_notif:
+                print(f"  {GREEN}{BOLD}✔ Ya tienes la versión más reciente de Vessel.{RESET}")
+                print(f"  {GRAY}Todos los parches de compatibilidad y rendimiento están al día.{RESET}\n")
+                time.sleep(0.8)
+            return False
+    except Exception as e:
+        print(f"  {YELLOW}⚠️  Aviso: Continuando en modo local ({e})...{RESET}\n")
+        time.sleep(0.8)
+        return False
 
 # ==============================================================================
 # MENÚ PRINCIPAL INTERACTIVO EN PÚRPURA NEÓN (MATCHING IMAGEN DE KONSOLE)
@@ -1355,7 +1450,7 @@ def verificar_actualizacion_automatica_github(mostrar_notif=False):
 
 def main():
     # Comprobar e instalar actualización automática desde GitHub para todos los usuarios
-    verificar_actualizacion_automatica_github()
+    verificar_actualizacion_automatica_github(mostrar_notif=True)
 
     cfg = cargar_config()
     hw = obtener_info_hardware()
