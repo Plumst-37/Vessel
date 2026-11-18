@@ -1569,6 +1569,7 @@ ejecutar_descarga_e_instalacion_automatica() {
             sudo apt-get install -y libnss-resolve:i386 libnss-mdns:i386 libvkd3d1:i386 2>/dev/null || true
             sudo apt-get install -y libasound2-plugins:i386 2>/dev/null || true
             sudo apt-get install -y gstreamer1.0-plugins-base:i386 gstreamer1.0-plugins-good:i386 gstreamer1.0-plugins-ugly:i386 gstreamer1.0-libav:i386 2>/dev/null || true
+            sudo apt-get install -y iw wireless-tools 2>/dev/null || true
             ;;
         ubuntu)
             echo -e "${C_CYAN}  ⚙️ Configurando Ubuntu / Linux Mint / Pop!_OS / Zorin...${C_RESET}"
@@ -1592,6 +1593,7 @@ ejecutar_descarga_e_instalacion_automatica() {
             sudo apt-get install -y libnss-resolve:i386 libnss-mdns:i386 libvkd3d1:i386 2>/dev/null || true
             sudo apt-get install -y libasound2-plugins:i386 2>/dev/null || true
             sudo apt-get install -y gstreamer1.0-plugins-base:i386 gstreamer1.0-plugins-good:i386 gstreamer1.0-plugins-ugly:i386 gstreamer1.0-libav:i386 2>/dev/null || true
+            sudo apt-get install -y iw wireless-tools 2>/dev/null || true
             ;;
         arch)
             echo -e "${C_CYAN}  ⚙️ Configurando Arch Linux / Manjaro / SteamOS...${C_RESET}"
@@ -1613,7 +1615,7 @@ ejecutar_descarga_e_instalacion_automatica() {
                 echo -e "${C_CYAN}  🎮 GPU NVIDIA detectada: Instalando librerías nvidia-utils (32 y 64 bits)...${C_RESET}"
                 sudo pacman -S --needed --noconfirm nvidia-utils lib32-nvidia-utils 2>/dev/null || true
             fi
-            sudo pacman -S --needed --noconfirm lib32-gnutls lib32-glibc lib32-gst-plugins-base lib32-gst-plugins-good lib32-gst-plugins-ugly lib32-gst-libav 2>/dev/null || true
+            sudo pacman -S --needed --noconfirm lib32-gnutls lib32-glibc lib32-gst-plugins-base lib32-gst-plugins-good lib32-gst-plugins-ugly lib32-gst-libav iw wireless_tools 2>/dev/null || true
             ;;
         fedora)
             echo -e "${C_CYAN}  ⚙️ Configurando Fedora / Nobara...${C_RESET}"
@@ -1649,7 +1651,7 @@ ejecutar_descarga_e_instalacion_automatica() {
             sudo dnf install -y pipewire-alsa.i686 alsa-plugins-pulseaudio.i686 openal-soft.i686 2>/dev/null || true
 
             # 7. Librerías de red, SSL/TLS y DNS de 32 bits (Multijugador, GameRanger y HTTPS)
-            sudo dnf install -y gnutls.i686 systemd-libs.i686 nss-mdns.i686 glibc.i686 2>/dev/null || true
+            sudo dnf install -y gnutls.i686 systemd-libs.i686 nss-mdns.i686 glibc.i686 iw wireless-tools 2>/dev/null || true
             ;;
         opensuse)
             echo -e "${C_CYAN}  ⚙️ Configurando openSUSE...${C_RESET}"
@@ -1662,19 +1664,19 @@ ejecutar_descarga_e_instalacion_automatica() {
                 echo -e "${C_CYAN}  🎮 Gráficos Intel detectados: Instalando controladores ANV Vulkan...${C_RESET}"
                 sudo zypper --non-interactive --auto-agree-with-licenses install libvulkan_intel libvulkan_intel-32bit 2>/dev/null || true
             fi
-            sudo zypper --non-interactive --auto-agree-with-licenses install gstreamer-plugins-ugly-32bit gstreamer-plugins-bad-32bit libgnutls30-32bit systemd-32bit 2>/dev/null || sudo zypper --non-interactive --auto-agree-with-licenses install gnutls-32bit 2>/dev/null || true
+            sudo zypper --non-interactive --auto-agree-with-licenses install gstreamer-plugins-ugly-32bit gstreamer-plugins-bad-32bit libgnutls30-32bit systemd-32bit 2>/dev/null || sudo zypper --non-interactive --auto-agree-with-licenses install gnutls-32bit iw wireless-tools 2>/dev/null || true
             ;;
         *)
             echo -e "${C_YELLOW}  ⚠️ Distribución genérica detectada. Verificando comandos estándar...${C_RESET}"
             if command -v apt-get &>/dev/null; then
                 sudo apt-get update -y 2>/dev/null || true
-                sudo apt-get install -y wine winetricks gamemode cabextract curl p7zip-full zenity python3 wmctrl xdotool 2>/dev/null || true
+                sudo apt-get install -y wine winetricks gamemode cabextract curl p7zip-full zenity python3 wmctrl xdotool iw wireless-tools 2>/dev/null || true
             elif command -v pacman &>/dev/null; then
-                sudo pacman -S --needed --noconfirm wine winetricks gamemode cabextract curl p7zip zenity python wmctrl xdotool 2>/dev/null || true
+                sudo pacman -S --needed --noconfirm wine winetricks gamemode cabextract curl p7zip zenity python wmctrl xdotool iw wireless_tools 2>/dev/null || true
             elif command -v dnf &>/dev/null; then
-                sudo dnf install -y --skip-broken wine winetricks gamemode cabextract curl p7zip zenity python3 wmctrl xdotool 2>/dev/null || true
+                sudo dnf install -y --skip-broken wine winetricks gamemode cabextract curl p7zip zenity python3 wmctrl xdotool iw wireless-tools 2>/dev/null || true
             elif command -v zypper &>/dev/null; then
-                sudo zypper --non-interactive --auto-agree-with-licenses install wine winetricks gamemode cabextract curl p7zip zenity python3 wmctrl xdotool 2>/dev/null || true
+                sudo zypper --non-interactive --auto-agree-with-licenses install wine winetricks gamemode cabextract curl p7zip zenity python3 wmctrl xdotool iw wireless-tools 2>/dev/null || true
             fi
             ;;
     esac
@@ -1783,20 +1785,66 @@ EOF
     WINEPREFIX="${DIR}/wineprefix" wine reg add "HKEY_CURRENT_USER\Software\Wine\X11 Driver" /v Decorated /t REG_SZ /d Y /f >/dev/null 2>&1 || true
     WINEPREFIX="${DIR}/wineprefix" wine reg add "HKEY_CURRENT_USER\Software\Wine\X11 Driver" /v Managed /t REG_SZ /d Y /f >/dev/null 2>&1 || true
 
-    # Apertura de firewall para multijugador y GameRanger (Puerto UDP 16000)
-    echo -e "${C_CYAN}  🌐 Configurando Firewall para GameRanger / Multijugador (Puerto UDP 16000)...${C_RESET}"
+    # Desactivar ahorro de energía en Wi-Fi permanentemente en NetworkManager (elimina lag y cortes en multijugador)
+    echo -e "${C_CYAN}  📶 Optimizando estabilidad de Wi-Fi y eliminando cortes en multijugador...${C_RESET}"
+    if [ -d /etc/NetworkManager/conf.d ] || sudo -n true 2>/dev/null || [ "$EUID" -eq 0 ]; then
+        sudo mkdir -p /etc/NetworkManager/conf.d 2>/dev/null || true
+        sudo bash -c 'cat <<EOF > /etc/NetworkManager/conf.d/99-disable-wifi-powersave.conf
+[connection]
+wifi.powersave = 2
+EOF' 2>/dev/null || true
+        if command -v nmcli &>/dev/null; then
+            sudo nmcli general reload conf 2>/dev/null || true
+        fi
+    fi
+    # Desactivación inmediata en la interfaz WiFi activa
+    local wifi_iface
+    wifi_iface=$(ip link 2>/dev/null | grep -oE '\bwl[a-zA-Z0-9]+\b' | head -n 1)
+    if [ -n "$wifi_iface" ]; then
+        sudo iw dev "$wifi_iface" set power_save off 2>/dev/null || true
+    fi
+
+    # Priorizar IPv4 en resolución DNS para compatibilidad total con servidores de juegos clásicos
+    if [ -w /etc/gai.conf ] || sudo -n true 2>/dev/null || [ "$EUID" -eq 0 ]; then
+        if [ -f /etc/gai.conf ]; then
+            if ! grep -q "^precedence ::ffff:0:0/96  100" /etc/gai.conf 2>/dev/null; then
+                sudo sed -i 's/^#precedence ::ffff:0:0\/96  100/precedence ::ffff:0:0\/96  100/' /etc/gai.conf 2>/dev/null || true
+                grep -q "^precedence ::ffff:0:0/96  100" /etc/gai.conf 2>/dev/null || sudo bash -c 'echo "precedence ::ffff:0:0/96  100" >> /etc/gai.conf' 2>/dev/null || true
+            fi
+        else
+            sudo bash -c 'echo "precedence ::ffff:0:0/96  100" > /etc/gai.conf' 2>/dev/null || true
+        fi
+    fi
+
+    # Enlazar resolv.conf a servidores DNS reales de systemd-resolved (corrige 0 servidores DNS en Wine)
+    if [ -f /run/systemd/resolve/resolv.conf ] && [ -L /etc/resolv.conf ]; then
+        if ls -l /etc/resolv.conf 2>/dev/null | grep -q "stub-resolv.conf"; then
+            sudo ln -sf /run/systemd/resolve/resolv.conf /etc/resolv.conf 2>/dev/null || true
+        fi
+    fi
+
+    # Apertura de firewall para multijugador, GameRanger, DirectPlay y servidores de juegos
+    echo -e "${C_CYAN}  🌐 Configurando Firewall para Multijugador (GameRanger, DirectPlay, SWAT 4, GTA SA, Steam)...${C_RESET}"
     if command -v firewall-cmd &>/dev/null && systemctl is-active firewalld &>/dev/null; then
-        sudo firewall-cmd --permanent --add-port=16000/udp 2>/dev/null || true
+        sudo firewall-cmd --permanent --add-port=16000/udp --add-port=2300-2400/udp --add-port=2300-2400/tcp --add-port=47624/tcp --add-port=10480-10483/udp --add-port=7777/udp --add-port=27015-27030/udp 2>/dev/null || true
         sudo firewall-cmd --reload 2>/dev/null || true
     fi
     if command -v ufw &>/dev/null && sudo ufw status 2>/dev/null | grep -qi "active"; then
         sudo ufw allow 16000/udp 2>/dev/null || true
+        sudo ufw allow 2300:2400/udp 2>/dev/null || true
+        sudo ufw allow 2300:2400/tcp 2>/dev/null || true
+        sudo ufw allow 47624/tcp 2>/dev/null || true
+        sudo ufw allow 10480:10483/udp 2>/dev/null || true
+        sudo ufw allow 7777/udp 2>/dev/null || true
+        sudo ufw allow 27015:27030/udp 2>/dev/null || true
     fi
     if command -v iptables &>/dev/null; then
         sudo iptables -C INPUT -p udp --dport 16000 -j ACCEPT 2>/dev/null || sudo iptables -I INPUT -p udp --dport 16000 -j ACCEPT 2>/dev/null || true
+        sudo iptables -C INPUT -p udp --dport 7777 -j ACCEPT 2>/dev/null || sudo iptables -I INPUT -p udp --dport 7777 -j ACCEPT 2>/dev/null || true
+        sudo iptables -C INPUT -p tcp --dport 47624 -j ACCEPT 2>/dev/null || sudo iptables -I INPUT -p tcp --dport 47624 -j ACCEPT 2>/dev/null || true
     fi
 
-    # Resolución infalible de dominios de GameRanger en /etc/hosts (0% fallos de conexión)
+    # Resolución infalible de dominios y servidores maestros multijugador en /etc/hosts
     if [ -w /etc/hosts ] || sudo -n true 2>/dev/null || [ "$EUID" -eq 0 ]; then
         if ! grep -q "connect.gameranger.com" /etc/hosts 2>/dev/null; then
             sudo bash -c 'cat <<EOF >> /etc/hosts
@@ -1806,6 +1854,18 @@ EOF
 67.228.206.97 status.gameranger.com
 67.228.102.62 www.gameranger.com
 67.228.102.62 default.gameranger.com
+
+# Servidores Maestros SWAT 4 (swat4stats)
+116.202.182.15 swat4.ms14.gamespy.com
+116.202.182.15 swat4.available.gamespy.com
+116.202.182.15 swat4.master.gamespy.com
+116.202.182.15 swat4pr.ms14.gamespy.com
+116.202.182.15 swat4pr.available.gamespy.com
+116.202.182.15 swat4pr.master.gamespy.com
+116.202.182.15 master.gamespy.com
+
+# NCSI probe verification (Windows Network Connectivity Status Indicator)
+131.107.255.255 dns.msftncsi.com
 EOF' 2>/dev/null || true
         fi
     fi
@@ -1825,7 +1885,57 @@ EOF' 2>/dev/null || true
     WINEPREFIX="${DIR}/wineprefix" wine reg add "HKEY_CURRENT_USER\Software\Wine\DllOverrides" /v dplayx /t REG_SZ /d "builtin,native" /f >/dev/null 2>&1 || true
     WINEPREFIX="${DIR}/wineprefix" wine reg add "HKEY_CURRENT_USER\Software\Wine\DllOverrides" /v dpnet /t REG_SZ /d "builtin,native" /f >/dev/null 2>&1 || true
     WINEPREFIX="${DIR}/wineprefix" wine reg add "HKEY_CURRENT_USER\Software\Wine\DllOverrides" /v dpwsockx /t REG_SZ /d "builtin,native" /f >/dev/null 2>&1 || true
-    echo -e "${C_GREEN}  ✔ Registro de Wine optimizado (multihilo CSMT, captura 3D, red y perfil GameRanger).${C_RESET}"
+
+    # Configuración universal de red, DNS y sondas NCSI en el registro de Wine (para todos los juegos)
+    WINEPREFIX="${DIR}/wineprefix" wine reg add "HKEY_LOCAL_MACHINE\System\CurrentControlSet\Services\Tcpip\Parameters" /v NameServer /t REG_SZ /d "1.1.1.1,8.8.8.8" /f >/dev/null 2>&1 || true
+    WINEPREFIX="${DIR}/wineprefix" wine reg add "HKEY_LOCAL_MACHINE\System\CurrentControlSet\Services\Tcpip\Parameters" /v DhcpNameServer /t REG_SZ /d "1.1.1.1,8.8.8.8" /f >/dev/null 2>&1 || true
+    WINEPREFIX="${DIR}/wineprefix" wine reg add "HKEY_LOCAL_MACHINE\System\CurrentControlSet\Services\Tcpip\Parameters" /v EnableDHCP /t REG_DWORD /d 1 /f >/dev/null 2>&1 || true
+    WINEPREFIX="${DIR}/wineprefix" wine reg add "HKEY_LOCAL_MACHINE\System\CurrentControlSet\Services\Tcpip\Parameters\Interfaces\Default" /v NameServer /t REG_SZ /d "1.1.1.1,8.8.8.8" /f >/dev/null 2>&1 || true
+    WINEPREFIX="${DIR}/wineprefix" wine reg add "HKEY_LOCAL_MACHINE\System\CurrentControlSet\Services\Tcpip\Parameters\Interfaces\Default" /v DhcpNameServer /t REG_SZ /d "1.1.1.1,8.8.8.8" /f >/dev/null 2>&1 || true
+    WINEPREFIX="${DIR}/wineprefix" wine reg add "HKEY_LOCAL_MACHINE\System\CurrentControlSet\Services\Tcpip\Parameters\Interfaces\Default" /v EnableDHCP /t REG_DWORD /d 1 /f >/dev/null 2>&1 || true
+
+    WINEPREFIX="${DIR}/wineprefix" wine reg add "HKEY_LOCAL_MACHINE\System\CurrentControlSet\Services\NlaSvc\Parameters\Internet" /v EnableActiveProbing /t REG_DWORD /d 1 /f >/dev/null 2>&1 || true
+    WINEPREFIX="${DIR}/wineprefix" wine reg add "HKEY_LOCAL_MACHINE\System\CurrentControlSet\Services\NlaSvc\Parameters\Internet" /v ActiveWebProbeHost /t REG_SZ /d "www.msftncsi.com" /f >/dev/null 2>&1 || true
+    WINEPREFIX="${DIR}/wineprefix" wine reg add "HKEY_LOCAL_MACHINE\System\CurrentControlSet\Services\NlaSvc\Parameters\Internet" /v ActiveWebProbeContent /t REG_SZ /d "Microsoft NCSI" /f >/dev/null 2>&1 || true
+    WINEPREFIX="${DIR}/wineprefix" wine reg add "HKEY_LOCAL_MACHINE\System\CurrentControlSet\Services\NlaSvc\Parameters\Internet" /v ActiveDnsProbeHost /t REG_SZ /d "dns.msftncsi.com" /f >/dev/null 2>&1 || true
+    WINEPREFIX="${DIR}/wineprefix" wine reg add "HKEY_LOCAL_MACHINE\System\CurrentControlSet\Services\NlaSvc\Parameters\Internet" /v ActiveDnsProbeContent /t REG_SZ /d "131.107.255.255" /f >/dev/null 2>&1 || true
+
+    WINEPREFIX="${DIR}/wineprefix" wine reg add "HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Microsoft\Windows\NetworkConnectivityStatusIndicator" /v NoActiveProbe /t REG_DWORD /d 0 /f >/dev/null 2>&1 || true
+    WINEPREFIX="${DIR}/wineprefix" wine reg add "HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Microsoft\Windows\NetworkConnectivityStatusIndicator" /v DisablePassivePolling /t REG_DWORD /d 0 /f >/dev/null 2>&1 || true
+
+    WINEPREFIX="${DIR}/wineprefix" wine reg add "HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Internet Settings" /v GlobalUserOffline /t REG_DWORD /d 0 /f >/dev/null 2>&1 || true
+    WINEPREFIX="${DIR}/wineprefix" wine reg add "HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Internet Settings" /v ProxyEnable /t REG_DWORD /d 0 /f >/dev/null 2>&1 || true
+    WINEPREFIX="${DIR}/wineprefix" wine reg add "HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Internet Settings" /v CertificateRevocation /t REG_DWORD /d 0 /f >/dev/null 2>&1 || true
+
+    # Configurar archivo hosts y networks del prefijo
+    local prefix_etc="${DIR}/wineprefix/drive_c/windows/system32/drivers/etc"
+    mkdir -p "$prefix_etc"
+    cat << 'EOF' > "${prefix_etc}/hosts"
+127.0.0.1 localhost Aspire
+::1 localhost ip6-localhost ip6-loopback
+
+# Servidores Oficiales GameRanger
+51.222.17.7 connect.gameranger.com
+67.228.206.97 status.gameranger.com
+67.228.102.62 www.gameranger.com
+67.228.102.62 default.gameranger.com
+
+# Servidores Maestros SWAT 4 (swat4stats)
+116.202.182.15 swat4.ms14.gamespy.com
+116.202.182.15 swat4.available.gamespy.com
+116.202.182.15 swat4.master.gamespy.com
+116.202.182.15 swat4pr.ms14.gamespy.com
+116.202.182.15 swat4pr.available.gamespy.com
+116.202.182.15 swat4pr.master.gamespy.com
+116.202.182.15 master.gamespy.com
+
+# NCSI probe verification
+131.107.255.255 dns.msftncsi.com
+EOF
+    [ ! -f "${prefix_etc}/networks" ] && echo "default 0.0.0.0" > "${prefix_etc}/networks" 2>/dev/null || true
+    touch "${DIR}/wineprefix/.vessel_net_ok" 2>/dev/null || true
+
+    echo -e "${C_GREEN}  ✔ Registro de Wine optimizado (multihilo CSMT, captura 3D, red universal y perfil GameRanger).${C_RESET}"
 
     # Verificación e instalación de GameRanger predeterminado
     local gr_found=$(find "${DIR}/wineprefix/drive_c" -name "GameRanger.exe" 2>/dev/null | head -n 1)

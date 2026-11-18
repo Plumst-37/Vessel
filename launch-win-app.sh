@@ -169,6 +169,101 @@ fi
 TARGET_DIR="$(cd "$(dirname "$TARGET")" && pwd)"
 TARGET_FILE="$(basename "$TARGET")"
 
+# ==============================================================================
+# OPTIMIZACIÓN UNIVERSAL DE RED, WIFI Y MULTIJUGADOR PARA WINE
+# - Permite a todos los programas y juegos conectarse a Internet y servidores online
+# - Desactiva el ahorro de energía en adaptadores WiFi para evitar caídas de paquetes
+# - Habilita rangos de ping ICMP y sockets no privilegiados en el Kernel
+# - Configura resolución DNS y servidores maestros comunitarios en hosts
+# - Configura sondas NCSI en el registro para que Windows detecte 100% de conectividad
+# - Abre puertos de firewall para GameRanger (16000), DirectPlay (2300-2400, 47624) y juegos
+# ==============================================================================
+optimizar_red_y_wifi() {
+    # 1. Privilegios de sockets y ping ICMP en el Kernel para Wine
+    sysctl -w net.ipv4.ping_group_range="0 2147483647" 2>/dev/null || true
+    sysctl -w net.ipv4.ip_unprivileged_port_start=0 2>/dev/null || true
+
+    # 2. Desactivar ahorro de energía en interfaz WiFi para eliminar latencia y cortes
+    local wifi_iface
+    wifi_iface=$(ip link 2>/dev/null | grep -oE '\bwl[a-zA-Z0-9]+\b' | head -n 1)
+    if [ -n "$wifi_iface" ]; then
+        iw dev "$wifi_iface" set power_save off 2>/dev/null || true
+        sudo -n iw dev "$wifi_iface" set power_save off 2>/dev/null || true
+    fi
+
+    # 3. Asegurar archivo hosts y resolución de servidores en el prefijo
+    local etc_dir="${WINEPREFIX}/drive_c/windows/system32/drivers/etc"
+    mkdir -p "$etc_dir"
+    if [ ! -f "${etc_dir}/hosts" ] || ! grep -q "swat4stats" "${etc_dir}/hosts" 2>/dev/null; then
+        cat << 'EOF' > "${etc_dir}/hosts"
+127.0.0.1 localhost Aspire
+::1 localhost ip6-localhost ip6-loopback
+
+# Servidores Oficiales GameRanger
+51.222.17.7 connect.gameranger.com
+67.228.206.97 status.gameranger.com
+67.228.102.62 www.gameranger.com
+67.228.102.62 default.gameranger.com
+
+# Servidores Maestros SWAT 4 (swat4stats)
+116.202.182.15 swat4.ms14.gamespy.com
+116.202.182.15 swat4.available.gamespy.com
+116.202.182.15 swat4.master.gamespy.com
+116.202.182.15 swat4pr.ms14.gamespy.com
+116.202.182.15 swat4pr.available.gamespy.com
+116.202.182.15 swat4pr.master.gamespy.com
+116.202.182.15 master.gamespy.com
+
+# NCSI probe verification
+131.107.255.255 dns.msftncsi.com
+EOF
+    fi
+
+    # 4. Asegurar parámetros de red e Internet (NCSI / NLA / DNS) en el registro de Wine
+    if [ ! -f "${WINEPREFIX}/.vessel_net_ok" ]; then
+        wine reg add "HKEY_LOCAL_MACHINE\System\CurrentControlSet\Services\Tcpip\Parameters" /v NameServer /t REG_SZ /d "1.1.1.1,8.8.8.8" /f >/dev/null 2>&1 || true
+        wine reg add "HKEY_LOCAL_MACHINE\System\CurrentControlSet\Services\Tcpip\Parameters" /v DhcpNameServer /t REG_SZ /d "1.1.1.1,8.8.8.8" /f >/dev/null 2>&1 || true
+        wine reg add "HKEY_LOCAL_MACHINE\System\CurrentControlSet\Services\Tcpip\Parameters" /v EnableDHCP /t REG_DWORD /d 1 /f >/dev/null 2>&1 || true
+        wine reg add "HKEY_LOCAL_MACHINE\System\CurrentControlSet\Services\Tcpip\Parameters\Interfaces\Default" /v NameServer /t REG_SZ /d "1.1.1.1,8.8.8.8" /f >/dev/null 2>&1 || true
+        wine reg add "HKEY_LOCAL_MACHINE\System\CurrentControlSet\Services\Tcpip\Parameters\Interfaces\Default" /v DhcpNameServer /t REG_SZ /d "1.1.1.1,8.8.8.8" /f >/dev/null 2>&1 || true
+        wine reg add "HKEY_LOCAL_MACHINE\System\CurrentControlSet\Services\Tcpip\Parameters\Interfaces\Default" /v EnableDHCP /t REG_DWORD /d 1 /f >/dev/null 2>&1 || true
+
+        # Sondas NCSI (Windows Network Connectivity Status Indicator) para que todos los juegos y launchers detecten conexión activa a Internet
+        wine reg add "HKEY_LOCAL_MACHINE\System\CurrentControlSet\Services\NlaSvc\Parameters\Internet" /v EnableActiveProbing /t REG_DWORD /d 1 /f >/dev/null 2>&1 || true
+        wine reg add "HKEY_LOCAL_MACHINE\System\CurrentControlSet\Services\NlaSvc\Parameters\Internet" /v ActiveWebProbeHost /t REG_SZ /d "www.msftncsi.com" /f >/dev/null 2>&1 || true
+        wine reg add "HKEY_LOCAL_MACHINE\System\CurrentControlSet\Services\NlaSvc\Parameters\Internet" /v ActiveWebProbeContent /t REG_SZ /d "Microsoft NCSI" /f >/dev/null 2>&1 || true
+        wine reg add "HKEY_LOCAL_MACHINE\System\CurrentControlSet\Services\NlaSvc\Parameters\Internet" /v ActiveDnsProbeHost /t REG_SZ /d "dns.msftncsi.com" /f >/dev/null 2>&1 || true
+        wine reg add "HKEY_LOCAL_MACHINE\System\CurrentControlSet\Services\NlaSvc\Parameters\Internet" /v ActiveDnsProbeContent /t REG_SZ /d "131.107.255.255" /f >/dev/null 2>&1 || true
+
+        wine reg add "HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Microsoft\Windows\NetworkConnectivityStatusIndicator" /v NoActiveProbe /t REG_DWORD /d 0 /f >/dev/null 2>&1 || true
+        wine reg add "HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Microsoft\Windows\NetworkConnectivityStatusIndicator" /v DisablePassivePolling /t REG_DWORD /d 0 /f >/dev/null 2>&1 || true
+
+        wine reg add "HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Internet Settings" /v GlobalUserOffline /t REG_DWORD /d 0 /f >/dev/null 2>&1 || true
+        wine reg add "HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Internet Settings" /v ProxyEnable /t REG_DWORD /d 0 /f >/dev/null 2>&1 || true
+        wine reg add "HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Internet Settings" /v CertificateRevocation /t REG_DWORD /d 0 /f >/dev/null 2>&1 || true
+
+        touch "${WINEPREFIX}/.vessel_net_ok" 2>/dev/null || true
+    fi
+
+    # 5. Apertura de puertos Firewall para Multiplayer y GameRanger
+    if command -v firewall-cmd &>/dev/null && systemctl is-active firewalld &>/dev/null; then
+        sudo -n firewall-cmd --permanent --add-port=16000/udp --add-port=2300-2400/udp --add-port=2300-2400/tcp --add-port=47624/tcp --add-port=10480-10483/udp --add-port=7777/udp 2>/dev/null || true
+        sudo -n firewall-cmd --reload 2>/dev/null || true
+    fi
+    if command -v ufw &>/dev/null && sudo -n ufw status 2>/dev/null | grep -qi "active"; then
+        sudo -n ufw allow 16000/udp 2>/dev/null || true
+        sudo -n ufw allow 2300:2400/udp 2>/dev/null || true
+        sudo -n ufw allow 2300:2400/tcp 2>/dev/null || true
+        sudo -n ufw allow 47624/tcp 2>/dev/null || true
+        sudo -n ufw allow 10480:10483/udp 2>/dev/null || true
+        sudo -n ufw allow 7777/udp 2>/dev/null || true
+    fi
+}
+optimizar_red_y_wifi
+
+# Overrides universales de red, sockets, SSL/TLS, DirectPlay y librerías base
+export WINEDLLOVERRIDES="winemenubuilder.exe=d;dnsapi=n,b;dplayx=n,b;dpnet=n,b;dpwsockx=n,b;ws2_32=b;wininet=b;iphlpapi=b;secur32=b;winhttp=b;${WINEDLLOVERRIDES}"
+
 # 11.1 Configuración específica para el cliente de lobby GameRanger
 EXTRA_APP_ARGS=""
 if [[ "$TARGET_FILE" =~ [Gg]ame[Rr]anger ]]; then
@@ -177,7 +272,7 @@ if [[ "$TARGET_FILE" =~ [Gg]ame[Rr]anger ]]; then
     # Desactivamos DXVK para GameRanger y usamos WineD3D nativo, eliminando cualquier cuelgue de UI.
     export RENDERER_IN_USE="WineD3D (Lobby Compatibilidad)"
     export PROTON_USE_WINED3D=1
-    export WINEDLLOVERRIDES="winemenubuilder.exe=d;dxgi=b;d3d11=b;d3d10core=b;d3d9=b;dnsapi=n,b;dplayx=n,b;dpnet=n,b;dpwsockx=n,b;riched20=n,b;riched32=n,b;ws2_32=b;wininet=b;iphlpapi=b;secur32=b"
+    export WINEDLLOVERRIDES="winemenubuilder.exe=d;dxgi=b;d3d11=b;d3d10core=b;d3d9=b;dnsapi=n,b;dplayx=n,b;dpnet=n,b;dpwsockx=n,b;riched20=n,b;riched32=n,b;ws2_32=b;wininet=b;iphlpapi=b;secur32=b;winhttp=b"
     unset DXVK_CONFIG_FILE
     unset DXVK_STATE_CACHE_PATH
     unset DXVK_ASYNC
@@ -186,19 +281,6 @@ if [[ "$TARGET_FILE" =~ [Gg]ame[Rr]anger ]]; then
     # Forzar modo Windows 7 y renderer GL en registro Wine AppDefaults para GameRanger
     wine reg add "HKEY_CURRENT_USER\Software\Wine\AppDefaults\GameRanger.exe" /v "Version" /t REG_SZ /d "win7" /f >/dev/null 2>&1 || true
     wine reg add "HKEY_CURRENT_USER\Software\Wine\AppDefaults\GameRanger.exe\Direct3D" /v "renderer" /t REG_SZ /d "gl" /f >/dev/null 2>&1 || true
-
-    # Asegurar privilegios de red para multijugador y ping ICMP en GameRanger
-    sysctl -w net.ipv4.ping_group_range="0 2147483647" 2>/dev/null || true
-    sysctl -w net.ipv4.ip_unprivileged_port_start=0 2>/dev/null || true
-
-    # Apertura de firewall para el puerto UDP 16000 de GameRanger (matchmaking y lista de partidas)
-    if command -v firewall-cmd &>/dev/null && systemctl is-active firewalld &>/dev/null; then
-        sudo firewall-cmd --permanent --add-port=16000/udp 2>/dev/null || true
-        sudo firewall-cmd --reload 2>/dev/null || true
-    fi
-    if command -v ufw &>/dev/null; then
-        sudo ufw allow 16000/udp 2>/dev/null || true
-    fi
 
     # Argumentos críticos para Chromium CEF: eliminan pantalla negra y fuerzan renderizado fluido por software en CPU
     EXTRA_APP_ARGS="--disable-gpu --disable-gpu-compositing --in-process-gpu --no-sandbox"
@@ -388,7 +470,7 @@ EOF
             sed -i 's/^-FrameQueueLimit 0/-FrameQueueLimit 1/' "$gta_cmdline" 2>/dev/null || true
             sed -i '/^-hdr/d' "$gta_cmdline" 2>/dev/null || true
             grep -q '^-StraightIntoFreemode' "$gta_cmdline" || echo "-StraightIntoFreemode" >> "$gta_cmdline"
-            grep -q '^-scOfflineOnly' "$gta_cmdline" || echo "-scOfflineOnly" >> "$gta_cmdline"
+            sed -i '/^-scOfflineOnly/d' "$gta_cmdline" 2>/dev/null || true
             grep -q '^-novsync' "$gta_cmdline" || echo "-novsync" >> "$gta_cmdline"
             grep -q '^-fullscreen' "$gta_cmdline" || echo "-fullscreen" >> "$gta_cmdline"
             grep -q '^-width' "$gta_cmdline" || echo "-width ${best_w}" >> "$gta_cmdline"
