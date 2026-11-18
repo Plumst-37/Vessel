@@ -329,10 +329,90 @@ pausar() {
 }
 
 # ==============================================================================
+# DESPLIEGUE Y PREINSTALACIÓN AUTOMÁTICA DE GAMERANGER PORTABLE
+# ==============================================================================
+desplegar_gameranger_portable() {
+    local src_gr="${DIR}/GameRanger"
+    [ ! -d "$src_gr" ] && return 0
+
+    # 1. Asegurar programas.db con GameRanger portable en opción 1
+    mkdir -p "$(dirname "$DB_FILE")"
+    if [ ! -s "$DB_FILE" ] || ! grep -qi "gameranger" "$DB_FILE" 2>/dev/null; then
+        if [ -s "$DB_FILE" ]; then
+            sed -i '1i GameRanger|GameRanger.exe|compartido' "$DB_FILE" 2>/dev/null || echo "GameRanger|GameRanger.exe|compartido" >> "$DB_FILE"
+        else
+            echo "GameRanger|GameRanger.exe|compartido" > "$DB_FILE"
+        fi
+        cp -f "$DB_FILE" "${DB_FILE}.bak" 2>/dev/null || true
+    else
+        sed -i 's/^GameRanger|.*|/GameRanger|GameRanger.exe|/' "$DB_FILE" 2>/dev/null || true
+    fi
+
+    # 2. Desplegar en Program Files
+    local prog_files="${DIR}/wineprefix/drive_c/Program Files/GameRanger"
+    mkdir -p "$prog_files"
+    if [ ! -f "$prog_files/GameRanger.exe" ]; then
+        cp -rf "$src_gr"/* "$prog_files/" 2>/dev/null || true
+    fi
+
+    # 3. Desplegar en perfiles de usuario Wine AppData/Roaming
+    local users_dir="${DIR}/wineprefix/drive_c/users"
+    if [ -d "$users_dir" ]; then
+        for u in "$users_dir"/*; do
+            local u_base
+            u_base=$(basename "$u")
+            if [ -d "$u" ] && [ "$u_base" != "Public" ]; then
+                local u_roaming="$u/AppData/Roaming/GameRanger/GameRanger"
+                local u_prefs="$u/AppData/Roaming/GameRanger/GameRanger Prefs"
+                mkdir -p "$u_roaming" "$u_prefs"
+                if [ ! -f "$u_roaming/GameRanger.exe" ]; then
+                    cp -rf "$src_gr"/* "$u_roaming/" 2>/dev/null || true
+                fi
+                if [ -d "${DIR}/.gameranger_prefs_backup" ] && [ ! -f "$u_prefs/Settings" ]; then
+                    cp -rf "${DIR}/.gameranger_prefs_backup"/* "$u_prefs/" 2>/dev/null || true
+                fi
+            fi
+        done
+    fi
+
+    # 4. Accesos directos escritorio y aplicaciones
+    local target_user="${SUDO_USER:-$USER}"
+    local target_home
+    target_home=$(eval echo "~$target_user")
+    mkdir -p "$target_home/.local/share/applications"
+    if [ ! -f "$target_home/.local/share/applications/gameranger.desktop" ]; then
+        cat <<EOF > "$target_home/.local/share/applications/gameranger.desktop"
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=GameRanger
+Comment=Juega con tus amigos en línea
+Exec=bash "${DIR}/launch-win-app.sh" "GameRanger.exe"
+Icon=wine
+Terminal=false
+Categories=Game;Network;
+StartupNotify=true
+EOF
+        chown "$target_user:$target_user" "$target_home/.local/share/applications/gameranger.desktop" 2>/dev/null || true
+        chmod +x "$target_home/.local/share/applications/gameranger.desktop" 2>/dev/null || true
+    fi
+
+    local desk_dir="$target_home/Escritorio"
+    [ ! -d "$desk_dir" ] && desk_dir="$target_home/Desktop"
+    if [ -d "$desk_dir" ] && [ ! -f "${desk_dir}/GameRanger.desktop" ]; then
+        cp -f "$target_home/.local/share/applications/gameranger.desktop" "${desk_dir}/GameRanger.desktop" 2>/dev/null || true
+        chown "$target_user:$target_user" "${desk_dir}/GameRanger.desktop" 2>/dev/null || true
+        chmod +x "${desk_dir}/GameRanger.desktop" 2>/dev/null || true
+        gio set "${desk_dir}/GameRanger.desktop" metadata::trusted true 2>/dev/null || true
+    fi
+}
+
+# ==============================================================================
 # 1) INICIAR PROGRAMA
 # ==============================================================================
 iniciar_programa() {
-    # Asegurar que GameRanger portable esté siempre registrado como opción #1
+    # Desplegar y asegurar GameRanger portable listo en opción #1
+    desplegar_gameranger_portable
     local db_user="${DIR}/programas_usuario.db"
     if [ ! -s "$DB_FILE" ] || ! grep -qi "gameranger" "$DB_FILE" 2>/dev/null; then
         mkdir -p "$(dirname "$DB_FILE")"
@@ -2283,6 +2363,9 @@ if [ "${BASH_SOURCE[0]}" = "$0" ]; then
 
     # 2. Comprobar configuración inicial de la distribución Linux
     comprobar_configuracion_inicial_distro
+
+    # 3. Preinstalar e integrar GameRanger portable listo en opción 1
+    desplegar_gameranger_portable
 
     sel_idx=1
     while true; do

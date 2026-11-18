@@ -6,6 +6,7 @@ wine-tkg-build/
 
 # Base de datos personal de juegos del usuario (no se sobreescribe al actualizar)
 programas_usuario.db
+.gameranger_prefs_backup/
 
 # Carpeta de exportación limpia para GitHub
 Subir Github/

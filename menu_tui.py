@@ -422,9 +422,101 @@ def asegurar_gameranger_en_db():
         except Exception:
             pass
 
+def desplegar_gameranger_portable(mostrar_notif=False):
+    """Instala y despliega GameRanger portable en la PC en el primer inicio para que esté 100% listo."""
+    src_gr = os.path.join(DIR, "GameRanger")
+    if not os.path.exists(src_gr):
+        return
+
+    # 1. Asegurar programas.db con GameRanger listo en opción 1
+    asegurar_gameranger_en_db()
+
+    # 2. Desplegar archivos portables en Program Files
+    prog_files = os.path.join(WINEPREFIX, "drive_c", "Program Files", "GameRanger")
+    os.makedirs(prog_files, exist_ok=True)
+    if not os.path.exists(os.path.join(prog_files, "GameRanger.exe")):
+        try:
+            shutil.copytree(src_gr, prog_files, dirs_exist_ok=True)
+        except Exception:
+            pass
+
+    # 3. Desplegar en AppData/Roaming para todos los perfiles de usuario en Wine
+    users_dir = os.path.join(WINEPREFIX, "drive_c", "users")
+    if os.path.exists(users_dir):
+        for u in os.listdir(users_dir):
+            if u.lower() != "public":
+                u_roaming = os.path.join(users_dir, u, "AppData", "Roaming", "GameRanger", "GameRanger")
+                u_prefs = os.path.join(users_dir, u, "AppData", "Roaming", "GameRanger", "GameRanger Prefs")
+                os.makedirs(u_roaming, exist_ok=True)
+                os.makedirs(u_prefs, exist_ok=True)
+                if not os.path.exists(os.path.join(u_roaming, "GameRanger.exe")):
+                    try:
+                        shutil.copytree(src_gr, u_roaming, dirs_exist_ok=True)
+                    except Exception:
+                        pass
+                # Restaurar backup de sesión si existe
+                bak_dir = os.path.join(DIR, ".gameranger_prefs_backup")
+                if os.path.exists(bak_dir) and not os.path.exists(os.path.join(u_prefs, "Settings")):
+                    try:
+                        shutil.copytree(bak_dir, u_prefs, dirs_exist_ok=True)
+                    except Exception:
+                        pass
+
+    # 4. Crear acceso directo en el escritorio si no existe
+    d_dir = os.path.expanduser("~/Escritorio")
+    if not os.path.exists(d_dir):
+        d_dir = os.path.expanduser("~/Desktop")
+    if os.path.exists(d_dir):
+        desk_file = os.path.join(d_dir, "GameRanger.desktop")
+        if not os.path.exists(desk_file):
+            content = f"""[Desktop Entry]
+Version=1.0
+Type=Application
+Name=GameRanger
+Comment=Juega con tus amigos en línea
+Exec=bash "{LAUNCHER}" "GameRanger.exe"
+Icon=wine
+Terminal=false
+Categories=Game;Network;
+StartupNotify=true
+"""
+            try:
+                with open(desk_file, "w", encoding="utf-8") as df:
+                    df.write(content)
+                os.chmod(desk_file, 0o755)
+                subprocess.run(f"gio set '{desk_file}' metadata::trusted true", shell=True, stderr=subprocess.DEVNULL)
+            except Exception:
+                pass
+
+    # 5. Crear acceso directo en el menú de aplicaciones del sistema
+    app_dir = os.path.expanduser("~/.local/share/applications")
+    os.makedirs(app_dir, exist_ok=True)
+    app_file = os.path.join(app_dir, "gameranger.desktop")
+    if not os.path.exists(app_file):
+        content = f"""[Desktop Entry]
+Version=1.0
+Type=Application
+Name=GameRanger
+Comment=Juega con tus amigos en línea
+Exec=bash "{LAUNCHER}" "GameRanger.exe"
+Icon=wine
+Terminal=false
+Categories=Game;Network;
+StartupNotify=true
+"""
+        try:
+            with open(app_file, "w", encoding="utf-8") as af:
+                af.write(content)
+            os.chmod(app_file, 0o755)
+        except Exception:
+            pass
+
+    if mostrar_notif:
+        print(f"\n{GREEN}✔ GameRanger portable preinstalado e integrado en tu PC con éxito.{RESET}")
+
 def cargar_lista_programas():
     """Carga y unifica la lista de juegos y programas de DB_FILE, DB_USER y .bak."""
-    asegurar_gameranger_en_db()
+    desplegar_gameranger_portable()
     programas = []
     vistos = set()
 
@@ -1176,6 +1268,9 @@ def comprobar_primer_inicio(hw, cfg):
 
         menu_actualizar(hw, cfg, es_primer_inicio=True)
 
+        # Preinstalar y dejar GameRanger portable listo en la PC desde el primer inicio
+        desplegar_gameranger_portable(mostrar_notif=True)
+
 # ==============================================================================
 # MENÚ PRINCIPAL INTERACTIVO EN PÚRPURA NEÓN (MATCHING IMAGEN DE KONSOLE)
 # ==============================================================================
@@ -1193,8 +1288,8 @@ def main():
     # Comprobar si el usuario entra por primera vez (version.txt vacío)
     comprobar_primer_inicio(hw, cfg)
 
-    # Asegurar que GameRanger portable esté registrado y listo en opción 1
-    asegurar_gameranger_en_db()
+    # Preinstalar e integrar GameRanger portable listo en opción 1
+    desplegar_gameranger_portable()
 
     # Selección en 2 columnas: 1 a 6
     # 1: Iniciar, 2: Configurar
