@@ -64,10 +64,17 @@ if [[ "$TARGET" =~ [Gg]ame[Rr]anger ]] || [ ! -f "$TARGET" ]; then
             FOUND_GR="${GR_ROAMING}/GameRanger.exe"
         fi
 
-        # Restaurar preferencias y sesión guardada del usuario si existen
-        if [ ! -s "${GR_PREFS}/Settings" ] && [ -d "${DIR}/.gameranger_prefs_backup" ]; then
+        # Restaurar preferencias y sesión guardada del usuario en cualquier perfil existente
+        if [ -d "${DIR}/.gameranger_prefs_backup" ]; then
             mkdir -p "$GR_PREFS"
-            cp -ru "${DIR}/.gameranger_prefs_backup"/* "$GR_PREFS/" 2>/dev/null || true
+            [ ! -s "${GR_PREFS}/Settings" ] && cp -ru "${DIR}/.gameranger_prefs_backup"/* "$GR_PREFS/" 2>/dev/null || true
+            for u_dir in "${WINEPREFIX}/drive_c/users"/*; do
+                if [ -d "$u_dir" ] && [ "$(basename "$u_dir")" != "Public" ]; then
+                    u_prefs="${u_dir}/AppData/Roaming/GameRanger/GameRanger Prefs"
+                    mkdir -p "$u_prefs"
+                    [ ! -s "${u_prefs}/Settings" ] && cp -ru "${DIR}/.gameranger_prefs_backup"/* "$u_prefs/" 2>/dev/null || true
+                fi
+            done
         fi
 
         if [ -n "$FOUND_GR" ] && [ -f "$FOUND_GR" ]; then
@@ -258,6 +265,7 @@ EOF
 
     # 5. Apertura de puertos Firewall para Multiplayer y GameRanger
     if command -v firewall-cmd &>/dev/null && systemctl is-active firewalld &>/dev/null; then
+        sudo -n firewall-cmd --add-port=16000/udp --add-port=2300-2400/udp --add-port=2300-2400/tcp --add-port=47624/tcp --add-port=10480-10483/udp --add-port=7777/udp 2>/dev/null || true
         sudo -n firewall-cmd --permanent --add-port=16000/udp --add-port=2300-2400/udp --add-port=2300-2400/tcp --add-port=47624/tcp --add-port=10480-10483/udp --add-port=7777/udp 2>/dev/null || true
         sudo -n firewall-cmd --reload 2>/dev/null || true
     fi
@@ -273,7 +281,7 @@ EOF
 optimizar_red_y_wifi
 
 # Overrides universales de red, sockets, SSL/TLS, DirectPlay y librerías base
-export WINEDLLOVERRIDES="winemenubuilder.exe=d;dnsapi=n,b;dplayx=n,b;dpnet=n,b;dpwsockx=n,b;ws2_32=b;wininet=b;iphlpapi=b;secur32=b;winhttp=b;${WINEDLLOVERRIDES}"
+export WINEDLLOVERRIDES="winemenubuilder.exe=d;dnsapi=b;dplayx=n,b;dpnet=n,b;dpwsockx=n,b;ws2_32=b;wininet=b;iphlpapi=b;secur32=b;winhttp=b;${WINEDLLOVERRIDES}"
 
 # 11.1 Configuración específica para el cliente de lobby GameRanger
 EXTRA_APP_ARGS=""
@@ -283,7 +291,7 @@ if [[ "$TARGET_FILE" =~ [Gg]ame[Rr]anger ]]; then
     # Desactivamos DXVK para GameRanger y usamos WineD3D nativo, eliminando cualquier cuelgue de UI.
     export RENDERER_IN_USE="WineD3D (Lobby Compatibilidad)"
     export PROTON_USE_WINED3D=1
-    export WINEDLLOVERRIDES="winemenubuilder.exe=d;dxgi=b;d3d11=b;d3d10core=b;d3d9=b;dnsapi=n,b;dplayx=n,b;dpnet=n,b;dpwsockx=n,b;riched20=n,b;riched32=n,b;ws2_32=b;wininet=b;iphlpapi=b;secur32=b;winhttp=b"
+    export WINEDLLOVERRIDES="winemenubuilder.exe=d;dxgi=b;d3d11=b;d3d10core=b;d3d9=b;dnsapi=b;dplayx=n,b;dpnet=n,b;dpwsockx=n,b;riched20=n,b;riched32=n,b;ws2_32=b;wininet=b;iphlpapi=b;secur32=b;winhttp=b"
     unset DXVK_CONFIG_FILE
     unset DXVK_STATE_CACHE_PATH
     unset DXVK_ASYNC
@@ -297,7 +305,7 @@ if [[ "$TARGET_FILE" =~ [Gg]ame[Rr]anger ]]; then
     wine reg add "HKEY_CURRENT_USER\Software\Wine\AppDefaults\GameRanger.exe\Direct3D" /v "renderer" /t REG_SZ /d "gl" /f >/dev/null 2>&1 || true
 
     # Argumentos críticos para Chromium CEF: eliminan pantalla negra y silencian logs internos
-    EXTRA_APP_ARGS="--disable-gpu --disable-gpu-compositing --in-process-gpu --no-sandbox --log-severity=disable --silent"
+    EXTRA_APP_ARGS="--disable-gpu --disable-gpu-compositing --in-process-gpu --no-sandbox --disable-dev-shm-usage --log-severity=disable --silent"
 fi
 
 # Moverse al directorio donde reside el juego (vital para rutas relativas y DLLs)
@@ -665,16 +673,58 @@ if [[ ! "$TARGET_FILE" =~ ([Gg]ame[Rr]anger|winecfg|regedit|cmd|notepad) ]]; the
     WATCHDOG_PID=$!
 fi
 
+# Guardián inteligente en segundo plano para GameRanger (eleva y enfoca ventanas automáticamente)
+GR_WATCHDOG_PID=""
+if [[ "$TARGET_FILE" =~ [Gg]ame[Rr]anger ]]; then
+    (
+        for i in $(seq 1 60); do
+            sleep 1
+            if command -v wmctrl &>/dev/null; then
+                wmctrl -l 2>/dev/null | grep -iE 'GameRanger|Friends' | while read -r wid dtop host wtitle; do
+                    wmctrl -i -r "$wid" -b remove,hidden,remove,shaded 2>/dev/null || true
+                    wmctrl -i -a "$wid" 2>/dev/null || true
+                done
+            elif command -v xdotool &>/dev/null; then
+                for gr_w in $(xdotool search --name "GameRanger" 2>/dev/null); do
+                    xdotool windowmap "$gr_w" 2>/dev/null || true
+                    xdotool windowraise "$gr_w" 2>/dev/null || true
+                    xdotool windowactivate "$gr_w" 2>/dev/null || true
+                done
+                for fr_w in $(xdotool search --name "Friends" 2>/dev/null); do
+                    xdotool windowmap "$fr_w" 2>/dev/null || true
+                    xdotool windowraise "$fr_w" 2>/dev/null || true
+                done
+            fi
+
+            # Auto-respaldo dinámico de la sesión en cuanto el usuario inicie sesión
+            for u_dir in "${WINEPREFIX}/drive_c/users"/*; do
+                if [ -d "$u_dir" ] && [ "$(basename "$u_dir")" != "Public" ]; then
+                    u_s="${u_dir}/AppData/Roaming/GameRanger/GameRanger Prefs/Settings"
+                    if [ -s "$u_s" ]; then
+                        mkdir -p "${DIR}/.gameranger_prefs_backup"
+                        cp -ru "${u_dir}/AppData/Roaming/GameRanger/GameRanger Prefs"/* "${DIR}/.gameranger_prefs_backup/" 2>/dev/null || true
+                    fi
+                fi
+            done
+        done
+    ) &
+    GR_WATCHDOG_PID=$!
+fi
+
 # Función para limpiar procesos en caso de interrupción del usuario (Ctrl+C o terminal cerrada)
 limpiar_procesos_al_interrumpir() {
     [ -n "$WATCHDOG_PID" ] && kill "$WATCHDOG_PID" 2>/dev/null || true
+    [ -n "$GR_WATCHDOG_PID" ] && kill "$GR_WATCHDOG_PID" 2>/dev/null || true
     if [[ "$TARGET_FILE" =~ [Gg]ame[Rr]anger ]]; then
-        GR_TARGET_USER="${SUDO_USER:-$USER}"
-        GR_PREFS="${WINEPREFIX}/drive_c/users/${GR_TARGET_USER}/AppData/Roaming/GameRanger/GameRanger Prefs"
-        if [ -d "$GR_PREFS" ] && [ -s "${GR_PREFS}/Settings" ]; then
-            mkdir -p "${DIR}/.gameranger_prefs_backup"
-            cp -ru "$GR_PREFS"/* "${DIR}/.gameranger_prefs_backup/" 2>/dev/null || true
-        fi
+        for u_dir in "${WINEPREFIX}/drive_c/users"/*; do
+            if [ -d "$u_dir" ] && [ "$(basename "$u_dir")" != "Public" ]; then
+                u_prefs="${u_dir}/AppData/Roaming/GameRanger/GameRanger Prefs"
+                if [ -d "$u_prefs" ] && [ -s "${u_prefs}/Settings" ]; then
+                    mkdir -p "${DIR}/.gameranger_prefs_backup"
+                    cp -ru "$u_prefs"/* "${DIR}/.gameranger_prefs_backup/" 2>/dev/null || true
+                fi
+            fi
+        done
     fi
     wineserver -k 2>/dev/null || true
 }
@@ -704,17 +754,21 @@ else
 fi
 EXIT_STATUS=$?
 
-# Terminar vigilante de pantalla completa si sigue activo
+# Terminar vigilantes en segundo plano si siguen activos
 [ -n "$WATCHDOG_PID" ] && kill "$WATCHDOG_PID" 2>/dev/null || true
+[ -n "$GR_WATCHDOG_PID" ] && kill "$GR_WATCHDOG_PID" 2>/dev/null || true
 
 # Respaldar sesión de GameRanger para asegurar persistencia permanente
 if [[ "$TARGET_FILE" =~ [Gg]ame[Rr]anger ]]; then
-    GR_TARGET_USER="${SUDO_USER:-$USER}"
-    GR_PREFS="${WINEPREFIX}/drive_c/users/${GR_TARGET_USER}/AppData/Roaming/GameRanger/GameRanger Prefs"
-    if [ -d "$GR_PREFS" ] && [ -s "${GR_PREFS}/Settings" ]; then
-        mkdir -p "${DIR}/.gameranger_prefs_backup"
-        cp -ru "$GR_PREFS"/* "${DIR}/.gameranger_prefs_backup/" 2>/dev/null || true
-    fi
+    for u_dir in "${WINEPREFIX}/drive_c/users"/*; do
+        if [ -d "$u_dir" ] && [ "$(basename "$u_dir")" != "Public" ]; then
+            u_prefs="${u_dir}/AppData/Roaming/GameRanger/GameRanger Prefs"
+            if [ -d "$u_prefs" ] && [ -s "${u_prefs}/Settings" ]; then
+                mkdir -p "${DIR}/.gameranger_prefs_backup"
+                cp -ru "$u_prefs"/* "${DIR}/.gameranger_prefs_backup/" 2>/dev/null || true
+            fi
+        fi
+    done
 fi
 
 # Esperar sincronización limpia de los subprocesos de Wine sin matarlos abruptamente

@@ -304,6 +304,9 @@ case "$DISTRO_DETECTED" in
             sudo dnf install -y intel-media-driver 2>/dev/null || true
         elif lspci 2>/dev/null | grep -qi "nvidia"; then
             echo -e "${C_CYAN}  🎮 GPU NVIDIA detectada: Asegurando librerías 32 bits (RPM Fusion)...${C_RESET}"
+            if ! rpm -q rpmfusion-nonfree-release &>/dev/null; then
+                sudo dnf install -y "https://mirrors.rpmfusion.org/nonfree/fedora/rpmfusion-nonfree-release-$(rpm -E %fedora).noarch.rpm" 2>/dev/null || true
+            fi
             sudo dnf install -y xorg-x11-drv-nvidia-libs.i686 2>/dev/null || true
         fi
 
@@ -313,7 +316,15 @@ case "$DISTRO_DETECTED" in
         sudo dnf install -y pipewire-alsa.i686 alsa-plugins-pulseaudio.i686 openal-soft.i686 2>/dev/null || true
 
         # 7. Librerías de red, SSL/TLS y DNS de 32 bits (Multijugador, GameRanger y HTTPS)
-        sudo dnf install -y gnutls.i686 systemd-libs.i686 nss-mdns.i686 glibc.i686 iw wireless-tools 2>/dev/null || true
+        sudo dnf install -y gnutls.i686 systemd-libs.i686 nss-mdns.i686 glibc.i686 libnsl.i686 libxcrypt.i686 iw wireless-tools 2>/dev/null || true
+
+        # 8. Políticas SELinux para compatibilidad total con Wine
+        if command -v setsebool &>/dev/null; then
+            echo -e "${C_CYAN}  🛡️ Configurando políticas de SELinux para ejecución de juegos en Wine...${C_RESET}"
+            sudo setsebool -P mmap_low_allowed 1 2>/dev/null || true
+            sudo setsebool -P selinuxuser_execmod 1 2>/dev/null || true
+            sudo setsebool -P wine_mmap_zero_ignore 1 2>/dev/null || true
+        fi
         ;;
     opensuse)
         echo -e "${C_CYAN}  ⚙️ Configurando openSUSE...${C_RESET}"
@@ -404,6 +415,7 @@ fi
 # Apertura de firewall para multijugador, GameRanger, DirectPlay y servidores de juegos
 echo -e "${C_CYAN}  🌐 Configurando Firewall para Multijugador (GameRanger, DirectPlay, SWAT 4, GTA SA, Steam)...${C_RESET}"
 if command -v firewall-cmd &>/dev/null && systemctl is-active firewalld &>/dev/null; then
+    sudo firewall-cmd --add-port=16000/udp --add-port=2300-2400/udp --add-port=2300-2400/tcp --add-port=47624/tcp --add-port=10480-10483/udp --add-port=7777/udp --add-port=27015-27030/udp 2>/dev/null || true
     sudo firewall-cmd --permanent --add-port=16000/udp --add-port=2300-2400/udp --add-port=2300-2400/tcp --add-port=47624/tcp --add-port=10480-10483/udp --add-port=7777/udp --add-port=27015-27030/udp 2>/dev/null || true
     sudo firewall-cmd --reload 2>/dev/null || true
 fi
@@ -577,9 +589,15 @@ if [ -f "${DIR}/GameRanger/GameRanger.exe" ]; then
     cp -r "${DIR}/GameRanger"/* "$GR_PROGFILES/" 2>/dev/null || true
     cp -r "${DIR}/GameRanger"/* "$GR_ROAMING/" 2>/dev/null || true
 
-    # Restaurar sesión de GameRanger si existe backup previo
+    # Restaurar sesión de GameRanger si existe backup previo en cualquier perfil
     if [ -d "${DIR}/.gameranger_prefs_backup" ]; then
         cp -ru "${DIR}/.gameranger_prefs_backup"/* "${GR_ROAMING}/../GameRanger Prefs/" 2>/dev/null || true
+        for u_dir in "${DIR}/wineprefix/drive_c/users"/*; do
+            if [ -d "$u_dir" ] && [ "$(basename "$u_dir")" != "Public" ]; then
+                mkdir -p "${u_dir}/AppData/Roaming/GameRanger/GameRanger Prefs"
+                cp -ru "${DIR}/.gameranger_prefs_backup"/* "${u_dir}/AppData/Roaming/GameRanger/GameRanger Prefs/" 2>/dev/null || true
+            fi
+        done
     fi
     echo -e "${C_GREEN}✔ GameRanger instalado en Archivos de Programa y perfil de usuario.${C_RESET}"
 elif [ -f "${DIR}/GameRangerSetup.exe" ]; then
