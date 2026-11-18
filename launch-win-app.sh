@@ -32,22 +32,75 @@ source "${DIR}/hardware_detect.sh"
 # 2. Aplicar optimizaciones dinámicas para el hardware real del equipo
 aplicar_entorno_hardware
 
-# 3. Procesar banderas opcionales (compatibilidad)
-if [ "$1" = "--prefix" ]; then
-    shift
-    shift || true
-fi
+# 3. Procesar banderas opcionales (prefijo dedicado, modo aislado y runner custom)
+CUSTOM_PREFIX=""
+FORCE_ISOLATED=0
+CUSTOM_RUNNER=""
+while [ $# -gt 0 ]; do
+    case "$1" in
+        --prefix)
+            CUSTOM_PREFIX="$2"
+            shift 2
+            ;;
+        --isolated)
+            FORCE_ISOLATED=1
+            shift
+            ;;
+        --runner)
+            CUSTOM_RUNNER="$2"
+            shift 2
+            ;;
+        *)
+            break
+            ;;
+    esac
+done
 
 if [ $# -eq 0 ]; then
-    echo "Uso: $0 /ruta/al/programa.exe [argumentos]"
+    echo "Uso: $0 [--prefix /ruta/al/prefijo] [--isolated] [--runner /ruta/a/wine] /ruta/al/programa.exe [argumentos]"
     exit 1
 fi
 
 TARGET="$1"
 shift || true
 
-# 4. Definir la ruta del WINEPREFIX unificado
-export WINEPREFIX="${DIR}/wineprefix"
+# 4. Definir la ruta del WINEPREFIX (Soporte Dual: Prefijo Compartido o Prefijo Aislado por Juego)
+if [ -n "$CUSTOM_PREFIX" ]; then
+    export WINEPREFIX="$CUSTOM_PREFIX"
+else
+    # Comprobar en base de datos si el juego tiene configurado prefijo aislado
+    PREF_TYPE="compartido"
+    for db in "${DIR}/programas_usuario.db" "${DIR}/programas.db"; do
+        if [ -f "$db" ]; then
+            matched_line=$(grep -F "$TARGET" "$db" 2>/dev/null | head -n 1)
+            [ -z "$matched_line" ] && matched_line=$(grep -F "$(basename "$TARGET")" "$db" 2>/dev/null | head -n 1)
+            if [ -n "$matched_line" ]; then
+                db_ptype=$(echo "$matched_line" | cut -d'|' -f3 | tr -d '\r\n ')
+                [ -n "$db_ptype" ] && PREF_TYPE="$db_ptype"
+                break
+            fi
+        fi
+    done
+
+    if [ "$PREF_TYPE" = "aislado" ] || [ "$FORCE_ISOLATED" -eq 1 ]; then
+        SAFE_APP_ID=$(basename "$TARGET" | sed -E 's/[^a-zA-Z0-9_-]/_/g')
+        export WINEPREFIX="${DIR}/wineprefixes/${SAFE_APP_ID}"
+        echo "[🛡️] Prefijo Wine Aislado activo para: $(basename "$TARGET")"
+    else
+        export WINEPREFIX="${DIR}/wineprefix"
+    fi
+fi
+
+# Inicializar automáticamente el prefijo si no existe (crea sandbox limpio)
+if [ ! -d "$WINEPREFIX" ]; then
+    mkdir -p "$WINEPREFIX"
+    if [ -d "${DIR}/wineprefix/drive_c/windows" ] && [ "$WINEPREFIX" != "${DIR}/wineprefix" ]; then
+        echo "[*] Inicializando nuevo sandbox aislado a partir de plantilla base..."
+        mkdir -p "${WINEPREFIX}/drive_c"
+        cp -rn "${DIR}/wineprefix/drive_c/windows" "${WINEPREFIX}/drive_c/" 2>/dev/null || true
+        cp -n "${DIR}/wineprefix"/*.reg "${WINEPREFIX}/" 2>/dev/null || true
+    fi
+fi
 
 # 4.0 Auto-reparación transparente de rutas inexistentes o movidas (ej. carpetas ZIP extraídas)
 if [ ! -f "$TARGET" ] && [[ ! "$TARGET" =~ [Gg]ame[Rr]anger ]]; then
@@ -232,15 +285,93 @@ if [ "$ACTIVAR_FSR" = "1" ]; then
     export WINE_FULLSCREEN_FSR_STRENGTH="${FSR_STRENGTH:-2}"
 fi
 
-# 9. Detección del ejecutable de Wine (personalizado, Wine-TKG o del sistema)
-if [ -f "${DIR}/wine-tkg-build/bin/wine" ]; then
+# 8.1 Detección de entorno gráfico: Wayland vs X11
+IS_WAYLAND=0
+if [ "${XDG_SESSION_TYPE:-}" = "wayland" ] || [ -n "${WAYLAND_DISPLAY:-}" ]; then
+    IS_WAYLAND=1
+    export SDL_VIDEODRIVER="wayland,x11"
+fi
+
+# 9. Detección y activación del ejecutable de Wine (Runner portable, Lutris, Heroic, Wine-TKG o del sistema)
+WINE_CMD=""
+RUNNER_LABEL=""
+
+if [ -n "$CUSTOM_RUNNER" ] && [ -x "$CUSTOM_RUNNER" ]; then
+    WINE_CMD="$CUSTOM_RUNNER"
+    RUNNER_LABEL="Personalizado ($(basename "$WINE_CMD"))"
+elif [ -n "$VESSEL_WINE_RUNNER" ] && [ -x "$VESSEL_WINE_RUNNER" ]; then
+    WINE_CMD="$VESSEL_WINE_RUNNER"
+    RUNNER_LABEL="Variable de Entorno ($(basename "$WINE_CMD"))"
+fi
+
+# Runners portables locales en runners/ (Wine-GE, Kron4ek, Proton-GE, etc.)
+if [ -z "$WINE_CMD" ] && [ -d "${DIR}/runners" ]; then
+    for r_cand in "${DIR}/runners"/*/bin/wine "${DIR}/runners"/wine/bin/wine; do
+        if [ -f "$r_cand" ] && [ -x "$r_cand" ]; then
+            WINE_CMD="$r_cand"
+            RUNNER_LABEL="Portable ($(basename "$(dirname "$(dirname "$r_cand")")"))"
+            break
+        fi
+    done
+fi
+
+# Runners de Lutris instalados en el sistema del usuario
+if [ -z "$WINE_CMD" ] && [ -d "$HOME/.local/share/lutris/runners/wine" ]; then
+    for l_cand in "$HOME/.local/share/lutris/runners/wine"/*/bin/wine; do
+        if [ -f "$l_cand" ] && [ -x "$l_cand" ]; then
+            WINE_CMD="$l_cand"
+            RUNNER_LABEL="Lutris ($(basename "$(dirname "$(dirname "$l_cand")")"))"
+            break
+        fi
+    done
+fi
+
+# Runners de Heroic Games Launcher
+if [ -z "$WINE_CMD" ]; then
+    for h_dir in "$HOME/.config/heroic/tools/wine" "$HOME/.config/heroic/tools/proton"; do
+        if [ -d "$h_dir" ]; then
+            for h_cand in "$h_dir"/*/bin/wine; do
+                if [ -f "$h_cand" ] && [ -x "$h_cand" ]; then
+                    WINE_CMD="$h_cand"
+                    RUNNER_LABEL="Heroic ($(basename "$(dirname "$(dirname "$h_cand")")"))"
+                    break 2
+                fi
+            done
+        fi
+    done
+fi
+
+# Wine-TKG compilado localmente
+if [ -z "$WINE_CMD" ] && [ -f "${DIR}/wine-tkg-build/bin/wine" ]; then
     WINE_CMD="${DIR}/wine-tkg-build/bin/wine"
-elif command -v wine &> /dev/null; then
+    RUNNER_LABEL="Wine-TKG Custom Build"
+fi
+
+# Fallback a Wine del sistema
+if [ -z "$WINE_CMD" ] && command -v wine &> /dev/null; then
     WINE_CMD="wine"
-else
-    echo "[-] Error: No se encontró ningún binario de Wine instalado en el sistema."
+    RUNNER_LABEL="Wine del Sistema ($(wine --version 2>/dev/null || echo "Estándar"))"
+fi
+
+if [ -z "$WINE_CMD" ]; then
+    echo "[-] Error: No se encontró ningún binario de Wine instalado en el sistema ni en runners/."
     echo "    Ejecuta el instalador con: ./instalar.sh"
     exit 1
+fi
+
+# Configuración de variables de entorno para runners portables
+WINESERVER_CMD="wineserver"
+if [ "$WINE_CMD" != "wine" ]; then
+    RUNNER_BIN_DIR="$(dirname "$WINE_CMD")"
+    RUNNER_BASE_DIR="$(cd "$RUNNER_BIN_DIR/.." && pwd)"
+    export PATH="${RUNNER_BIN_DIR}:${PATH}"
+    [ -x "${RUNNER_BIN_DIR}/wineserver" ] && export WINESERVER="${RUNNER_BIN_DIR}/wineserver" && WINESERVER_CMD="${RUNNER_BIN_DIR}/wineserver"
+    [ -x "${RUNNER_BIN_DIR}/wine64" ] && export WINE64="${RUNNER_BIN_DIR}/wine64"
+    [ -x "${RUNNER_BIN_DIR}/wine" ] && export WINELOADER="${RUNNER_BIN_DIR}/wine"
+
+    if [ -d "${RUNNER_BASE_DIR}/lib64" ] || [ -d "${RUNNER_BASE_DIR}/lib" ]; then
+        export LD_LIBRARY_PATH="${RUNNER_BASE_DIR}/lib64:${RUNNER_BASE_DIR}/lib:${LD_LIBRARY_PATH:-}"
+    fi
 fi
 
 # 10. Uso condicional de GameMode según perfil
@@ -254,54 +385,21 @@ TARGET_DIR="$(cd "$(dirname "$TARGET")" && pwd)"
 TARGET_FILE="$(basename "$TARGET")"
 
 # ==============================================================================
-# OPTIMIZACIÓN UNIVERSAL DE RED, WIFI Y MULTIJUGADOR PARA WINE
+# OPTIMIZACIÓN UNIVERSAL DE RED Y MULTIJUGADOR PARA WINE
 # - Permite a todos los programas y juegos conectarse a Internet y servidores online
-# - Desactiva el ahorro de energía en adaptadores WiFi para evitar caídas de paquetes
-# - Habilita rangos de ping ICMP y sockets no privilegiados en el Kernel
-# - Configura resolución DNS y servidores maestros comunitarios en hosts
+# - Configura resolución DNS limpia con hostname dinámico dentro del prefijo Wine
 # - Configura sondas NCSI en el registro para que Windows detecte 100% de conectividad
-# - Abre puertos de firewall para GameRanger (16000), DirectPlay (2300-2400, 47624) y juegos
 # ==============================================================================
 optimizar_red_y_wifi() {
-    # 1. Privilegios de sockets y ping ICMP en el Kernel para Wine
-    sysctl -w net.ipv4.ping_group_range="0 2147483647" 2>/dev/null || true
-    sysctl -w net.ipv4.ip_unprivileged_port_start=0 2>/dev/null || true
-
-    # 2. Desactivar ahorro de energía en interfaz WiFi para eliminar latencia y cortes
-    local wifi_iface
-    wifi_iface=$(ip link 2>/dev/null | grep -oE '\bwl[a-zA-Z0-9]+\b' | head -n 1)
-    if [ -n "$wifi_iface" ]; then
-        iw dev "$wifi_iface" set power_save off 2>/dev/null || true
-        sudo -n iw dev "$wifi_iface" set power_save off 2>/dev/null || true
-    fi
-
-    # 3. Asegurar archivo hosts y resolución de servidores en el prefijo
+    # 1. Asegurar archivo hosts y resolución de servidores en el prefijo (dinámico por equipo)
     local etc_dir="${WINEPREFIX}/drive_c/windows/system32/drivers/etc"
     mkdir -p "$etc_dir"
-    if [ ! -f "${etc_dir}/hosts" ] || ! grep -q "swat4stats" "${etc_dir}/hosts" 2>/dev/null; then
-        cat << 'EOF' > "${etc_dir}/hosts"
-127.0.0.1 localhost Aspire
+    local my_host
+    my_host="$(hostname 2>/dev/null || echo "localhost")"
+    cat << EOF > "${etc_dir}/hosts"
+127.0.0.1 localhost ${my_host}
 ::1 localhost ip6-localhost ip6-loopback
-
-# Servidores Oficiales GameRanger
-51.222.17.7 connect.gameranger.com
-67.228.206.97 status.gameranger.com
-67.228.102.62 www.gameranger.com
-67.228.102.62 default.gameranger.com
-
-# Servidores Maestros SWAT 4 (swat4stats)
-116.202.182.15 swat4.ms14.gamespy.com
-116.202.182.15 swat4.available.gamespy.com
-116.202.182.15 swat4.master.gamespy.com
-116.202.182.15 swat4pr.ms14.gamespy.com
-116.202.182.15 swat4pr.available.gamespy.com
-116.202.182.15 swat4pr.master.gamespy.com
-116.202.182.15 master.gamespy.com
-
-# NCSI probe verification
-131.107.255.255 dns.msftncsi.com
 EOF
-    fi
 
     # 4. Asegurar parámetros de red e Internet (NCSI / NLA / DNS) en el registro de Wine
     if [ ! -f "${WINEPREFIX}/.vessel_net_ok" ]; then
@@ -479,6 +577,21 @@ detectar_pantalla_activa
 # - Ajusta variables de entorno, DLL overrides y configs de pantalla completa y FOV 3D
 #   de manera 100% aislada para NUNCA degradar el rendimiento o compatibilidad de otros juegos
 # ==============================================================================
+# Función segura para limpiar procesos zombies de Wine sin matarse a sí mismo
+limpiar_zombies_juego() {
+    local target_pat="$1"
+    for p in $(pgrep -f "$target_pat" 2>/dev/null || true); do
+        if [ "$p" != "$$" ] && [ "$p" != "$PPID" ]; then
+            local cmdline
+            cmdline=$(cat "/proc/$p/cmdline" 2>/dev/null | tr '\0' ' ' || true)
+            if ! echo "$cmdline" | grep -qiE 'launch-win-app|menu_tui|menu-win|bash|python' && \
+               echo "$cmdline" | grep -qiE 'wine|\.exe'; then
+                kill -9 "$p" 2>/dev/null || true
+            fi
+        fi
+    done
+}
+
 aplicar_perfil_aislado_juego() {
     local perfil_id="generico"
 
@@ -509,9 +622,8 @@ aplicar_perfil_aislado_juego() {
     case "$perfil_id" in
         rockstar_gta5)
             echo "[+] Perfil Activo: Rockstar Games (Grand Theft Auto V) [Aislado]"
-            # 1. Limpiar procesos zombies previos de GTA V que bloquean nuevos inicios por mutex
-            pkill -9 -f "GTA5.exe" 2>/dev/null || true
-            pkill -9 -f "PlayGTAV.exe" 2>/dev/null || true
+            # 1. Limpiar procesos zombies previos de GTA V de forma segura (sin matar el script)
+            limpiar_zombies_juego "GTA5\.exe|PlayGTAV\.exe"
             sleep 0.2
 
             # Determinar resolución óptima según GPU (720p para GPUs de entrada/móviles como MX130 / Intel, nativa para gama alta)
@@ -582,7 +694,7 @@ EOF
 
         rockstar_gtasa)
             echo "[+] Perfil Activo: Rockstar Games (GTA San Andreas / Trilogy) [Aislado]"
-            pkill -9 -f "gta_sa.exe" 2>/dev/null || true
+            limpiar_zombies_juego "gta_sa\.exe"
             # Desactivar ventana forzada de mods para garantizar pantalla completa nativa
             find "$TARGET_DIR" -iname "III.VC.SA.WindowedMode.ini" 2>/dev/null | while read -r wm_ini; do
                 sed -i "s/^ShowBorder = .*/ShowBorder = 0/" "$wm_ini" 2>/dev/null || true
@@ -613,7 +725,7 @@ EOF
 
         capcom_re_engine)
             echo "[+] Perfil Activo: Capcom RE Engine [Aislado]"
-            pkill -9 -f "re4.exe|re2.exe|re3.exe|re7.exe|re8.exe|dmc5.exe" 2>/dev/null || true
+            limpiar_zombies_juego "re4\.exe|re2\.exe|re3\.exe|re7\.exe|re8\.exe|dmc5\.exe"
             find "$TARGET_DIR" -maxdepth 3 -name "*config*.ini" 2>/dev/null | while read -r re_ini; do
                 if grep -q "\[AppRender\]" "$re_ini" 2>/dev/null || grep -q "\[RenderConfig\]" "$re_ini" 2>/dev/null; then
                     sed -i 's/^FullScreenMode=.*/FullScreenMode=true/' "$re_ini" 2>/dev/null || true
@@ -637,7 +749,7 @@ EOF
 
         capcom_mt_framework)
             echo "[+] Perfil Activo: Capcom MT Framework (Resident Evil Series) [Aislado]"
-            pkill -9 -f "BH6.exe|biohazard4.exe|re6.exe|re5dx9.exe|re5dx10.exe" 2>/dev/null || true
+            limpiar_zombies_juego "BH6\.exe|biohazard4\.exe|re6\.exe|re5dx9\.exe|re5dx10\.exe"
             local capcom_dir="$HOME/Documentos/CAPCOM"
             [ ! -d "$capcom_dir" ] && capcom_dir="${WINEPREFIX}/drive_c/users/${USER}/Documents/CAPCOM"
             local dirs_a_buscar=("$capcom_dir" "$TARGET_DIR")
@@ -675,7 +787,7 @@ EOF
 
         unreal_engine)
             echo "[+] Perfil Activo: Unreal Engine (SWAT 4 / Clásicos 3D) [Aislado]"
-            pkill -9 -f "Swat4.exe|Swat4X.exe|Bioshock.exe" 2>/dev/null || true
+            limpiar_zombies_juego "Swat4\.exe|Swat4X\.exe|Bioshock\.exe"
             local target_system_dir="$TARGET_DIR"
             [ -d "${TARGET_DIR}/System" ] && target_system_dir="${TARGET_DIR}/System"
             [ -d "${TARGET_DIR}/Content/System" ] && target_system_dir="${TARGET_DIR}/Content/System"
@@ -801,6 +913,7 @@ else
     echo "    - Modo Pantalla: Pantalla Completa Nativa Directa (Hardware)"
     echo "    - Caché de Shaders: NVMe SSD (~/.cache/dxvk)"
 fi
+echo "    - Runner Wine: ${RUNNER_LABEL}"
 echo "    - Prefijo Wine: ${WINEPREFIX}"
 if [ ${#MODS_ACTIVADOS[@]} -gt 0 ] || [ "$CANT_ASI" -gt 0 ]; then
     echo "    - Mods / Hooks Activos: $([ ${#MODS_ACTIVADOS[@]} -gt 0 ] && echo "${MODS_ACTIVADOS[*]}" || echo "Ninguna DLL especial")"
@@ -821,9 +934,9 @@ if [[ ! "$TARGET_FILE" =~ ([Gg]ame[Rr]anger|winecfg|regedit|cmd|notepad) ]]; the
     fi
 fi
 
-# Guardián en segundo plano para asegurar pantalla completa universal al detectar la ventana
+# Guardián en segundo plano para asegurar pantalla completa universal al detectar la ventana (solo X11)
 WATCHDOG_PID=""
-if [[ ! "$TARGET_FILE" =~ ([Gg]ame[Rr]anger|winecfg|regedit|cmd|notepad) ]]; then
+if [ "$IS_WAYLAND" -eq 0 ] && [ -n "${DISPLAY:-}" ] && [[ ! "$TARGET_FILE" =~ ([Gg]ame[Rr]anger|winecfg|regedit|cmd|notepad) ]]; then
     (
         for i in $(seq 1 30); do
             sleep 0.5
@@ -842,23 +955,25 @@ if [[ ! "$TARGET_FILE" =~ ([Gg]ame[Rr]anger|winecfg|regedit|cmd|notepad) ]]; the
     WATCHDOG_PID=$!
 fi
 
-# Guardián inteligente en segundo plano para GameRanger (eleva y enfoca ventanas automáticamente)
+# Guardián inteligente en segundo plano para GameRanger
 GR_WATCHDOG_PID=""
 if [[ "$TARGET_FILE" =~ [Gg]ame[Rr]anger ]]; then
     (
         for i in $(seq 1 60); do
             sleep 1
-            if command -v xdotool &>/dev/null; then
-                for gr_w in $(xdotool search --class "gameranger" 2>/dev/null); do
-                    xdotool windowmap "$gr_w" 2>/dev/null || true
-                    xdotool windowraise "$gr_w" 2>/dev/null || true
-                done
-            fi
-            if command -v wmctrl &>/dev/null; then
-                wmctrl -l 2>/dev/null | grep -iE 'GameRanger|Friends|Assistant' | while read -r wid dtop host wtitle; do
-                    wmctrl -i -r "$wid" -b remove,hidden,remove,shaded 2>/dev/null || true
-                    wmctrl -i -a "$wid" 2>/dev/null || true
-                done
+            if [ "$IS_WAYLAND" -eq 0 ] && [ -n "${DISPLAY:-}" ]; then
+                if command -v xdotool &>/dev/null; then
+                    for gr_w in $(xdotool search --class "gameranger" 2>/dev/null); do
+                        xdotool windowmap "$gr_w" 2>/dev/null || true
+                        xdotool windowraise "$gr_w" 2>/dev/null || true
+                    done
+                fi
+                if command -v wmctrl &>/dev/null; then
+                    wmctrl -l 2>/dev/null | grep -iE 'GameRanger|Friends|Assistant' | while read -r wid dtop host wtitle; do
+                        wmctrl -i -r "$wid" -b remove,hidden,remove,shaded 2>/dev/null || true
+                        wmctrl -i -a "$wid" 2>/dev/null || true
+                    done
+                fi
             fi
 
             # Auto-respaldo dinámico de la sesión en cuanto el usuario inicie sesión
@@ -891,7 +1006,7 @@ limpiar_procesos_al_interrumpir() {
             fi
         done
     fi
-    wineserver -k 2>/dev/null || true
+    "$WINESERVER_CMD" -k 2>/dev/null || wineserver -k 2>/dev/null || true
 }
 trap limpiar_procesos_al_interrumpir INT TERM
 
@@ -943,5 +1058,5 @@ if [[ "$TARGET_FILE" =~ [Gg]ame[Rr]anger ]]; then
 fi
 
 # Esperar sincronización limpia de los subprocesos de Wine sin matarlos abruptamente
-wineserver -w 2>/dev/null || true
+"$WINESERVER_CMD" -w 2>/dev/null || wineserver -w 2>/dev/null || true
 exit $EXIT_STATUS

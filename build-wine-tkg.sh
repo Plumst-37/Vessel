@@ -8,13 +8,15 @@ set -e
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BUILD_DIR="${DIR}/wine-tkg-git/wine-tkg-git"
 
+source "${DIR}/hardware_detect.sh" 2>/dev/null || true
+
 echo "=========================================================="
 echo "   Iniciando Compilación Optimizada de Wine-TKG"
 echo "=========================================================="
 echo "Configuración aplicada:"
-echo " - Optimización CPU: -O3 -march=native (Intel Core i5-8250U)"
-echo " - Soporte Fsync / Futex2 nativo (Kernel 6.12)"
-echo " - PRIME GPU Offload para GeForce MX130"
+echo " - Optimización CPU: -O3 -mtune=generic (${CPU_MODEL:-CPU Genérica})"
+echo " - Soporte Fsync / Futex2 nativo (Kernel $(uname -r 2>/dev/null || echo '6.x'))"
+echo " - Aceleración GPU: ${DETECTED_GPU:-GPU Detectada}"
 echo " - Salida de compilación: ${DIR}/wine-tkg-build"
 echo "=========================================================="
 

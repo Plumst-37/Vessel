@@ -185,9 +185,10 @@ echo -e "    ${C_BOLD}[2]${C_RESET} ${C_GREEN}Ubuntu / Linux Mint / Pop!_OS / Zo
 echo -e "    ${C_BOLD}[3]${C_RESET} ${C_CYAN}Arch Linux / Manjaro / EndeavourOS / SteamOS${C_RESET}"
 echo -e "    ${C_BOLD}[4]${C_RESET} ${C_BLUE}Fedora / Nobara / RHEL${C_RESET}"
 echo -e "    ${C_BOLD}[5]${C_RESET} ${C_MAGENTA}openSUSE (Tumbleweed / Leap)${C_RESET}"
+echo -e "    ${C_BOLD}[6]${C_RESET} ${C_PURPLE}Modo Portable Universal / SteamOS (Sin sudo / Distro Inmutable / Runner Descargable)${C_RESET}"
 echo -e "    ${C_BOLD}[Enter]${C_RESET} Usar sistema detectado (${DISTRO_LABEL})"
 echo ""
-read -p "Elige tu sistema (1-5 o Enter): " d_choice
+read -p "Elige tu sistema (1-6 o Enter): " d_choice
 
 case "$d_choice" in
     1) DISTRO_DETECTED="debian"; DISTRO_LABEL="Debian GNU/Linux" ;;
@@ -195,6 +196,7 @@ case "$d_choice" in
     3) DISTRO_DETECTED="arch"; DISTRO_LABEL="Arch Linux / Manjaro" ;;
     4) DISTRO_DETECTED="fedora"; DISTRO_LABEL="Fedora / Nobara" ;;
     5) DISTRO_DETECTED="opensuse"; DISTRO_LABEL="openSUSE" ;;
+    6) DISTRO_DETECTED="portable"; DISTRO_LABEL="Modo Portable Universal (SteamOS / Inmutable)" ;;
     *) ;;
 esac
 
@@ -339,6 +341,12 @@ case "$DISTRO_DETECTED" in
         fi
         sudo zypper --non-interactive --auto-agree-with-licenses install gstreamer-plugins-ugly-32bit gstreamer-plugins-bad-32bit libgnutls30-32bit systemd-32bit iw wireless-tools 2>/dev/null || sudo zypper --non-interactive --auto-agree-with-licenses install gnutls-32bit iw wireless-tools 2>/dev/null || true
         ;;
+    portable)
+        echo -e "${C_PURPLE}  ⚙️ Modo Portable Universal seleccionado (SteamOS / Distros Inmutables / Sin Sudo)...${C_RESET}"
+        if [ -x "${DIR}/gestor_runners.sh" ]; then
+            "${DIR}/gestor_runners.sh" --kron4ek 2>/dev/null || true
+        fi
+        ;;
     *)
         echo -e "${C_YELLOW}  ⚠️ Distribución genérica detectada. Verificando comandos estándar...${C_RESET}"
         if command -v apt-get &>/dev/null; then
@@ -375,44 +383,7 @@ EOF' 2>/dev/null || true
     echo -e "${C_GREEN}✔ Parámetros del Kernel aplicados permanentemente (vm.max_map_count = 2.1M).${C_RESET}"
 fi
 
-# Desactivar ahorro de energía en Wi-Fi permanentemente en NetworkManager (elimina lag y cortes en multijugador)
-echo -e "${C_CYAN}  📶 Optimizando estabilidad de Wi-Fi y eliminando cortes en multijugador...${C_RESET}"
-if [ -d /etc/NetworkManager/conf.d ] || sudo -n true 2>/dev/null || [ "$EUID" -eq 0 ]; then
-    sudo mkdir -p /etc/NetworkManager/conf.d 2>/dev/null || true
-    sudo bash -c 'cat <<EOF > /etc/NetworkManager/conf.d/99-disable-wifi-powersave.conf
-[connection]
-wifi.powersave = 2
-EOF' 2>/dev/null || true
-    if command -v nmcli &>/dev/null; then
-        sudo nmcli general reload conf 2>/dev/null || true
-    fi
-fi
-# Desactivación inmediata en la interfaz WiFi activa
-wifi_iface=$(ip link 2>/dev/null | grep -oE '\bwl[a-zA-Z0-9]+\b' | head -n 1)
-if [ -n "$wifi_iface" ]; then
-    sudo iw dev "$wifi_iface" set power_save off 2>/dev/null || true
-fi
-
-# Priorizar IPv4 en resolución DNS para compatibilidad total con servidores de juegos clásicos
-if [ -w /etc/gai.conf ] || sudo -n true 2>/dev/null || [ "$EUID" -eq 0 ]; then
-    if [ -f /etc/gai.conf ]; then
-        if ! grep -q "^precedence ::ffff:0:0/96  100" /etc/gai.conf 2>/dev/null; then
-            sudo sed -i 's/^#precedence ::ffff:0:0\/96  100/precedence ::ffff:0:0\/96  100/' /etc/gai.conf 2>/dev/null || true
-            grep -q "^precedence ::ffff:0:0/96  100" /etc/gai.conf 2>/dev/null || sudo bash -c 'echo "precedence ::ffff:0:0/96  100" >> /etc/gai.conf' 2>/dev/null || true
-        fi
-    else
-        sudo bash -c 'echo "precedence ::ffff:0:0/96  100" > /etc/gai.conf' 2>/dev/null || true
-    fi
-fi
-
-# Enlazar resolv.conf a servidores DNS reales de systemd-resolved (corrige 0 servidores DNS en Wine)
-if [ -f /run/systemd/resolve/resolv.conf ] && [ -L /etc/resolv.conf ]; then
-    if ls -l /etc/resolv.conf 2>/dev/null | grep -q "stub-resolv.conf"; then
-        sudo ln -sf /run/systemd/resolve/resolv.conf /etc/resolv.conf 2>/dev/null || true
-    fi
-fi
-
-# Apertura de firewall para multijugador, GameRanger, DirectPlay y servidores de juegos
+# Apertura opcional de firewall para multijugador, GameRanger, DirectPlay y servidores de juegos
 echo -e "${C_CYAN}  🌐 Configurando Firewall para Multijugador (GameRanger, DirectPlay, SWAT 4, GTA SA, Steam)...${C_RESET}"
 if command -v firewall-cmd &>/dev/null && systemctl is-active firewalld &>/dev/null; then
     sudo firewall-cmd --add-port=16000/udp --add-port=2300-2400/udp --add-port=2300-2400/tcp --add-port=47624/tcp --add-port=10480-10483/udp --add-port=7777/udp --add-port=27015-27030/udp 2>/dev/null || true
@@ -432,32 +403,6 @@ if command -v iptables &>/dev/null; then
     sudo iptables -C INPUT -p udp --dport 16000 -j ACCEPT 2>/dev/null || sudo iptables -I INPUT -p udp --dport 16000 -j ACCEPT 2>/dev/null || true
     sudo iptables -C INPUT -p udp --dport 7777 -j ACCEPT 2>/dev/null || sudo iptables -I INPUT -p udp --dport 7777 -j ACCEPT 2>/dev/null || true
     sudo iptables -C INPUT -p tcp --dport 47624 -j ACCEPT 2>/dev/null || sudo iptables -I INPUT -p tcp --dport 47624 -j ACCEPT 2>/dev/null || true
-fi
-
-# Resolución infalible de dominios y servidores maestros multijugador en /etc/hosts
-if [ -w /etc/hosts ] || sudo -n true 2>/dev/null || [ "$EUID" -eq 0 ]; then
-    if ! grep -q "connect.gameranger.com" /etc/hosts 2>/dev/null; then
-        sudo bash -c 'cat <<EOF >> /etc/hosts
-
-# Servidores Oficiales GameRanger - Vessel Gaming Network
-51.222.17.7 connect.gameranger.com
-67.228.206.97 status.gameranger.com
-67.228.102.62 www.gameranger.com
-67.228.102.62 default.gameranger.com
-
-# Servidores Maestros SWAT 4 (swat4stats)
-116.202.182.15 swat4.ms14.gamespy.com
-116.202.182.15 swat4.available.gamespy.com
-116.202.182.15 swat4.master.gamespy.com
-116.202.182.15 swat4pr.ms14.gamespy.com
-116.202.182.15 swat4pr.available.gamespy.com
-116.202.182.15 swat4pr.master.gamespy.com
-116.202.182.15 master.gamespy.com
-
-# NCSI probe verification (Windows Network Connectivity Status Indicator)
-131.107.255.255 dns.msftncsi.com
-EOF' 2>/dev/null || true
-    fi
 fi
 
 if [ -w /etc/security/limits.d ] || sudo -n true 2>/dev/null || [ "$EUID" -eq 0 ]; then
@@ -722,7 +667,7 @@ chmod +x "${DIR}"/*.sh "${DIR}"/*.py 2>/dev/null || true
 chown -R "$TARGET_USER:$TARGET_USER" "${DIR}/wineprefix" 2>/dev/null || true
 chown -R "$TARGET_USER:$TARGET_USER" "${DIR}"/*.cfg "${DIR}"/*.conf 2>/dev/null || true
 
-LAUNCH_EXEC="sh -c 'if command -v konsole >/dev/null 2>&1; then exec konsole -e \"\$0\"; elif command -v gnome-terminal >/dev/null 2>&1; then exec gnome-terminal -- \"\$0\"; else exec x-terminal-emulator -e \"\$0\"; fi' \"${DIR}/menu-win.sh\""
+LAUNCH_EXEC="sh -c 'for term in x-terminal-emulator gnome-terminal konsole xfce4-terminal mate-terminal qterminal ptyxis tilix terminator kitty alacritty foot urxvt xterm; do if command -v \"\$term\" >/dev/null 2>&1; then case \"\$term\" in gnome-terminal|tilix|ptyxis) exec \"\$term\" -- \"\$0\" ;; alacritty|kitty|foot) exec \"\$term\" -e \"\$0\" ;; *) exec \"\$term\" -e \"\$0\" ;; esac; fi; done; exec \"\$0\"' \"${DIR}/menu-win.sh\""
 
 mkdir -p "$TARGET_HOME/.local/share/applications"
 cat <<EOF > "$TARGET_HOME/.local/share/applications/menu-win-pc.desktop"

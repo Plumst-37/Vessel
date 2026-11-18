@@ -532,7 +532,7 @@ def cargar_lista_programas():
     vistos = set()
 
     # 1. GameRanger siempre es la opción #1 portable sin configurar nada
-    programas.append(("GameRanger", "GameRanger.exe"))
+    programas.append(("GameRanger", "GameRanger.exe", "compartido"))
     vistos.add("gameranger")
 
     # 2. Cargar juegos del usuario desde DB_USER, DB_FILE y DB_FILE.bak
@@ -546,6 +546,9 @@ def cargar_lista_programas():
                             partes = line.split("|")
                             nom = partes[0].strip()
                             rut = partes[1].strip()
+                            prefijo = partes[2].strip() if len(partes) > 2 else "compartido"
+                            if not prefijo:
+                                prefijo = "compartido"
 
                             # Auto-reparación transparente de rutas movidas o descomprimidas fuera de ZIP
                             if not os.path.exists(rut) and nom != "GameRanger":
@@ -580,17 +583,20 @@ def cargar_lista_programas():
                             key = nom.lower()
                             if key not in vistos:
                                 vistos.add(key)
-                                programas.append((nom, rut))
+                                programas.append((nom, rut, prefijo))
             except Exception:
                 pass
 
     return programas
 
 def guardar_lista_programas(programas):
-    """Guarda la lista unificada en DB_FILE y DB_USER."""
+    """Guarda la lista unificada en DB_FILE y DB_USER preservando modo de prefijo."""
     lineas = []
-    for n, r in programas:
-        lineas.append(f"{n}|{r}|compartido\n")
+    for item in programas:
+        n = item[0]
+        r = item[1]
+        p = item[2] if len(item) > 2 else "compartido"
+        lineas.append(f"{n}|{r}|{p}\n")
     for db_path in [DB_FILE, DB_USER]:
         try:
             with open(db_path, "w", encoding="utf-8") as f:
@@ -619,22 +625,28 @@ def menu_iniciar_programa(hw, cfg):
         return
 
     opciones = []
-    for i, (nombre, ruta) in enumerate(programas, 1):
-        opciones.append((str(i), f"🎮 {nombre}"))
+    for i, item in enumerate(programas, 1):
+        nombre, ruta = item[0], item[1]
+        prefijo = item[2] if len(item) > 2 else "compartido"
+        tag = f"{CYAN}[🛡️ Aislado]{RESET}" if prefijo == "aislado" else f"{GRAY}[Compartido]{RESET}"
+        opciones.append((str(i), f"🎮 {nombre} {tag}"))
     opciones.append(("0", "↩️  Volver al Menú Principal"))
 
     eleccion = submenu_interactivo("🎮  Selecciona un Juego o Programa", opciones, hw, cfg)
     if eleccion != "0":
         idx = int(eleccion) - 1
-        nombre, ruta = programas[idx]
+        item = programas[idx]
+        nombre, ruta = item[0], item[1]
+        prefijo = item[2] if len(item) > 2 else "compartido"
 
         # Menú de acción para el juego seleccionado
         opts_juego = [
             ("1", f"🚀 Iniciar {nombre} (Máximo Rendimiento Nativo en Hardware)"),
             ("2", f"📊 Iniciar con HUD de Rendimiento (FPS / Telemetría en Pantalla)"),
             ("3", f"📂 Abrir Carpeta del Juego (para Mods / Parches / Saves)"),
-            ("4", f"🖥️ Crear Acceso Directo en el Escritorio (1-Clic)"),
-            ("5", f"❌ Eliminar este Juego de la Lista"),
+            ("4", f"🖥️  Crear Acceso Directo en el Escritorio (1-Clic)"),
+            ("5", f"🛡️  Modo de Prefijo Wine: [{'Aislado (Sandbox Propio)' if prefijo == 'aislado' else 'Compartido (Global)'}]"),
+            ("6", f"❌ Eliminar este Juego de la Lista"),
             ("0", f"↩️  Volver a la Lista de Juegos")
         ]
         accion = submenu_interactivo(f"🎮  Acciones para: {nombre}", opts_juego, hw, cfg)
@@ -648,7 +660,11 @@ def menu_iniciar_programa(hw, cfg):
                 pass
             if not os.path.exists(ruta) and "gameranger" in ruta.lower():
                 ruta = "GameRanger.exe"
-            subprocess.run(["bash", LAUNCHER, ruta])
+            cmd_args = ["bash", LAUNCHER]
+            if prefijo == "aislado":
+                cmd_args.append("--isolated")
+            cmd_args.append(ruta)
+            subprocess.run(cmd_args)
             pausar()
         elif accion == "2":
             os.system("clear")
@@ -659,7 +675,8 @@ def menu_iniciar_programa(hw, cfg):
                 pass
             if not os.path.exists(ruta) and "gameranger" in ruta.lower():
                 ruta = "GameRanger.exe"
-            subprocess.run(["bash", "-c", f"ENABLE_DXVK_HUD=1 bash '{LAUNCHER}' '{ruta}'"])
+            iso_flag = "--isolated " if prefijo == "aislado" else ""
+            subprocess.run(["bash", "-c", f"ENABLE_DXVK_HUD=1 bash '{LAUNCHER}' {iso_flag}'{ruta}'"])
             pausar()
         elif accion == "3":
             carpeta = os.path.join(DIR, "GameRanger") if "gameranger" in ruta.lower() else os.path.dirname(ruta)
@@ -667,26 +684,37 @@ def menu_iniciar_programa(hw, cfg):
             print(f"\n{GREEN}✔ Carpeta abierta en tu gestor de archivos.{RESET}")
             pausar()
         elif accion == "4":
-            crear_desktop_entry(nombre, ruta)
+            crear_desktop_entry(nombre, ruta, prefijo)
             pausar()
         elif accion == "5":
+            nuevo_prefijo = "compartido" if prefijo == "aislado" else "aislado"
+            programas[idx] = (nombre, ruta, nuevo_prefijo)
+            guardar_lista_programas(programas)
+            print(f"\n{GREEN}✔ Modo de prefijo Wine para '{nombre}' cambiado a: {BOLD}{nuevo_prefijo.upper()}{RESET}")
+            if nuevo_prefijo == "aislado":
+                print(f"{CYAN}  El juego tendrá su propia carpeta wineprefix aislada en 'wineprefixes/' sin afectar otros juegos.{RESET}")
+            else:
+                print(f"{CYAN}  El juego utilizará el prefijo wineprefix global compartido.{RESET}")
+            pausar()
+        elif accion == "6":
             del programas[idx]
             guardar_lista_programas(programas)
             print(f"\n{GREEN}✔ '{nombre}' ha sido eliminado de la lista.{RESET}")
             pausar()
 
-def crear_desktop_entry(nombre, ruta):
-    """Crea y valida el acceso directo en el escritorio."""
+def crear_desktop_entry(nombre, ruta, prefijo="compartido"):
+    """Crea y valida el acceso directo en el escritorio con soporte para prefijo aislado."""
     d_dir = os.path.expanduser("~/Escritorio")
     if not os.path.exists(d_dir):
         d_dir = os.path.expanduser("~/Desktop")
     if os.path.exists(d_dir):
         desk_file = os.path.join(d_dir, f"{nombre}.desktop")
+        exec_str = f'bash "{LAUNCHER}" --isolated "{ruta}"' if prefijo == "aislado" else f'bash "{LAUNCHER}" "{ruta}"'
         content = f"""[Desktop Entry]
 Version=1.0
 Type=Application
 Name={nombre}
-Exec=bash "{LAUNCHER}" "{ruta}"
+Exec={exec_str}
 Icon=wine
 Terminal=false
 Categories=Game;
@@ -826,7 +854,8 @@ def menu_configurar_programas(hw, cfg):
             ya_existe = False
             nombre_existente = ""
             ruta_existente = ""
-            for db_nom, db_rut in cargar_lista_programas():
+            for item in cargar_lista_programas():
+                db_nom, db_rut = item[0], item[1]
                 real_db = os.path.realpath(os.path.abspath(db_rut)) if os.path.exists(db_rut) else db_rut
                 if real_nueva == real_db or ruta.strip() == db_rut:
                     ya_existe = True
@@ -857,7 +886,7 @@ def menu_configurar_programas(hw, cfg):
                 nombre_custom = nombre_sugerido
 
             progs_actuales = cargar_lista_programas()
-            progs_actuales.append((nombre_custom, ruta))
+            progs_actuales.append((nombre_custom, ruta, "compartido"))
             guardar_lista_programas(progs_actuales)
 
             print(f"\n{GREEN}✔ ¡Juego '{nombre_custom}' registrado exitosamente en la lista!{RESET}")
@@ -865,7 +894,7 @@ def menu_configurar_programas(hw, cfg):
             # Ofrecer crear acceso directo inmediatamente
             crear = input(f"\n{WHITE}¿Deseas crear acceso directo en el Escritorio ahora? (S/n): {RESET}").strip().lower()
             if crear != 'n':
-                crear_desktop_entry(nombre_custom, ruta)
+                crear_desktop_entry(nombre_custom, ruta, "compartido")
 
             # Ofrecer iniciar ahora
             ini = input(f"\n{PURPLE}¿Deseas iniciar '{nombre_custom}' ahora mismo? (s/N): {RESET}").strip().lower()
@@ -936,28 +965,32 @@ def menu_configurar_programas(hw, cfg):
             # Crear acceso directo con flechas
             progs = cargar_lista_programas()
             opts_desk = []
-            for i, (p_nom, p_rut) in enumerate(progs, 1):
+            for i, item in enumerate(progs, 1):
+                p_nom = item[0]
                 opts_desk.append((str(i), f"🖥️  {p_nom}"))
             opts_desk.append(("0", "↩️  Cancelar"))
 
             d_sel = submenu_interactivo("🖥️  Crear Acceso Directo en el Escritorio", opts_desk, hw, cfg)
             if d_sel != "0":
                 d_idx = int(d_sel) - 1
-                p_nom, p_rut = progs[d_idx]
-                crear_desktop_entry(p_nom, p_rut)
+                item = progs[d_idx]
+                p_nom, p_rut = item[0], item[1]
+                p_pref = item[2] if len(item) > 2 else "compartido"
+                crear_desktop_entry(p_nom, p_rut, p_pref)
                 pausar()
         elif sel == "5":
             # Abrir carpeta para mods con flechas
             progs = cargar_lista_programas()
             opts_mod = []
-            for i, (p_nom, p_rut) in enumerate(progs, 1):
+            for i, item in enumerate(progs, 1):
+                p_nom = item[0]
                 opts_mod.append((str(i), f"📂 {p_nom}"))
             opts_mod.append(("0", "↩️  Cancelar"))
 
             m_sel = submenu_interactivo("📂  Abrir Carpeta del Juego (para Mods)", opts_mod, hw, cfg)
             if m_sel != "0":
                 m_idx = int(m_sel) - 1
-                p_nom, p_rut = progs[m_idx]
+                p_nom, p_rut = progs[m_idx][0], progs[m_idx][1]
                 carpeta = os.path.join(DIR, "GameRanger") if "gameranger" in p_rut.lower() else os.path.dirname(p_rut)
                 subprocess.run(f"xdg-open '{carpeta}'", shell=True, stderr=subprocess.DEVNULL)
                 print(f"\n{GREEN}✔ Carpeta abierta en tu gestor de archivos.{RESET}")
@@ -965,8 +998,11 @@ def menu_configurar_programas(hw, cfg):
         elif sel == "6":
             os.system("clear")
             print(f"{PURPLE}📋 [ PROGRAMAS REGISTRADOS EN LA BASE DE DATOS ]{RESET}\n")
-            for p_nom, p_rut in cargar_lista_programas():
-                print(f"  🎮 {BOLD}{p_nom}{RESET} -> {GRAY}{p_rut}{RESET}")
+            for item in cargar_lista_programas():
+                p_nom, p_rut = item[0], item[1]
+                p_pref = item[2] if len(item) > 2 else "compartido"
+                tag_pref = f"{CYAN}[🛡️ Aislado]{RESET}" if p_pref == "aislado" else f"{GRAY}[Compartido]{RESET}"
+                print(f"  🎮 {BOLD}{p_nom}{RESET} {tag_pref} -> {GRAY}{p_rut}{RESET}")
             pausar()
 
 # ==============================================================================
@@ -991,6 +1027,7 @@ def menu_rendimiento(hw, cfg):
             ("5", f"🎮 Motor Gráfico (Actual: {mot_act})"),
             ("6", f"🧹 Limpiar Shaders y Caché DXVK (Solucionar Tirones / Descuadres 3D)"),
             ("7", f"🎛️ Filtrado Anisótropo 16x (Máxima Nitidez de Texturas)"),
+            ("8", f"🍷 Gestor de Wine Runners (Wine-GE / Kron4ek Staging / Lutris)"),
             ("0", "↩️  Volver al Menú Principal")
         ]
         sel = submenu_interactivo("⚡  Rendimiento y Motor Gráfico", opciones, hw, cfg)
@@ -1087,6 +1124,31 @@ def menu_rendimiento(hw, cfg):
             print(f"{GREEN}✔ Filtrado Anisótropo 16x activado en dxvk.conf.{RESET}")
             print(f"{WHITE}Las texturas a distancia se verán perfectamente nítidas.{RESET}")
             pausar()
+        elif sel == "8":
+            # Gestor de Wine Runners
+            script_runners = os.path.join(DIR, "gestor_runners.sh")
+            while True:
+                sub_r = [
+                    ("1", "📋 Listar Runners Instalados y Activos en el Sistema"),
+                    ("2", "📥 Descargar e Instalar Wine-Staging WOW64 Portable (Kron4ek - DX12, MF, Esync/Fsync)"),
+                    ("3", "📥 Descargar e Instalar Wine-GE Portable (GloriousEggroll - Optimizado para Gaming)"),
+                    ("0", "↩️  Volver al Menú de Rendimiento")
+                ]
+                sr = submenu_interactivo("🍷  Gestor de Wine Runners", sub_r, hw, cfg)
+                if sr == "0":
+                    break
+                elif sr == "1":
+                    os.system("clear")
+                    subprocess.run(["bash", script_runners, "--list"])
+                    pausar()
+                elif sr == "2":
+                    os.system("clear")
+                    subprocess.run(["bash", script_runners, "--kron4ek"])
+                    pausar()
+                elif sr == "3":
+                    os.system("clear")
+                    subprocess.run(["bash", script_runners, "--wine-ge"])
+                    pausar()
 
 # ==============================================================================
 # SUBMENÚ 4: HERRAMIENTAS DE WINDOWS Y REPARACIÓN
