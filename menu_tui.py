@@ -546,6 +546,23 @@ def cargar_lista_programas():
                             partes = line.split("|")
                             nom = partes[0].strip()
                             rut = partes[1].strip()
+
+                            # Auto-reparación transparente de rutas movidas o descomprimidas fuera de ZIP
+                            if not os.path.exists(rut) and nom != "GameRanger":
+                                rut_no_zip = re.sub(r'/[zZ][iI][pP]/', '/', rut)
+                                if os.path.exists(rut_no_zip):
+                                    rut = rut_no_zip
+                                else:
+                                    d_padre = os.path.dirname(os.path.dirname(rut))
+                                    b_name = os.path.basename(rut)
+                                    if os.path.isdir(d_padre):
+                                        for r, _, files in os.walk(d_padre):
+                                            if b_name in files:
+                                                cand = os.path.join(r, b_name)
+                                                if os.path.exists(cand):
+                                                    rut = cand
+                                                    break
+
                             key = nom.lower()
                             if key not in vistos:
                                 vistos.add(key)
