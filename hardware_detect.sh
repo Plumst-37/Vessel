@@ -85,11 +85,11 @@ aplicar_entorno_hardware() {
         # Modo Compatibilidad OpenGL (para tarjetas sin Vulkan o PCs antiguas)
         export PROTON_USE_WINED3D=1
         export RENDERER_IN_USE="WineD3D (OpenGL Compatibilidad)"
-        export WINEDLLOVERRIDES="winemenubuilder.exe=d;dxgi=b;d3d11=b;d3d10core=b;d3d9=b;${WINEDLLOVERRIDES}"
+        export WINEDLLOVERRIDES="winemenubuilder.exe=d;dxgi=b;d3d11=b;d3d10core=b;d3d9=b;d3d8=b;ddraw=b;${WINEDLLOVERRIDES}"
     else
-        # Modo Máximo Rendimiento Vulkan con DXVK
+        # Modo Máximo Rendimiento Vulkan con DXVK y fallback transparente a WineD3D
         export RENDERER_IN_USE="DXVK (Vulkan)"
-        export WINEDLLOVERRIDES="winemenubuilder.exe=d;dxgi=n;d3d11=n;d3d10core=n;d3d9=n;${WINEDLLOVERRIDES}"
+        export WINEDLLOVERRIDES="winemenubuilder.exe=d;dxgi=n,b;d3d11=n,b;d3d10core=n,b;d3d9=n,b;d3d8=n,b;ddraw=n,b;${WINEDLLOVERRIDES}"
     fi
 
     # 7. Caché de shaders universal en almacenamiento NVMe SSD de ultra-alta velocidad

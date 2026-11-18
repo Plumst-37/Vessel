@@ -19,6 +19,9 @@ set -e
 # Limpiar cualquier texto o pulsación residual en el búfer de entrada de la terminal
 read -t 0.001 -n 10000 _discard_input 2>/dev/null || true
 
+# Ampliar límite de descriptores de archivos para juegos pesados (GTA V, RE4, etc.)
+ulimit -n 1048576 2>/dev/null || ulimit -n 65535 2>/dev/null || true
+
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
 DB_FILE="${DIR}/programas.db"
 
@@ -67,12 +70,16 @@ if [[ "$TARGET" =~ [Gg]ame[Rr]anger ]] || [ ! -f "$TARGET" ]; then
         # Restaurar preferencias y sesión guardada del usuario en cualquier perfil existente
         if [ -d "${DIR}/.gameranger_prefs_backup" ]; then
             mkdir -p "$GR_PREFS"
-            [ ! -s "${GR_PREFS}/Settings" ] && cp -ru "${DIR}/.gameranger_prefs_backup"/* "$GR_PREFS/" 2>/dev/null || true
+            if [ ! -s "${GR_PREFS}/Settings" ] || ! grep -q "SessMail" "${GR_PREFS}/Settings" 2>/dev/null; then
+                cp -rf "${DIR}/.gameranger_prefs_backup"/* "$GR_PREFS/" 2>/dev/null || true
+            fi
             for u_dir in "${WINEPREFIX}/drive_c/users"/*; do
                 if [ -d "$u_dir" ] && [ "$(basename "$u_dir")" != "Public" ]; then
                     u_prefs="${u_dir}/AppData/Roaming/GameRanger/GameRanger Prefs"
                     mkdir -p "$u_prefs"
-                    [ ! -s "${u_prefs}/Settings" ] && cp -ru "${DIR}/.gameranger_prefs_backup"/* "$u_prefs/" 2>/dev/null || true
+                    if [ ! -s "${u_prefs}/Settings" ] || ! grep -q "SessMail" "${u_prefs}/Settings" 2>/dev/null; then
+                        cp -rf "${DIR}/.gameranger_prefs_backup"/* "$u_prefs/" 2>/dev/null || true
+                    fi
                 fi
             done
         fi
@@ -125,7 +132,8 @@ if [[ "$TARGET" =~ \.([bB][aA][tT]|[cC][mM][dD])$ ]] && [ -f "$TARGET" ]; then
     fi
 fi
 
-# 5. Auto-inicialización del prefijo si es nuevo
+# 5. Auto-inicialización del prefijo si es nuevo y saneamiento de enlaces
+find "${WINEPREFIX}/drive_c/windows" -xtype l -delete 2>/dev/null || true
 if [ ! -f "${WINEPREFIX}/system.reg" ]; then
     echo "[*] Configurando nuevo entorno de Windows unificado..."
     mkdir -p "$WINEPREFIX"
@@ -135,8 +143,10 @@ if [ ! -f "${WINEPREFIX}/system.reg" ]; then
     fi
 fi
 
-# 6. Configuración de pantalla completa universal, ratón ultra-fluido y estabilidad 3D
-if [ ! -f "${WINEPREFIX}/.vessel_reg_v3" ]; then
+# 6. Configuración de pantalla completa universal, ratón ultra-fluido, estabilidad 3D y supresión de crash dialogs
+if [ ! -f "${WINEPREFIX}/.vessel_reg_v4" ]; then
+    wine reg add "HKEY_CURRENT_USER\Software\Wine\WineDbg" /v ShowCrashDialog /t REG_DWORD /d 0 /f >/dev/null 2>&1 || true
+    wine reg add "HKEY_LOCAL_MACHINE\Software\Microsoft\Windows NT\CurrentVersion\AeDebug" /v Auto /t REG_SZ /d 0 /f >/dev/null 2>&1 || true
     wine reg add "HKEY_CURRENT_USER\Software\Wine\DirectInput" /v MouseWarpOverride /t REG_SZ /d enable /f >/dev/null 2>&1 || true
     wine reg add "HKEY_CURRENT_USER\Software\Wine\X11 Driver" /v UseTakeFocus /t REG_SZ /d N /f >/dev/null 2>&1 || true
     wine reg add "HKEY_CURRENT_USER\Software\Wine\X11 Driver" /v GrabFullscreen /t REG_SZ /d Y /f >/dev/null 2>&1 || true
@@ -147,7 +157,7 @@ if [ ! -f "${WINEPREFIX}/.vessel_reg_v3" ]; then
     wine reg add "HKEY_CURRENT_USER\Software\Wine\Direct3D" /v AlwaysOffscreen /t REG_SZ /d enabled /f >/dev/null 2>&1 || true
     wine reg add "HKEY_CURRENT_USER\Software\Wine\Direct3D" /v CheckDepthStencil /t REG_SZ /d enabled /f >/dev/null 2>&1 || true
     wine reg add "HKEY_CURRENT_USER\Software\Wine\AppDefaults\GameRanger.exe\X11 Driver" /v Decorated /t REG_SZ /d Y /f >/dev/null 2>&1 || true
-    touch "${WINEPREFIX}/.vessel_reg_v3" 2>/dev/null || true
+    touch "${WINEPREFIX}/.vessel_reg_v4" 2>/dev/null || true
 fi
 
 # 7. Generar archivo DXVK optimizado según la CPU y límite de FPS configurado
@@ -280,8 +290,8 @@ EOF
 }
 optimizar_red_y_wifi
 
-# Overrides universales de red, sockets, SSL/TLS, DirectPlay y librerías base
-export WINEDLLOVERRIDES="winemenubuilder.exe=d;dnsapi=b;dplayx=n,b;dpnet=n,b;dpwsockx=n,b;ws2_32=b;wininet=b;iphlpapi=b;secur32=b;winhttp=b;${WINEDLLOVERRIDES}"
+# Overrides universales de gráficos 3D, red, sockets, SSL/TLS, DirectPlay y librerías base
+export WINEDLLOVERRIDES="winemenubuilder.exe=d;dxgi=n,b;d3d11=n,b;d3d10core=n,b;d3d9=n,b;d3d8=n,b;ddraw=n,b;dplayx=n,b;dpnet=n,b;dpwsockx=n,b;secur32=n,b;wininet=n,b;winhttp=n,b;ws2_32=n,b;iphlpapi=n,b;dnsapi=n,b;${WINEDLLOVERRIDES}"
 
 # 11.1 Configuración específica para el cliente de lobby GameRanger
 EXTRA_APP_ARGS=""
@@ -304,8 +314,8 @@ if [[ "$TARGET_FILE" =~ [Gg]ame[Rr]anger ]]; then
     wine reg add "HKEY_CURRENT_USER\Software\Wine\AppDefaults\GameRanger.exe" /v "Version" /t REG_SZ /d "win7" /f >/dev/null 2>&1 || true
     wine reg add "HKEY_CURRENT_USER\Software\Wine\AppDefaults\GameRanger.exe\Direct3D" /v "renderer" /t REG_SZ /d "gl" /f >/dev/null 2>&1 || true
 
-    # Argumentos críticos para Chromium CEF: eliminan pantalla negra y silencian logs internos
-    EXTRA_APP_ARGS="--disable-gpu --disable-gpu-compositing --in-process-gpu --no-sandbox --disable-dev-shm-usage --log-severity=disable --silent"
+    # CEF interno en GameRanger renderiza limpiamente con GDI/WineD3D sin flags conflictivas
+    EXTRA_APP_ARGS=""
 fi
 
 # Moverse al directorio donde reside el juego (vital para rutas relativas y DLLs)
@@ -324,16 +334,53 @@ cd "$TARGET_DIR"
 # - Enforce pantalla completa en Unreal Engine (SWAT 4), Capcom MT Framework y cnc-ddraw
 # ==============================================================================
 auto_optimizar_juegos_3d() {
-    # 1. Detectar resolución óptima del monitor principal en cualquier PC (Intel, AMD, NVIDIA)
-    local best_res
+    # 1. Detectar resolución óptima del monitor activo en cualquier PC (Intel, AMD, NVIDIA, multi-pantalla)
+    local best_res=""
     if command -v xrandr &>/dev/null; then
-        best_res=$(xrandr 2>/dev/null | grep -E ' connected primary' | grep -oE '[0-9]{3,4}x[0-9]{3,4}' | head -n 1)
-        [ -z "$best_res" ] && best_res=$(xrandr 2>/dev/null | grep -E '\bconnected\b' | grep -oE '[0-9]{3,4}x[0-9]{3,4}' | head -n 1)
+        local mouse_x=-1 mouse_y=-1
+        if command -v xdotool &>/dev/null; then
+            eval "$(xdotool getmouselocation --shell 2>/dev/null || true)"
+            [ -n "$X" ] && mouse_x="$X"
+            [ -n "$Y" ] && mouse_y="$Y"
+        fi
+
+        local cur_mon_res="" prim_mon_res="" max_mon_res="" max_area=0
+        while read -r line; do
+            if [[ "$line" =~ ([0-9]{3,4})x([0-9]{3,4})\+([0-9]+)\+([0-9]+) ]]; then
+                local mw="${BASH_REMATCH[1]}"
+                local mh="${BASH_REMATCH[2]}"
+                local mx_off="${BASH_REMATCH[3]}"
+                local my_off="${BASH_REMATCH[4]}"
+                local area=$((mw * mh))
+
+                if [ "$mouse_x" -ge "$mx_off" ] && [ "$mouse_x" -lt $((mx_off + mw)) ] && \
+                   [ "$mouse_y" -ge "$my_off" ] && [ "$mouse_y" -lt $((my_off + mh)) ]; then
+                    cur_mon_res="${mw}x${mh}"
+                fi
+
+                if echo "$line" | grep -q "primary"; then
+                    prim_mon_res="${mw}x${mh}"
+                fi
+
+                if [ "$area" -gt "$max_area" ]; then
+                    max_area="$area"
+                    max_mon_res="${mw}x${mh}"
+                fi
+            fi
+        done < <(xrandr 2>/dev/null | grep -E '\bconnected\b')
+
+        if [ -n "$cur_mon_res" ]; then
+            best_res="$cur_mon_res"
+        elif [ -n "$prim_mon_res" ]; then
+            best_res="$prim_mon_res"
+        elif [ -n "$max_mon_res" ]; then
+            best_res="$max_mon_res"
+        fi
     fi
     if [ -z "$best_res" ]; then
         best_res=$(cat /sys/class/drm/*/modes 2>/dev/null | grep -oE '^[0-9]{3,4}x[0-9]{3,4}' | head -n 1)
     fi
-    [ -z "$best_res" ] && best_res="1280x720"
+    [ -z "$best_res" ] && best_res="1920x1080"
 
     local best_w best_h
     best_w=$(echo "$best_res" | cut -dx -f1)
@@ -495,25 +542,26 @@ EOF
             sed -i '/^-scOfflineOnly/d' "$gta_cmdline" 2>/dev/null || true
             grep -q '^-novsync' "$gta_cmdline" || echo "-novsync" >> "$gta_cmdline"
             grep -q '^-fullscreen' "$gta_cmdline" || echo "-fullscreen" >> "$gta_cmdline"
+            sed -i "s/^-width .*/-width ${best_w}/" "$gta_cmdline" 2>/dev/null || true
+            sed -i "s/^-height .*/-height ${best_h}/" "$gta_cmdline" 2>/dev/null || true
             grep -q '^-width' "$gta_cmdline" || echo "-width ${best_w}" >> "$gta_cmdline"
             grep -q '^-height' "$gta_cmdline" || echo "-height ${best_h}" >> "$gta_cmdline"
             grep -q '^-disablespecular' "$gta_cmdline" || echo "-disablespecular" >> "$gta_cmdline"
+            grep -q '^-ignoreDifferentVideoCard' "$gta_cmdline" || echo "-ignoreDifferentVideoCard" >> "$gta_cmdline"
             echo "[+] Archivo commandline.txt de GTA V optimizado (Pantalla completa y carga inmediata)."
         fi
+        export WINEDLLOVERRIDES="bink2w64=n,b;d3dcompiler_46=n,b;d3dcompiler_43=n,b;d3dcsx_46=n,b;socialclub=n,b;steam_api64=n,b;dxgi=n,b;d3d11=n,b;d3d9=n,b;${WINEDLLOVERRIDES}"
     fi
 
-    # 3.2 OPTIMIZACIÓN Y PROTECCIÓN GTA SAN ANDREAS (gta_sa.exe)
+    # 3.2 ADAPTACIÓN UNIVERSAL DE WIDESCREEN FIX (GTA, NFS, Silent Hill, etc.)
+    find "$TARGET_DIR" -maxdepth 3 -iname "*widescreen*.ini" 2>/dev/null | while read -r wf_ini; do
+        sed -i "s/^ResX = .*/ResX = ${best_w}/" "$wf_ini" 2>/dev/null || true
+        sed -i "s/^ResY = .*/ResY = ${best_h}/" "$wf_ini" 2>/dev/null || true
+        sed -i "s/^ForceAspectRatio = .*/ForceAspectRatio = auto/" "$wf_ini" 2>/dev/null || true
+    done
+
+    # 3.3 OPTIMIZACIÓN Y PROTECCIÓN GTA SAN ANDREAS (gta_sa.exe)
     if [[ "$TARGET_FILE" =~ (gta_sa|gta-sa|gtasa) ]]; then
-        # Limpiar configuración de resolución previa que crashea al cambiar de PC/monitor
-        find "${WINEPREFIX}/drive_c/users" -name "gta_sa.set" -delete 2>/dev/null || true
-        rm -f "$HOME/Documentos/GTA San Andreas User Files/gta_sa.set" 2>/dev/null || true
-        rm -f "$HOME/Documents/GTA San Andreas User Files/gta_sa.set" 2>/dev/null || true
-        # Configurar Widescreen Fix para pantalla completa y aspecto perfecto
-        find "$TARGET_DIR" -iname "GTASA.WidescreenFix.ini" 2>/dev/null | while read -r wf_ini; do
-            sed -i "s/^ResX = .*/ResX = ${best_w}/" "$wf_ini" 2>/dev/null || true
-            sed -i "s/^ResY = .*/ResY = ${best_h}/" "$wf_ini" 2>/dev/null || true
-            sed -i "s/^ForceAspectRatio = .*/ForceAspectRatio = auto/" "$wf_ini" 2>/dev/null || true
-        done
         # Si existe el plugin de modo ventana con borde, desactivar borde o renombrar para pantalla completa real
         find "$TARGET_DIR" -iname "III.VC.SA.WindowedMode.ini" 2>/dev/null | while read -r wm_ini; do
             sed -i "s/^ShowBorder = .*/ShowBorder = 0/" "$wm_ini" 2>/dev/null || true
@@ -523,8 +571,8 @@ EOF
         done
         # Desactivar GLThread para evitar fallos de renderizado en D3D9 con mods CLEO/ModLoader
         export mesa_glthread=false
-        # Asegurar overrides esenciales para ASI Loader y librerías de sonido
-        export WINEDLLOVERRIDES="vorbisfile=n,b;vorbishooked=n,b;dinput8=n,b;d3d9=n,b;${WINEDLLOVERRIDES}"
+        # Asegurar overrides esenciales para ASI Loader, CLEO, audio, texturas y DirectX 9
+        export WINEDLLOVERRIDES="vorbisfile=n,b;vorbishooked=n,b;vorbis=n,b;ogg=n,b;bass=n,b;eax=n,b;dinput8=n,b;d3d9=n,b;dsound=n,b;libcurl=n,b;${WINEDLLOVERRIDES}"
         echo "[+] GTA San Andreas optimizado: Pantalla completa nativa (${best_res}) y aspecto 3D corregido."
     fi
 
@@ -599,11 +647,11 @@ auto_optimizar_juegos_3d
 # Detecta automáticamente librerías de mods locales y activa el override nativo (n,b)
 # para que funcionen inmediatamente sin tocar winecfg
 # ==============================================================================
-MOD_HOOKS=("ddraw" "d3d8" "d3d9" "d3d11" "d3d12" "dxgi" "dinput8" "dinput" "dsound" "dplayx" "dpnet" "version" "winmm" "vorbisfile" "xinput1_3" "xinput1_4" "xinput9_1_0" "x3daudio1_7" "binkw32" "binkw64" "bink2w64" "dbghelp" "msimg32" "opengl32")
+MOD_HOOKS=("ddraw" "d3d8" "d3d9" "d3d11" "d3d12" "dxgi" "dinput8" "dinput" "dsound" "dplayx" "dpnet" "version" "winmm" "vorbisfile" "vorbishooked" "vorbis" "ogg" "bass" "eax" "xinput1_3" "xinput1_4" "xinput9_1_0" "x3daudio1_7" "xaudio2_7" "binkw32" "binkw64" "bink2w64" "dbghelp" "msimg32" "opengl32" "d3dcompiler_43" "d3dcompiler_46" "d3dcompiler_47" "d3dcsx_46" "socialclub" "libcurl")
 MODS_ACTIVADOS=()
 
 for hook in "${MOD_HOOKS[@]}"; do
-    found_hook=$(find . -maxdepth 1 -iname "${hook}.dll" 2>/dev/null | head -n 1)
+    found_hook=$(find . -maxdepth 2 -iname "${hook}.dll" 2>/dev/null | head -n 1)
     if [ -n "$found_hook" ]; then
         export WINEDLLOVERRIDES="${hook}=n,b;${WINEDLLOVERRIDES}"
         MODS_ACTIVADOS+=("$(basename "$found_hook")")
@@ -679,20 +727,16 @@ if [[ "$TARGET_FILE" =~ [Gg]ame[Rr]anger ]]; then
     (
         for i in $(seq 1 60); do
             sleep 1
-            if command -v wmctrl &>/dev/null; then
-                wmctrl -l 2>/dev/null | grep -iE 'GameRanger|Friends' | while read -r wid dtop host wtitle; do
-                    wmctrl -i -r "$wid" -b remove,hidden,remove,shaded 2>/dev/null || true
-                    wmctrl -i -a "$wid" 2>/dev/null || true
-                done
-            elif command -v xdotool &>/dev/null; then
-                for gr_w in $(xdotool search --name "GameRanger" 2>/dev/null); do
+            if command -v xdotool &>/dev/null; then
+                for gr_w in $(xdotool search --class "gameranger" 2>/dev/null); do
                     xdotool windowmap "$gr_w" 2>/dev/null || true
                     xdotool windowraise "$gr_w" 2>/dev/null || true
-                    xdotool windowactivate "$gr_w" 2>/dev/null || true
                 done
-                for fr_w in $(xdotool search --name "Friends" 2>/dev/null); do
-                    xdotool windowmap "$fr_w" 2>/dev/null || true
-                    xdotool windowraise "$fr_w" 2>/dev/null || true
+            fi
+            if command -v wmctrl &>/dev/null; then
+                wmctrl -l 2>/dev/null | grep -iE 'GameRanger|Friends|Assistant' | while read -r wid dtop host wtitle; do
+                    wmctrl -i -r "$wid" -b remove,hidden,remove,shaded 2>/dev/null || true
+                    wmctrl -i -a "$wid" 2>/dev/null || true
                 done
             fi
 
@@ -700,9 +744,9 @@ if [[ "$TARGET_FILE" =~ [Gg]ame[Rr]anger ]]; then
             for u_dir in "${WINEPREFIX}/drive_c/users"/*; do
                 if [ -d "$u_dir" ] && [ "$(basename "$u_dir")" != "Public" ]; then
                     u_s="${u_dir}/AppData/Roaming/GameRanger/GameRanger Prefs/Settings"
-                    if [ -s "$u_s" ]; then
+                    if [ -s "$u_s" ] && grep -q "SessMail" "$u_s" 2>/dev/null; then
                         mkdir -p "${DIR}/.gameranger_prefs_backup"
-                        cp -ru "${u_dir}/AppData/Roaming/GameRanger/GameRanger Prefs"/* "${DIR}/.gameranger_prefs_backup/" 2>/dev/null || true
+                        cp -rf "${u_dir}/AppData/Roaming/GameRanger/GameRanger Prefs"/* "${DIR}/.gameranger_prefs_backup/" 2>/dev/null || true
                     fi
                 fi
             done
@@ -719,9 +763,9 @@ limpiar_procesos_al_interrumpir() {
         for u_dir in "${WINEPREFIX}/drive_c/users"/*; do
             if [ -d "$u_dir" ] && [ "$(basename "$u_dir")" != "Public" ]; then
                 u_prefs="${u_dir}/AppData/Roaming/GameRanger/GameRanger Prefs"
-                if [ -d "$u_prefs" ] && [ -s "${u_prefs}/Settings" ]; then
+                if [ -d "$u_prefs" ] && [ -s "${u_prefs}/Settings" ] && grep -q "SessMail" "${u_prefs}/Settings" 2>/dev/null; then
                     mkdir -p "${DIR}/.gameranger_prefs_backup"
-                    cp -ru "$u_prefs"/* "${DIR}/.gameranger_prefs_backup/" 2>/dev/null || true
+                    cp -rf "$u_prefs"/* "${DIR}/.gameranger_prefs_backup/" 2>/dev/null || true
                 fi
             fi
         done
@@ -741,6 +785,12 @@ elif [[ "$TARGET_FILE" =~ \.(lnk|ink|LNK|INK)$ ]]; then
         $GAMEMODE "$WINE_CMD" $RUN_PREFIX start /unix "$TARGET" "$@"
     else
         $GAMEMODE "$WINE_CMD" start /unix "$TARGET" "$@"
+    fi
+elif [[ "$TARGET_FILE" =~ \.([bB][aA][tT]|[cC][mM][dD])$ ]]; then
+    if [ -n "$RUN_PREFIX" ]; then
+        $GAMEMODE "$WINE_CMD" $RUN_PREFIX cmd /c "$TARGET_FILE" "$@"
+    else
+        $GAMEMODE "$WINE_CMD" cmd /c "$TARGET_FILE" "$@"
     fi
 elif [[ "$TARGET_FILE" =~ [Gg]ame[Rr]anger ]]; then
     # GameRanger: silenciar logs ruidosos de CEF/Chromium hacia log dedicado y ejecutar fluidamente
@@ -763,9 +813,9 @@ if [[ "$TARGET_FILE" =~ [Gg]ame[Rr]anger ]]; then
     for u_dir in "${WINEPREFIX}/drive_c/users"/*; do
         if [ -d "$u_dir" ] && [ "$(basename "$u_dir")" != "Public" ]; then
             u_prefs="${u_dir}/AppData/Roaming/GameRanger/GameRanger Prefs"
-            if [ -d "$u_prefs" ] && [ -s "${u_prefs}/Settings" ]; then
+            if [ -d "$u_prefs" ] && [ -s "${u_prefs}/Settings" ] && grep -q "SessMail" "${u_prefs}/Settings" 2>/dev/null; then
                 mkdir -p "${DIR}/.gameranger_prefs_backup"
-                cp -ru "$u_prefs"/* "${DIR}/.gameranger_prefs_backup/" 2>/dev/null || true
+                cp -rf "$u_prefs"/* "${DIR}/.gameranger_prefs_backup/" 2>/dev/null || true
             fi
         fi
     done

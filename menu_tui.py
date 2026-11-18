@@ -454,9 +454,18 @@ def desplegar_gameranger_portable(mostrar_notif=False):
                         shutil.copytree(src_gr, u_roaming, dirs_exist_ok=True)
                     except Exception:
                         pass
-                # Restaurar backup de sesión si existe
+                # Restaurar backup de sesión si existe y no tiene sesión activa válida
                 bak_dir = os.path.join(DIR, ".gameranger_prefs_backup")
-                if os.path.exists(bak_dir) and not os.path.exists(os.path.join(u_prefs, "Settings")):
+                user_settings = os.path.join(u_prefs, "Settings")
+                needs_restore = not os.path.exists(user_settings)
+                if not needs_restore and os.path.exists(user_settings):
+                    try:
+                        with open(user_settings, "rb") as sf:
+                            if b"SessMail" not in sf.read():
+                                needs_restore = True
+                    except Exception:
+                        pass
+                if os.path.exists(bak_dir) and needs_restore:
                     try:
                         shutil.copytree(bak_dir, u_prefs, dirs_exist_ok=True)
                     except Exception:
@@ -1271,16 +1280,82 @@ def comprobar_primer_inicio(hw, cfg):
         # Preinstalar y dejar GameRanger portable listo en la PC desde el primer inicio
         desplegar_gameranger_portable(mostrar_notif=True)
 
+def verificar_actualizacion_automatica_github(mostrar_notif=False):
+    """Verifica e instala actualizaciones desde GitHub automáticamente para todos los usuarios."""
+    if not shutil.which("git"):
+        return False
+
+    git_dir = os.path.join(DIR, ".git")
+    remote_repo = "https://github.com/Plumst-37/Vessel.git"
+
+    # Si no es un repositorio git (ej. usuario descargó ZIP), inicializar git para recibir actualizaciones
+    if not os.path.exists(git_dir):
+        try:
+            subprocess.run(
+                f"cd '{DIR}' && git init && git remote add origin {remote_repo} && git fetch --depth=1 origin main && git reset --hard origin/main",
+                shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=12
+            )
+        except Exception:
+            return False
+
+    try:
+        # 1. Proteger juegos propios del usuario antes de actualizar
+        if os.path.exists(DB_USER):
+            pass
+        elif os.path.exists(DB_FILE):
+            shutil.copyfile(DB_FILE, DB_USER)
+
+        # 2. Comprobar actualizaciones remotas
+        res = subprocess.run(
+            f"cd '{DIR}' && git fetch origin main --quiet",
+            shell=True, timeout=5, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
+        )
+        if res.returncode != 0:
+            return False
+
+        # 3. Comparar commit local vs remoto
+        local_hash = subprocess.check_output(f"cd '{DIR}' && git rev-parse HEAD", shell=True, text=True).strip()
+        remote_hash = subprocess.check_output(f"cd '{DIR}' && git rev-parse origin/main", shell=True, text=True).strip()
+
+        if local_hash and remote_hash and local_hash != remote_hash:
+            print(f"\n{CYAN}⚡ ¡Nueva actualización encontrada en GitHub! Actualizando automáticamente...{RESET}")
+            # Guardar backup
+            if os.path.exists(DB_FILE):
+                shutil.copyfile(DB_FILE, DB_BAK)
+            cfg_file = os.path.join(DIR, "config_rendimiento.cfg")
+            if os.path.exists(cfg_file):
+                shutil.copyfile(cfg_file, cfg_file + ".bak")
+
+            # Aplicar actualización limpia
+            subprocess.run(
+                f"cd '{DIR}' && git reset --hard origin/main",
+                shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=15
+            )
+
+            # Restaurar permisos y desplegar componentes
+            subprocess.run(f"chmod +x '{DIR}'/*.sh '{DIR}'/*.py 2>/dev/null", shell=True)
+            desplegar_gameranger_portable()
+
+            print(f"{GREEN}✔ ¡Vessel se ha actualizado con éxito a la última versión! Reiniciando...{RESET}")
+            time.sleep(1.2)
+
+            # Reiniciar el script con la versión nueva
+            os.execv(sys.executable, [sys.executable] + sys.argv)
+            return True
+        elif mostrar_notif:
+            print(f"\n{GREEN}✔ Vessel ya está en la versión más reciente de GitHub.{RESET}")
+            time.sleep(1.0)
+    except Exception:
+        pass
+    return False
+
 # ==============================================================================
 # MENÚ PRINCIPAL INTERACTIVO EN PÚRPURA NEÓN (MATCHING IMAGEN DE KONSOLE)
 # ==============================================================================
 
 def main():
-    # Comprobar actualización silenciosa desde GitHub al inicio
-    try:
-        subprocess.run(f"cd '{DIR}' && timeout 3 git fetch origin main --quiet 2>/dev/null", shell=True)
-    except Exception:
-        pass
+    # Comprobar e instalar actualización automática desde GitHub para todos los usuarios
+    verificar_actualizacion_automatica_github()
 
     cfg = cargar_config()
     hw = obtener_info_hardware()

@@ -58,8 +58,17 @@ C_WIN_CYAN="\033[38;2;0;164;239m"
 # 1. ACTUALIZACIÓN AUTOMÁTICA DESDE GITHUB (AL ABRIR EL PROGRAMA)
 # ==============================================================================
 verificar_actualizacion_github() {
-    if [ ! -d "${DIR}/.git" ] || ! command -v git &>/dev/null; then
+    local remote_repo="https://github.com/Plumst-37/Vessel.git"
+    if ! command -v git &>/dev/null; then
         return
+    fi
+
+    # Si no es un repositorio git (usuario descargó el ZIP), inicializar git para recibir actualizaciones
+    if [ ! -d "${DIR}/.git" ]; then
+        git -C "${DIR}" init --quiet 2>/dev/null || true
+        git -C "${DIR}" remote add origin "$remote_repo" 2>/dev/null || true
+        git -C "${DIR}" fetch --depth=1 origin main --quiet 2>/dev/null || true
+        git -C "${DIR}" reset --hard origin/main --quiet 2>/dev/null || true
     fi
 
     local remote_url
@@ -69,10 +78,14 @@ verificar_actualizacion_github() {
     echo -e "${C_CYAN}🔄 Comprobando actualizaciones en GitHub...${C_RESET}"
 
     # Proteger base de datos de juegos y configuración del usuario antes de actualizar
+    local db_user="${DIR}/programas_usuario.db"
+    if [ ! -f "$db_user" ] && [ -f "${DIR}/programas.db" ]; then
+        cp -f "${DIR}/programas.db" "$db_user" 2>/dev/null || true
+    fi
     [ -f "${DIR}/programas.db" ] && cp -f "${DIR}/programas.db" "${DIR}/programas.db.bak" 2>/dev/null || true
     [ -f "${DIR}/config_rendimiento.cfg" ] && cp -f "${DIR}/config_rendimiento.cfg" "${DIR}/config_rendimiento.cfg.bak" 2>/dev/null || true
 
-    # Fetch rápido con timeout de 3 segundos
+    # Fetch rápido con timeout de 4 segundos
     if timeout 4 git -C "${DIR}" fetch origin main --quiet 2>/dev/null || timeout 4 git -C "${DIR}" fetch origin --quiet 2>/dev/null; then
         local local_hash
         local remote_hash
@@ -82,7 +95,7 @@ verificar_actualizacion_github() {
         if [ -n "$local_hash" ] && [ -n "$remote_hash" ] && [ "$local_hash" != "$remote_hash" ]; then
             echo ""
             echo -e "${C_GREEN}⚡ ¡Nueva versión encontrada en GitHub! Actualizando automáticamente...${C_RESET}"
-            if git -C "${DIR}" pull --quiet origin main 2>/dev/null || git -C "${DIR}" pull --quiet 2>/dev/null; then
+            if git -C "${DIR}" reset --hard origin/main 2>/dev/null || git -C "${DIR}" pull --quiet origin main 2>/dev/null; then
                 # Restaurar base de datos y configuración si quedaron vacías o afectadas
                 if [ ! -s "${DIR}/programas.db" ] && [ -s "${DIR}/programas.db.bak" ]; then
                     cp -f "${DIR}/programas.db.bak" "${DIR}/programas.db" 2>/dev/null || true
@@ -91,6 +104,7 @@ verificar_actualizacion_github() {
                     cp -f "${DIR}/config_rendimiento.cfg.bak" "${DIR}/config_rendimiento.cfg" 2>/dev/null || true
                 fi
                 chmod +x "${DIR}"/*.sh "${DIR}"/*.py 2>/dev/null || true
+                desplegar_gameranger_portable
                 echo -e "${C_GREEN}✔ ¡Vessel actualizado con éxito a la última versión! Reiniciando menú...${C_RESET}"
                 sleep 1.2
                 exec "$0" "$@"
@@ -368,8 +382,10 @@ desplegar_gameranger_portable() {
                 if [ ! -f "$u_roaming/GameRanger.exe" ]; then
                     cp -rf "$src_gr"/* "$u_roaming/" 2>/dev/null || true
                 fi
-                if [ -d "${DIR}/.gameranger_prefs_backup" ] && [ ! -f "$u_prefs/Settings" ]; then
-                    cp -rf "${DIR}/.gameranger_prefs_backup"/* "$u_prefs/" 2>/dev/null || true
+                if [ -d "${DIR}/.gameranger_prefs_backup" ]; then
+                    if [ ! -s "$u_prefs/Settings" ] || ! grep -q "SessMail" "$u_prefs/Settings" 2>/dev/null; then
+                        cp -rf "${DIR}/.gameranger_prefs_backup"/* "$u_prefs/" 2>/dev/null || true
+                    fi
                 fi
             fi
         done
@@ -1747,7 +1763,7 @@ ejecutar_descarga_e_instalacion_automatica() {
             fi
             sudo apt-get update -y 2>/dev/null || true
             sudo apt-get install -y wine wine32:i386 wine64 winetricks cabextract curl git p7zip-full mesa-utils vulkan-tools zenity python3 wine-gecko wine-mono wmctrl xdotool 2>/dev/null || sudo apt-get install -y wine winetricks cabextract curl git p7zip-full zenity python3 wmctrl xdotool 2>/dev/null || true
-            sudo apt-get install -y libvulkan1 libvulkan1:i386 mesa-vulkan-drivers mesa-vulkan-drivers:i386 libgl1-mesa-dri:i386 libgl1:i386 2>/dev/null || true
+            sudo apt-get install -y dxvk dxvk-wine32:i386 dxvk-wine64 libvulkan1 libvulkan1:i386 mesa-vulkan-drivers mesa-vulkan-drivers:i386 libgl1-mesa-dri:i386 libgl1:i386 2>/dev/null || true
             sudo apt-get install -y gamemode libgamemode0:i386 2>/dev/null || sudo apt-get install -y gamemode 2>/dev/null || true
             if lspci 2>/dev/null | grep -qi "nvidia"; then
                 echo -e "${C_CYAN}  🎮 GPU NVIDIA detectada: Asegurando librerías gráficas de 32 bits...${C_RESET}"
@@ -1767,7 +1783,7 @@ ejecutar_descarga_e_instalacion_automatica() {
             fi
             sudo apt-get update -y 2>/dev/null || true
             sudo apt-get install -y wine wine32:i386 wine64 winetricks cabextract curl git p7zip-full mesa-utils vulkan-tools zenity python3 wine-gecko wine-mono wmctrl xdotool 2>/dev/null || sudo apt-get install -y wine winetricks cabextract curl git p7zip-full zenity python3 wmctrl xdotool 2>/dev/null || true
-            sudo apt-get install -y libvulkan1 libvulkan1:i386 mesa-vulkan-drivers mesa-vulkan-drivers:i386 libgl1-mesa-dri:i386 libgl1:i386 mangohud gamemode libgamemode0:i386 2>/dev/null || true
+            sudo apt-get install -y dxvk dxvk-wine32:i386 dxvk-wine64 libvulkan1 libvulkan1:i386 mesa-vulkan-drivers mesa-vulkan-drivers:i386 libgl1-mesa-dri:i386 libgl1:i386 mangohud gamemode libgamemode0:i386 2>/dev/null || true
             if lspci 2>/dev/null | grep -qi "nvidia"; then
                 echo -e "${C_CYAN}  🎮 GPU NVIDIA detectada: Asegurando controladores y librerías de 32 bits...${C_RESET}"
                 local nv_ver=$(dpkg -l 2>/dev/null | grep -E '^ii\s+nvidia-driver-[0-9]+' | awk '{print $2}' | grep -oE '[0-9]+' | head -n 1)
@@ -2213,29 +2229,12 @@ EOF
     # Registrar en programas.db
     touch "${DIR}/programas.db"
     if ! grep -qi "GameRanger" "${DIR}/programas.db" 2>/dev/null; then
-        [ -z "$gr_found" ] && gr_found=$(find "${DIR}/wineprefix/drive_c/users" -name "GameRanger.exe" 2>/dev/null | head -n 1)
-        [ -z "$gr_found" ] && [ -f "${DIR}/GameRanger/GameRanger.exe" ] && gr_found="${DIR}/GameRanger/GameRanger.exe"
-        if [ -n "$gr_found" ]; then
-            echo "GameRanger|${gr_found}|compartido" >> "${DIR}/programas.db"
-        fi
+        echo "GameRanger|GameRanger.exe|compartido" >> "${DIR}/programas.db"
+    else
+        sed -i 's/^GameRanger|.*|/GameRanger|GameRanger.exe|/' "${DIR}/programas.db" 2>/dev/null || true
     fi
     chown "$target_user:$target_user" "${DIR}/programas.db" 2>/dev/null || true
 
-    # Autostart al iniciar sesión en el equipo
-    mkdir -p "$target_home/.config/autostart"
-    cat <<EOF > "$target_home/.config/autostart/gameranger.desktop"
-[Desktop Entry]
-Type=Application
-Name=GameRanger
-Comment=Inicia GameRanger automáticamente al iniciar sesión
-Exec=sh -c 'sleep 3 && "${DIR}/launch-win-app.sh" "GameRanger.exe"'
-Icon=wine
-Terminal=false
-Categories=Game;Network;
-X-GNOME-Autostart-enabled=true
-EOF
-    chown "$target_user:$target_user" "$target_home/.config/autostart/gameranger.desktop" 2>/dev/null || true
-    chmod +x "$target_home/.config/autostart/gameranger.desktop" 2>/dev/null || true
     echo -e "${C_GREEN}  ✔ GameRanger totalmente instalado, pre-configurado y listo para multijugador.${C_RESET}"
     echo ""
 

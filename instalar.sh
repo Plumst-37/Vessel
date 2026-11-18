@@ -221,7 +221,7 @@ case "$DISTRO_DETECTED" in
         fi
         sudo apt-get update -y 2>/dev/null || true
         sudo apt-get install -y wine wine32:i386 wine64 winetricks cabextract curl git p7zip-full mesa-utils vulkan-tools zenity python3 wine-gecko wine-mono wmctrl xdotool 2>/dev/null || sudo apt-get install -y wine winetricks cabextract curl git p7zip-full zenity python3 wmctrl xdotool 2>/dev/null || true
-        sudo apt-get install -y libvulkan1 libvulkan1:i386 mesa-vulkan-drivers mesa-vulkan-drivers:i386 libgl1-mesa-dri:i386 libgl1:i386 2>/dev/null || true
+        sudo apt-get install -y dxvk dxvk-wine32:i386 dxvk-wine64 libvulkan1 libvulkan1:i386 mesa-vulkan-drivers mesa-vulkan-drivers:i386 libgl1-mesa-dri:i386 libgl1:i386 2>/dev/null || true
         sudo apt-get install -y gamemode libgamemode0:i386 2>/dev/null || sudo apt-get install -y gamemode 2>/dev/null || true
         if lspci 2>/dev/null | grep -qi "nvidia"; then
             echo -e "${C_CYAN}  🎮 GPU NVIDIA detectada: Asegurando librerías gráficas de 32 bits...${C_RESET}"
@@ -241,7 +241,7 @@ case "$DISTRO_DETECTED" in
         fi
         sudo apt-get update -y 2>/dev/null || true
         sudo apt-get install -y wine wine32:i386 wine64 winetricks cabextract curl git p7zip-full mesa-utils vulkan-tools zenity python3 wine-gecko wine-mono wmctrl xdotool 2>/dev/null || sudo apt-get install -y wine winetricks cabextract curl git p7zip-full zenity python3 wmctrl xdotool 2>/dev/null || true
-        sudo apt-get install -y libvulkan1 libvulkan1:i386 mesa-vulkan-drivers mesa-vulkan-drivers:i386 libgl1-mesa-dri:i386 libgl1:i386 mangohud gamemode libgamemode0:i386 2>/dev/null || true
+        sudo apt-get install -y dxvk dxvk-wine32:i386 dxvk-wine64 libvulkan1 libvulkan1:i386 mesa-vulkan-drivers mesa-vulkan-drivers:i386 libgl1-mesa-dri:i386 libgl1:i386 mangohud gamemode libgamemode0:i386 2>/dev/null || true
         if lspci 2>/dev/null | grep -qi "nvidia"; then
             echo -e "${C_CYAN}  🎮 GPU NVIDIA detectada: Asegurando controladores y librerías de 32 bits...${C_RESET}"
             nv_ver=$(dpkg -l 2>/dev/null | grep -E '^ii\s+nvidia-driver-[0-9]+' | awk '{print $2}' | grep -oE '[0-9]+' | head -n 1)
@@ -492,9 +492,11 @@ if command -v winetricks &>/dev/null && [ ! -f "${DIR}/wineprefix/drive_c/window
     echo -e "${C_GREEN}✔ Entorno base optimizado para cualquier instalador.${C_RESET}"
 fi
 
-# 4.2 Optimización de hilos gráficos Direct3D (CSMT multithread)
+# 4.2 Optimización de hilos gráficos Direct3D (CSMT multithread) y supresión de fallos
 WINEPREFIX="${DIR}/wineprefix" wine reg add "HKEY_CURRENT_USER\Software\Wine\Direct3D" /v "csmt" /t REG_DWORD /d 1 /f >/dev/null 2>&1 || true
-echo -e "${C_GREEN}✔ Motor Direct3D CSMT multithread configurado.${C_RESET}"
+WINEPREFIX="${DIR}/wineprefix" wine reg add "HKEY_CURRENT_USER\Software\Wine\WineDbg" /v ShowCrashDialog /t REG_DWORD /d 0 /f >/dev/null 2>&1 || true
+WINEPREFIX="${DIR}/wineprefix" wine reg add "HKEY_LOCAL_MACHINE\Software\Microsoft\Windows NT\CurrentVersion\AeDebug" /v Auto /t REG_SZ /d 0 /f >/dev/null 2>&1 || true
+echo -e "${C_GREEN}✔ Motor Direct3D CSMT multithread y protección 3D configurados.${C_RESET}"
 
 # 4.3 Optimización de captura de ratón en 3D y compatibilidad multi-monitor
 WINEPREFIX="${DIR}/wineprefix" wine reg add "HKEY_CURRENT_USER\Software\Wine\DirectInput" /v "MouseWarpOverride" /t REG_SZ /d "enable" /f >/dev/null 2>&1 || true
@@ -518,6 +520,17 @@ done
 WINEPREFIX="${DIR}/wineprefix" wine reg add "HKEY_CURRENT_USER\Software\Wine\DllOverrides" /v dplayx /t REG_SZ /d "builtin,native" /f >/dev/null 2>&1 || true
 WINEPREFIX="${DIR}/wineprefix" wine reg add "HKEY_CURRENT_USER\Software\Wine\DllOverrides" /v dpnet /t REG_SZ /d "builtin,native" /f >/dev/null 2>&1 || true
 WINEPREFIX="${DIR}/wineprefix" wine reg add "HKEY_CURRENT_USER\Software\Wine\DllOverrides" /v dpwsockx /t REG_SZ /d "builtin,native" /f >/dev/null 2>&1 || true
+WINEPREFIX="${DIR}/wineprefix" wine reg add "HKEY_CURRENT_USER\Software\Wine\DllOverrides" /v dxgi /t REG_SZ /d "native,builtin" /f >/dev/null 2>&1 || true
+WINEPREFIX="${DIR}/wineprefix" wine reg add "HKEY_CURRENT_USER\Software\Wine\DllOverrides" /v d3d11 /t REG_SZ /d "native,builtin" /f >/dev/null 2>&1 || true
+WINEPREFIX="${DIR}/wineprefix" wine reg add "HKEY_CURRENT_USER\Software\Wine\DllOverrides" /v d3d10core /t REG_SZ /d "native,builtin" /f >/dev/null 2>&1 || true
+WINEPREFIX="${DIR}/wineprefix" wine reg add "HKEY_CURRENT_USER\Software\Wine\DllOverrides" /v d3d9 /t REG_SZ /d "native,builtin" /f >/dev/null 2>&1 || true
+WINEPREFIX="${DIR}/wineprefix" wine reg add "HKEY_CURRENT_USER\Software\Wine\DllOverrides" /v d3d8 /t REG_SZ /d "native,builtin" /f >/dev/null 2>&1 || true
+WINEPREFIX="${DIR}/wineprefix" wine reg add "HKEY_CURRENT_USER\Software\Wine\DllOverrides" /v ddraw /t REG_SZ /d "native,builtin" /f >/dev/null 2>&1 || true
+
+# Configuración automática de DXVK en el prefijo si está instalado en el sistema
+if command -v dxvk-setup &>/dev/null; then
+    WINEPREFIX="${DIR}/wineprefix" dxvk-setup install -y 2>/dev/null || true
+fi
 
 # 4.3.1.1 Configuración universal de red, DNS y sondas NCSI en el registro de Wine (para todos los juegos)
 WINEPREFIX="${DIR}/wineprefix" wine reg add "HKEY_LOCAL_MACHINE\System\CurrentControlSet\Services\Tcpip\Parameters" /v NameServer /t REG_SZ /d "1.1.1.1,8.8.8.8" /f >/dev/null 2>&1 || true
@@ -591,11 +604,16 @@ if [ -f "${DIR}/GameRanger/GameRanger.exe" ]; then
 
     # Restaurar sesión de GameRanger si existe backup previo en cualquier perfil
     if [ -d "${DIR}/.gameranger_prefs_backup" ]; then
-        cp -ru "${DIR}/.gameranger_prefs_backup"/* "${GR_ROAMING}/../GameRanger Prefs/" 2>/dev/null || true
+        if [ ! -s "${GR_ROAMING}/../GameRanger Prefs/Settings" ] || ! grep -q "SessMail" "${GR_ROAMING}/../GameRanger Prefs/Settings" 2>/dev/null; then
+            cp -rf "${DIR}/.gameranger_prefs_backup"/* "${GR_ROAMING}/../GameRanger Prefs/" 2>/dev/null || true
+        fi
         for u_dir in "${DIR}/wineprefix/drive_c/users"/*; do
             if [ -d "$u_dir" ] && [ "$(basename "$u_dir")" != "Public" ]; then
-                mkdir -p "${u_dir}/AppData/Roaming/GameRanger/GameRanger Prefs"
-                cp -ru "${DIR}/.gameranger_prefs_backup"/* "${u_dir}/AppData/Roaming/GameRanger/GameRanger Prefs/" 2>/dev/null || true
+                u_p="${u_dir}/AppData/Roaming/GameRanger/GameRanger Prefs"
+                mkdir -p "$u_p"
+                if [ ! -s "${u_p}/Settings" ] || ! grep -q "SessMail" "${u_p}/Settings" 2>/dev/null; then
+                    cp -rf "${DIR}/.gameranger_prefs_backup"/* "${u_p}/" 2>/dev/null || true
+                fi
             fi
         done
     fi
@@ -663,22 +681,7 @@ if [ -d "$DESKTOP_DIR" ]; then
     gio set "${DESKTOP_DIR}/GameRanger.desktop" metadata::trusted true 2>/dev/null || true
 fi
 
-# Configurar inicio automático de GameRanger al iniciar sesión en la computadora
-mkdir -p "$TARGET_HOME/.config/autostart"
-cat <<EOF > "$TARGET_HOME/.config/autostart/gameranger.desktop"
-[Desktop Entry]
-Type=Application
-Name=GameRanger
-Comment=Inicia GameRanger automáticamente al iniciar sesión
-Exec=sh -c 'sleep 3 && "${DIR}/launch-win-app.sh" "GameRanger.exe"'
-Icon=wine
-Terminal=false
-Categories=Game;Network;
-X-GNOME-Autostart-enabled=true
-EOF
-chown "$TARGET_USER:$TARGET_USER" "$TARGET_HOME/.config/autostart/gameranger.desktop" 2>/dev/null || true
-chmod +x "$TARGET_HOME/.config/autostart/gameranger.desktop" 2>/dev/null || true
-echo -e "${C_GREEN}✔ GameRanger totalmente instalado y configurado para inicio automático.${C_RESET}"
+echo -e "${C_GREEN}✔ GameRanger totalmente instalado y configurado en el sistema.${C_RESET}"
 
 # 4.4 Configuración de GameMode para el usuario (prioridad CPU/GPU y renice -10)
 TARGET_USER="${SUDO_USER:-$USER}"
