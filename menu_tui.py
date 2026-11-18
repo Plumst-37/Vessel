@@ -531,11 +531,21 @@ def cargar_lista_programas():
     programas = []
     vistos = set()
 
-    # 1. GameRanger siempre es la opción #1 portable sin configurar nada
-    programas.append(("GameRanger", "GameRanger.exe", "compartido"))
-    vistos.add("gameranger")
+    # Comprobar si existe alguna base de datos previa configurada
+    hay_db = False
+    for db_path in [DB_USER, DB_FILE, DB_FILE + ".bak"]:
+        if os.path.exists(db_path) and os.path.getsize(db_path) > 0:
+            hay_db = True
+            break
 
-    # 2. Cargar juegos del usuario desde DB_USER, DB_FILE y DB_FILE.bak
+    # Si es una instalación totalmente nueva y vacía, registrar GameRanger por defecto
+    if not hay_db:
+        programas.append(("GameRanger", "GameRanger.exe", "compartido"))
+        vistos.add("gameranger")
+        guardar_lista_programas(programas)
+        return programas
+
+    # Cargar juegos del usuario desde DB_USER, DB_FILE y DB_FILE.bak respetando sus decisiones
     for db_path in [DB_USER, DB_FILE, DB_FILE + ".bak"]:
         if os.path.exists(db_path) and os.path.getsize(db_path) > 0:
             try:
@@ -945,23 +955,21 @@ def menu_configurar_programas(hw, cfg):
         elif sel == "3":
             # Eliminación interactiva con flechas
             progs = cargar_lista_programas()
-            # GameRanger es el cliente base del sistema; permitir eliminar los juegos añadidos
-            progs_del = [p for p in progs if "gameranger" not in p[0].lower()]
-            if not progs_del:
-                print(f"\n{YELLOW}⚠️  No tienes juegos personalizados añadidos para eliminar.{RESET}")
-                print(f"{GRAY}(GameRanger es el cliente multijugador base integrado de Vessel).{RESET}")
+            if not progs:
+                print(f"\n{YELLOW}⚠️  No tienes juegos o programas registrados en la lista para eliminar.{RESET}")
                 pausar()
                 continue
 
             opts_del = []
-            for i, (p_nom, p_rut) in enumerate(progs_del, 1):
+            for i, item in enumerate(progs, 1):
+                p_nom = item[0]
                 opts_del.append((str(i), f"❌ Eliminar: {p_nom}"))
             opts_del.append(("0", "↩️  Cancelar"))
 
             del_sel = submenu_interactivo("❌  Selecciona el Programa a Eliminar", opts_del, hw, cfg)
             if del_sel != "0":
                 del_idx = int(del_sel) - 1
-                nom_borrado = progs_del[del_idx][0]
+                nom_borrado = progs[del_idx][0]
                 progs_nuevos = [p for p in progs if p[0] != nom_borrado]
                 guardar_lista_programas(progs_nuevos)
                 print(f"\n{GREEN}✔ '{nom_borrado}' ha sido eliminado con éxito de la lista.{RESET}")

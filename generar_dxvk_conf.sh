@@ -64,7 +64,7 @@ d3d9.samplerAnisotropy = 16
 d3d11.samplerAnisotropy = 16
 d3d11.constantBufferRangeCheck = True
 d3d9.lenientClear = True
-d3d9.maxAvailableMemory = 4096
+d3d9.maxAvailableMemory = 2048
 
 # Modo Mailbox Present (Triple Buffering Tear-Free de Ultra-Baja Latencia)
 # Elimina desgarro de pantalla (tearing) SIN caídas bruscas a 30 FPS ni tirones de cámara

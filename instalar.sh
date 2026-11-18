@@ -137,10 +137,6 @@ solicitar_permisos_sudo() {
     return 0
 }
 
-if ! solicitar_permisos_sudo; then
-    exit 1
-fi
-
 # 1. Detección y Selección de Distribución de Linux (Comandos 100% Nativos)
 echo -e "${C_CYAN}[1/5] Detección y Selección de Distribución de Linux...${C_RESET}"
 
@@ -205,6 +201,18 @@ echo -e "${C_CYAN}════════════════════�
 echo -e "  ${C_BOLD}Sistema seleccionado:${C_RESET} ${C_YELLOW}${DISTRO_LABEL}${C_RESET}"
 echo -e "${C_CYAN}══════════════════════════════════════════════════════════════════════${C_RESET}"
 echo ""
+
+# Solicitar permisos de administrador solo si no se eligió el Modo Portable
+if [ "$DISTRO_DETECTED" != "portable" ]; then
+    if ! solicitar_permisos_sudo; then
+        echo -e "${C_YELLOW}  ⚠️ No se pudieron obtener permisos de administrador (sudo).${C_RESET}"
+        echo -e "${C_CYAN}  ➤ Conmutando automáticamente al Modo Portable Universal (SteamOS / Inmutable)...${C_RESET}\n"
+        DISTRO_DETECTED="portable"
+        DISTRO_LABEL="Modo Portable Universal (SteamOS / Inmutable)"
+    fi
+else
+    echo -e "${C_GREEN}  ✔ Continuando en Modo Portable sin requerir permisos de administrador.${C_RESET}\n"
+fi
 
 # Guardar selección en archivo de configuración
 CONFIG_USER="${DIR}/config_rendimiento.cfg"
