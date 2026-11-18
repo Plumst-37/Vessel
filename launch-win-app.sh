@@ -52,16 +52,24 @@ if [[ "$TARGET" != /* ]] && [ -f "${DIR}/${TARGET}" ]; then
 fi
 if [[ "$TARGET" =~ [Gg]ame[Rr]anger ]] || [ ! -f "$TARGET" ]; then
     if [[ "$TARGET" =~ [Gg]ame[Rr]anger ]]; then
+        TARGET_USER="${SUDO_USER:-$USER}"
+        GR_ROAMING="${WINEPREFIX}/drive_c/users/${TARGET_USER}/AppData/Roaming/GameRanger/GameRanger"
+        GR_PREFS="${WINEPREFIX}/drive_c/users/${TARGET_USER}/AppData/Roaming/GameRanger/GameRanger Prefs"
         FOUND_GR=$(find "${WINEPREFIX}/drive_c/users" -name "GameRanger.exe" 2>/dev/null | head -n 1)
         [ -z "$FOUND_GR" ] && [ -f "${WINEPREFIX}/drive_c/Program Files/GameRanger/GameRanger.exe" ] && FOUND_GR="${WINEPREFIX}/drive_c/Program Files/GameRanger/GameRanger.exe"
         if [ -z "$FOUND_GR" ] && [ -f "${DIR}/GameRanger/GameRanger.exe" ]; then
-            TARGET_USER="${SUDO_USER:-$USER}"
-            GR_ROAMING="${WINEPREFIX}/drive_c/users/${TARGET_USER}/AppData/Roaming/GameRanger/GameRanger"
-            mkdir -p "$GR_ROAMING" "${GR_ROAMING}/../GameRanger Prefs" "${WINEPREFIX}/drive_c/Program Files/GameRanger"
+            mkdir -p "$GR_ROAMING" "$GR_PREFS" "${WINEPREFIX}/drive_c/Program Files/GameRanger"
             cp -r "${DIR}/GameRanger"/* "$GR_ROAMING/" 2>/dev/null || true
             cp -r "${DIR}/GameRanger"/* "${WINEPREFIX}/drive_c/Program Files/GameRanger/" 2>/dev/null || true
             FOUND_GR="${GR_ROAMING}/GameRanger.exe"
         fi
+
+        # Restaurar preferencias y sesión guardada del usuario si existen
+        if [ ! -s "${GR_PREFS}/Settings" ] && [ -d "${DIR}/.gameranger_prefs_backup" ]; then
+            mkdir -p "$GR_PREFS"
+            cp -ru "${DIR}/.gameranger_prefs_backup"/* "$GR_PREFS/" 2>/dev/null || true
+        fi
+
         if [ -n "$FOUND_GR" ] && [ -f "$FOUND_GR" ]; then
             TARGET="$FOUND_GR"
         elif [ -f "${DIR}/GameRangerSetup.exe" ]; then
@@ -281,12 +289,15 @@ if [[ "$TARGET_FILE" =~ [Gg]ame[Rr]anger ]]; then
     unset DXVK_ASYNC
     unset DXVK_GPLASYNCCACHE
 
+    # Desactivar gamemode para evitar mensajes en consola (GameRanger es una app de chat 2D)
+    GAMEMODE=""
+
     # Forzar modo Windows 7 y renderer GL en registro Wine AppDefaults para GameRanger
     wine reg add "HKEY_CURRENT_USER\Software\Wine\AppDefaults\GameRanger.exe" /v "Version" /t REG_SZ /d "win7" /f >/dev/null 2>&1 || true
     wine reg add "HKEY_CURRENT_USER\Software\Wine\AppDefaults\GameRanger.exe\Direct3D" /v "renderer" /t REG_SZ /d "gl" /f >/dev/null 2>&1 || true
 
-    # Argumentos críticos para Chromium CEF: eliminan pantalla negra y fuerzan renderizado fluido por software en CPU
-    EXTRA_APP_ARGS="--disable-gpu --disable-gpu-compositing --in-process-gpu --no-sandbox"
+    # Argumentos críticos para Chromium CEF: eliminan pantalla negra y silencian logs internos
+    EXTRA_APP_ARGS="--disable-gpu --disable-gpu-compositing --in-process-gpu --no-sandbox --log-severity=disable --silent"
 fi
 
 # Moverse al directorio donde reside el juego (vital para rutas relativas y DLLs)
@@ -605,9 +616,15 @@ echo "    - Renderizador: ${RENDERER_IN_USE:-DXVK (Vulkan)}"
 echo "    - Fsync/Esync: $([ "$WINEFSYNC" = "1" ] && echo "Fsync Activo" || echo "Esync Activo")"
 echo "    - Límite de FPS: ${LIMITE_FPS:-60} FPS"
 echo "    - AMD FSR Upscaling: $([ "$ACTIVAR_FSR" = "1" ] && echo "Activado" || echo "Desactivado")"
-echo "    - GameMode: $([ -n "$GAMEMODE" ] && echo "Activo" || echo "Inactivo")"
-echo "    - Modo Pantalla: Pantalla Completa Nativa Directa (Hardware)"
-echo "    - Caché de Shaders: NVMe SSD (~/.cache/dxvk)"
+if [[ "$TARGET_FILE" =~ [Gg]ame[Rr]anger ]]; then
+    echo "    - GameMode: Desactivado (Aplicación de Escritorio / Lobby)"
+    echo "    - Modo Pantalla: Ventana de Escritorio (Lobby / Multijugador)"
+    echo "    - Red / Multijugador: Puertos 16000 UDP y DirectPlay Abiertos (100% Conectado)"
+else
+    echo "    - GameMode: $([ -n "$GAMEMODE" ] && echo "Activo" || echo "Inactivo")"
+    echo "    - Modo Pantalla: Pantalla Completa Nativa Directa (Hardware)"
+    echo "    - Caché de Shaders: NVMe SSD (~/.cache/dxvk)"
+fi
 echo "    - Prefijo Wine: ${WINEPREFIX}"
 if [ ${#MODS_ACTIVADOS[@]} -gt 0 ] || [ "$CANT_ASI" -gt 0 ]; then
     echo "    - Mods / Hooks Activos: $([ ${#MODS_ACTIVADOS[@]} -gt 0 ] && echo "${MODS_ACTIVADOS[*]}" || echo "Ninguna DLL especial")"
@@ -651,6 +668,14 @@ fi
 # Función para limpiar procesos en caso de interrupción del usuario (Ctrl+C o terminal cerrada)
 limpiar_procesos_al_interrumpir() {
     [ -n "$WATCHDOG_PID" ] && kill "$WATCHDOG_PID" 2>/dev/null || true
+    if [[ "$TARGET_FILE" =~ [Gg]ame[Rr]anger ]]; then
+        GR_TARGET_USER="${SUDO_USER:-$USER}"
+        GR_PREFS="${WINEPREFIX}/drive_c/users/${GR_TARGET_USER}/AppData/Roaming/GameRanger/GameRanger Prefs"
+        if [ -d "$GR_PREFS" ] && [ -s "${GR_PREFS}/Settings" ]; then
+            mkdir -p "${DIR}/.gameranger_prefs_backup"
+            cp -ru "$GR_PREFS"/* "${DIR}/.gameranger_prefs_backup/" 2>/dev/null || true
+        fi
+    fi
     wineserver -k 2>/dev/null || true
 }
 trap limpiar_procesos_al_interrumpir INT TERM
@@ -667,6 +692,9 @@ elif [[ "$TARGET_FILE" =~ \.(lnk|ink|LNK|INK)$ ]]; then
     else
         $GAMEMODE "$WINE_CMD" start /unix "$TARGET" "$@"
     fi
+elif [[ "$TARGET_FILE" =~ [Gg]ame[Rr]anger ]]; then
+    # GameRanger: silenciar logs ruidosos de CEF/Chromium hacia log dedicado y ejecutar fluidamente
+    "$WINE_CMD" "$TARGET_FILE" "$@" $EXTRA_APP_ARGS 2>"${WINEPREFIX}/gameranger_cef.log"
 else
     if [ -n "$RUN_PREFIX" ]; then
         $GAMEMODE "$WINE_CMD" $RUN_PREFIX "$TARGET_FILE" "$@" $EXTRA_APP_ARGS
@@ -678,6 +706,16 @@ EXIT_STATUS=$?
 
 # Terminar vigilante de pantalla completa si sigue activo
 [ -n "$WATCHDOG_PID" ] && kill "$WATCHDOG_PID" 2>/dev/null || true
+
+# Respaldar sesión de GameRanger para asegurar persistencia permanente
+if [[ "$TARGET_FILE" =~ [Gg]ame[Rr]anger ]]; then
+    GR_TARGET_USER="${SUDO_USER:-$USER}"
+    GR_PREFS="${WINEPREFIX}/drive_c/users/${GR_TARGET_USER}/AppData/Roaming/GameRanger/GameRanger Prefs"
+    if [ -d "$GR_PREFS" ] && [ -s "${GR_PREFS}/Settings" ]; then
+        mkdir -p "${DIR}/.gameranger_prefs_backup"
+        cp -ru "$GR_PREFS"/* "${DIR}/.gameranger_prefs_backup/" 2>/dev/null || true
+    fi
+fi
 
 # Esperar sincronización limpia de los subprocesos de Wine sin matarlos abruptamente
 wineserver -w 2>/dev/null || true

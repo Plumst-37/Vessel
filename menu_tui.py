@@ -471,6 +471,8 @@ def menu_iniciar_programa(hw, cfg):
                 termios.tcflush(sys.stdin, termios.TCIFLUSH)
             except Exception:
                 pass
+            if not os.path.exists(ruta) and "gameranger" in ruta.lower():
+                ruta = "GameRanger.exe"
             subprocess.run(["bash", LAUNCHER, ruta])
             pausar()
         elif accion == "2":
@@ -480,6 +482,8 @@ def menu_iniciar_programa(hw, cfg):
                 termios.tcflush(sys.stdin, termios.TCIFLUSH)
             except Exception:
                 pass
+            if not os.path.exists(ruta) and "gameranger" in ruta.lower():
+                ruta = "GameRanger.exe"
             subprocess.run(["bash", "-c", f"ENABLE_DXVK_HUD=1 bash '{LAUNCHER}' '{ruta}'"])
             pausar()
         elif accion == "3":

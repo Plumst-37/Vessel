@@ -2040,6 +2040,11 @@ EOF
         mkdir -p "$gr_progfiles" "$gr_roaming" "${gr_roaming}/../GameRanger Prefs"
         cp -r "${DIR}/GameRanger"/* "$gr_progfiles/" 2>/dev/null || true
         cp -r "${DIR}/GameRanger"/* "$gr_roaming/" 2>/dev/null || true
+
+        # Restaurar sesión de GameRanger si existe backup previo
+        if [ -d "${DIR}/.gameranger_prefs_backup" ]; then
+            cp -ru "${DIR}/.gameranger_prefs_backup"/* "${gr_roaming}/../GameRanger Prefs/" 2>/dev/null || true
+        fi
         gr_found="${gr_roaming}/GameRanger.exe"
     elif [ -f "${DIR}/GameRangerSetup.exe" ]; then
         WINEPREFIX="${DIR}/wineprefix" WINEDLLOVERRIDES="dxgi=b;d3d11=b;d3d10core=b;d3d9=b;" wine "${DIR}/GameRangerSetup.exe" 2>/dev/null || true

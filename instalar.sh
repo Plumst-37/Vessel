@@ -576,6 +576,11 @@ if [ -f "${DIR}/GameRanger/GameRanger.exe" ]; then
     mkdir -p "$GR_PROGFILES" "$GR_ROAMING" "${GR_ROAMING}/../GameRanger Prefs"
     cp -r "${DIR}/GameRanger"/* "$GR_PROGFILES/" 2>/dev/null || true
     cp -r "${DIR}/GameRanger"/* "$GR_ROAMING/" 2>/dev/null || true
+
+    # Restaurar sesión de GameRanger si existe backup previo
+    if [ -d "${DIR}/.gameranger_prefs_backup" ]; then
+        cp -ru "${DIR}/.gameranger_prefs_backup"/* "${GR_ROAMING}/../GameRanger Prefs/" 2>/dev/null || true
+    fi
     echo -e "${C_GREEN}✔ GameRanger instalado en Archivos de Programa y perfil de usuario.${C_RESET}"
 elif [ -f "${DIR}/GameRangerSetup.exe" ]; then
     WINEPREFIX="${DIR}/wineprefix" WINEDLLOVERRIDES="dxgi=b;d3d11=b;d3d10core=b;d3d9=b;" wine "${DIR}/GameRangerSetup.exe" 2>/dev/null || true
