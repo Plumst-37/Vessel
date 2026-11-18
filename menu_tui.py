@@ -495,7 +495,7 @@ StartupNotify=true
                 with open(desk_file, "w", encoding="utf-8") as df:
                     df.write(content)
                 os.chmod(desk_file, 0o755)
-                subprocess.run(f"gio set '{desk_file}' metadata::trusted true", shell=True, stderr=subprocess.DEVNULL)
+                subprocess.run(["gio", "set", desk_file, "metadata::trusted", "true"], stderr=subprocess.DEVNULL)
             except Exception:
                 pass
 
@@ -675,12 +675,17 @@ def menu_iniciar_programa(hw, cfg):
                 pass
             if not os.path.exists(ruta) and "gameranger" in ruta.lower():
                 ruta = "GameRanger.exe"
-            iso_flag = "--isolated " if prefijo == "aislado" else ""
-            subprocess.run(["bash", "-c", f"ENABLE_DXVK_HUD=1 bash '{LAUNCHER}' {iso_flag}'{ruta}'"])
+            env = os.environ.copy()
+            env["ENABLE_DXVK_HUD"] = "1"
+            cmd_args = ["bash", LAUNCHER]
+            if prefijo == "aislado":
+                cmd_args.append("--isolated")
+            cmd_args.append(ruta)
+            subprocess.run(cmd_args, env=env)
             pausar()
         elif accion == "3":
             carpeta = os.path.join(DIR, "GameRanger") if "gameranger" in ruta.lower() else os.path.dirname(ruta)
-            subprocess.run(f"xdg-open '{carpeta}'", shell=True, stderr=subprocess.DEVNULL)
+            subprocess.run(["xdg-open", carpeta], stderr=subprocess.DEVNULL)
             print(f"\n{GREEN}✔ Carpeta abierta en tu gestor de archivos.{RESET}")
             pausar()
         elif accion == "4":
@@ -723,7 +728,7 @@ StartupNotify=true
         with open(desk_file, "w", encoding="utf-8") as df:
             df.write(content)
         os.chmod(desk_file, 0o755)
-        subprocess.run(f"gio set '{desk_file}' metadata::trusted true", shell=True, stderr=subprocess.DEVNULL)
+        subprocess.run(["gio", "set", desk_file, "metadata::trusted", "true"], stderr=subprocess.DEVNULL)
         print(f"\n{GREEN}✔ Acceso directo creado en tu Escritorio: {desk_file}{RESET}")
     else:
         print(f"\n{RED}❌ No se encontró la carpeta de Escritorio.{RESET}")
@@ -992,7 +997,7 @@ def menu_configurar_programas(hw, cfg):
                 m_idx = int(m_sel) - 1
                 p_nom, p_rut = progs[m_idx][0], progs[m_idx][1]
                 carpeta = os.path.join(DIR, "GameRanger") if "gameranger" in p_rut.lower() else os.path.dirname(p_rut)
-                subprocess.run(f"xdg-open '{carpeta}'", shell=True, stderr=subprocess.DEVNULL)
+                subprocess.run(["xdg-open", carpeta], stderr=subprocess.DEVNULL)
                 print(f"\n{GREEN}✔ Carpeta abierta en tu gestor de archivos.{RESET}")
                 pausar()
         elif sel == "6":
@@ -1448,6 +1453,13 @@ def verificar_actualizacion_automatica_github(mostrar_notif=True):
             shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
         )
 
+    # 0. Respetar modo desarrollador para evitar sobreescribir código en desarrollo
+    if os.environ.get("VESSEL_DEV_MODE") == "1" or cfg.get("AUTO_ACTUALIZAR_GITHUB") == "0" or os.path.exists(os.path.join(DIR, ".git_dev")):
+        if mostrar_notif:
+            print(f"  {CYAN}🛠️  Modo desarrollador activo: omitiendo actualización automática para proteger código local.{RESET}\n")
+            time.sleep(0.6)
+        return False
+
     try:
         # 1. Proteger juegos del usuario antes de actualizar
         if os.path.exists(DB_FILE) and os.path.getsize(DB_FILE) > 0:
@@ -1483,14 +1495,32 @@ def verificar_actualizacion_automatica_github(mostrar_notif=True):
         remote_hash = subprocess.check_output(f"cd '{DIR}' && git rev-parse origin/main", shell=True, text=True).strip()
 
         if local_hash and remote_hash and local_hash != remote_hash:
-            print(f"\n  {YELLOW}{BOLD}⚡ ¡Nueva actualización encontrada en GitHub!{RESET}")
-            print(f"  {WHITE}Descargando e instalando los últimos parches y mejoras para tus juegos...{RESET}")
+            # Comprobar si hay cambios locales sin confirmar para proteger el código
+            status_out = subprocess.run(
+                f"cd '{DIR}' && git status --porcelain",
+                shell=True, capture_output=True, text=True
+            ).stdout.strip()
 
-            # Aplicar actualización limpia
-            subprocess.run(
-                f"cd '{DIR}' && git reset --hard origin/main",
-                shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=25
-            )
+            lineas_cambios = [
+                l for l in status_out.splitlines()
+                if any(ext in l for ext in ['.py', '.sh', '.conf', '.cfg']) and not any(ign in l for ign in ['programas', 'config_rendimiento.cfg', '.bak', 'version.txt'])
+            ]
+            hay_cambios_locales = len(lineas_cambios) > 0
+
+            print(f"\n  {YELLOW}{BOLD}⚡ ¡Nueva actualización encontrada en GitHub!{RESET}")
+            if hay_cambios_locales:
+                print(f"  {CYAN}Detectados cambios locales de desarrollo. Protegiendo archivos con git stash...{RESET}")
+                subprocess.run(f"cd '{DIR}' && git stash", shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                pull_res = subprocess.run(f"cd '{DIR}' && git pull --ff-only origin main", shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                if pull_res.returncode != 0:
+                    subprocess.run(f"cd '{DIR}' && git rebase origin/main 2>/dev/null || true", shell=True)
+                subprocess.run(f"cd '{DIR}' && git stash pop 2>/dev/null || true", shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            else:
+                print(f"  {WHITE}Descargando e instalando los últimos parches y mejoras para tus juegos...{RESET}")
+                subprocess.run(
+                    f"cd '{DIR}' && git pull --ff-only origin main 2>/dev/null || git reset --hard origin/main",
+                    shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=25
+                )
 
             # Restaurar bases de datos y configuraciones
             if os.path.exists(DB_USER):
@@ -1510,10 +1540,14 @@ def verificar_actualizacion_automatica_github(mostrar_notif=True):
                 try:
                     with open(INSTALADO_MARKER, "w", encoding="utf-8") as f:
                         f.write(VERSION_ACTUAL + "\n")
-                    with open(VERSION_FILE, "w", encoding="utf-8") as f:
-                        f.write(VERSION_ACTUAL + "\n")
                 except Exception:
                     pass
+
+            # version.txt debe mantenerse estrictamente en 0 bytes
+            try:
+                open(VERSION_FILE, "w").close()
+            except Exception:
+                pass
 
             # Restaurar permisos y desplegar componentes
             subprocess.run(f"chmod +x '{DIR}'/*.sh '{DIR}'/*.py 2>/dev/null", shell=True)
