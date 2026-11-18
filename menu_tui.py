@@ -563,6 +563,20 @@ def cargar_lista_programas():
                                                     rut = cand
                                                     break
 
+                            # Priorizar binario nativo óptimo (.exe) si la ruta apunta a un script .bat o wrapper
+                            if rut.endswith((".bat", ".cmd")) or os.path.basename(rut).lower() == "playgtav.exe":
+                                d_rut = os.path.dirname(rut)
+                                for c_exe in ["GTA5.exe", "gta_sa.exe", "speed.exe", "BH6.exe", "re4.exe", "biohazard4.exe", "Swat4.exe"]:
+                                    encontrado = False
+                                    for sub in ["", "gta_data", "gamedata", "bin", "System", "Content/System"]:
+                                        c_path = os.path.join(d_rut, sub, c_exe) if sub else os.path.join(d_rut, c_exe)
+                                        if os.path.exists(c_path):
+                                            rut = c_path
+                                            encontrado = True
+                                            break
+                                    if encontrado:
+                                        break
+
                             key = nom.lower()
                             if key not in vistos:
                                 vistos.add(key)

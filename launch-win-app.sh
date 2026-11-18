@@ -16,8 +16,8 @@ fi
 
 set -e
 
-# Limpiar cualquier texto o pulsación residual en el búfer de entrada solo si es terminal interactiva
-[ -t 0 ] && read -t 0.001 -n 10000 _discard_input 2>/dev/null || true
+# Limpiar cualquier texto o pulsación residual de forma segura sin provocar bloqueos de señal SIGTTIN
+[ -t 0 ] && command -v tcflush >/dev/null 2>&1 && tcflush 0 2>/dev/null || true
 
 # Ampliar límite de descriptores de archivos para juegos pesados (GTA V, RE4, etc.)
 ulimit -n 1048576 2>/dev/null || ulimit -n 65535 2>/dev/null || true
@@ -91,14 +91,23 @@ fi
 # 4.0.2 Priorizar el binario óptimo (.exe) sobre scripts .bat/.cmd para evitar cuelgues de wmic/cacls en Wine
 if [[ "$TARGET" =~ \.([bB][aA][tT]|[cC][mM][dD])$ ]]; then
     BAT_DIR=$(dirname "$TARGET")
-    for cand in "PlayGTAV.exe" "GTA5.exe" "gta_sa.exe" "BH6.exe" "biohazard4.exe" "re4.exe" "Swat4.exe" "speed.exe"; do
-        FOUND_EXE=$(find "$BAT_DIR" -maxdepth 2 -iname "$cand" 2>/dev/null | head -n 1)
+    for cand in "GTA5.exe" "PlayGTAV.exe" "gta_sa.exe" "speed.exe" "BH6.exe" "re4.exe" "biohazard4.exe" "Swat4.exe"; do
+        FOUND_EXE=$(find "$BAT_DIR" -maxdepth 3 -iname "$cand" 2>/dev/null | head -n 1)
         if [ -n "$FOUND_EXE" ] && [ -f "$FOUND_EXE" ]; then
             echo "[+] Binario nativo óptimo detectado: $(basename "$FOUND_EXE") (priorizado sobre $(basename "$TARGET"))"
             TARGET="$FOUND_EXE"
             break
         fi
     done
+fi
+
+# 4.0.3 Redirigir wrappers/launchers inestables al binario principal del juego (ej. PlayGTAV.exe -> GTA5.exe)
+if [[ "$TARGET" =~ PlayGTAV\.exe$ ]]; then
+    PLAY_DIR=$(dirname "$TARGET")
+    if [ -f "${PLAY_DIR}/GTA5.exe" ]; then
+        echo "[+] Redirigiendo launcher PlayGTAV.exe -> Binario principal estable: GTA5.exe"
+        TARGET="${PLAY_DIR}/GTA5.exe"
+    fi
 fi
 if [[ "$TARGET" =~ [Gg]ame[Rr]anger ]] || [ ! -f "$TARGET" ]; then
     if [[ "$TARGET" =~ [Gg]ame[Rr]anger ]]; then
@@ -505,23 +514,34 @@ aplicar_perfil_aislado_juego() {
             pkill -9 -f "PlayGTAV.exe" 2>/dev/null || true
             sleep 0.2
 
+            # Determinar resolución óptima según GPU (720p para GPUs de entrada/móviles como MX130 / Intel, nativa para gama alta)
+            local gta_w="$best_w"
+            local gta_h="$best_h"
+            if [ "$IS_LOW_SPEC_GPU" = true ]; then
+                gta_w="1280"
+                gta_h="720"
+                echo "    - Modo GPU de Entrada detectado: Ajustando resolución de renderizado a 1280x720 para 60 FPS estables."
+            fi
+
             # 2. Configuración en Rockstar Games / GTA V / settings.xml
             local rsg_doc="$HOME/Documentos/Rockstar Games/GTA V"
             [ ! -d "$rsg_doc" ] && rsg_doc="${WINEPREFIX}/drive_c/users/${USER}/Documents/Rockstar Games/GTA V"
             mkdir -p "$rsg_doc"
-            for sxml in "$rsg_doc/settings.xml" "${TARGET_DIR}/settings.xml"; do
+            for sxml in "$rsg_doc/settings.xml" "${TARGET_DIR}/settings.xml" "${WINEPREFIX}/drive_c/users/${USER}/Documents/Rockstar Games/GTA V/settings.xml"; do
                 if [ -f "$sxml" ]; then
-                    sed -i "s/<ScreenWidth value="[0-9]*"/<ScreenWidth value="${best_w}"/" "$sxml" 2>/dev/null || true
-                    sed -i "s/<ScreenHeight value="[0-9]*"/<ScreenHeight value="${best_h}"/" "$sxml" 2>/dev/null || true
+                    sed -i "s/<ScreenWidth value=\"[0-9]*\"/<ScreenWidth value=\"${gta_w}\"/" "$sxml" 2>/dev/null || true
+                    sed -i "s/<ScreenHeight value=\"[0-9]*\"/<ScreenHeight value=\"${gta_h}\"/" "$sxml" 2>/dev/null || true
                     sed -i 's/<Windowed value="[0-9]*"/<Windowed value="0"/' "$sxml" 2>/dev/null || true
                     sed -i 's/<VSync value="[0-9]*"/<VSync value="0"/' "$sxml" 2>/dev/null || true
+                    sed -i 's/<ShadowQuality value="[0-9]*"/<ShadowQuality value="0"/' "$sxml" 2>/dev/null || true
+                    sed -i 's/<GrassQuality value="[0-9]*"/<GrassQuality value="0"/' "$sxml" 2>/dev/null || true
+                    sed -i 's/<ShaderQuality value="[0-9]*"/<ShaderQuality value="0"/' "$sxml" 2>/dev/null || true
+                    sed -i 's/<ReflectionQuality value="[0-9]*"/<ReflectionQuality value="0"/' "$sxml" 2>/dev/null || true
                     sed -i 's/<PauseOnFocusLoss value="[0-9]*"/<PauseOnFocusLoss value="0"/' "$sxml" 2>/dev/null || true
                     sed -i 's/<AspectRatio value="[0-9]*"/<AspectRatio value="0"/' "$sxml" 2>/dev/null || true
-                    sed -i 's/<AnisotropicFiltering value="[0-9]*"/<AnisotropicFiltering value="16"/' "$sxml" 2>/dev/null || true
                     sed -i 's/<FXAA_Enabled value="false"/<FXAA_Enabled value="true"/' "$sxml" 2>/dev/null || true
-                    sed -i 's/<LodScale value="0.000000"/<LodScale value="1.000000"/' "$sxml" 2>/dev/null || true
-                    sed -i 's/<PedLodBias value="0.000000"/<PedLodBias value="0.200000"/' "$sxml" 2>/dev/null || true
-                    sed -i 's/<VehicleLodBias value="0.000000"/<VehicleLodBias value="0.200000"/' "$sxml" 2>/dev/null || true
+                    sed -i 's/<PedVarietyMultiplier value="[0-9\.]*"/<PedVarietyMultiplier value="0.200000"/' "$sxml" 2>/dev/null || true
+                    sed -i 's/<VehicleVarietyMultiplier value="[0-9\.]*"/<VehicleVarietyMultiplier value="0.200000"/' "$sxml" 2>/dev/null || true
                     if [ -n "$GPU_NAME" ]; then
                         sed -i "s|<VideoCardDescription>.*</VideoCardDescription>|<VideoCardDescription>${GPU_NAME}</VideoCardDescription>|" "$sxml" 2>/dev/null || true
                     fi
@@ -530,22 +550,34 @@ aplicar_perfil_aislado_juego() {
 
             # 3. Optimización en commandline.txt
             local gta_cmdline="${TARGET_DIR}/commandline.txt"
-            [ ! -f "$gta_cmdline" ] && touch "$gta_cmdline"
-            sed -i 's/^-FrameQueueLimit 0/-FrameQueueLimit 1/' "$gta_cmdline" 2>/dev/null || true
-            sed -i '/^-hdr/d' "$gta_cmdline" 2>/dev/null || true
-            grep -q '^-StraightIntoFreemode' "$gta_cmdline" || echo "-StraightIntoFreemode" >> "$gta_cmdline"
-            sed -i '/^-scOfflineOnly/d' "$gta_cmdline" 2>/dev/null || true
-            grep -q '^-novsync' "$gta_cmdline" || echo "-novsync" >> "$gta_cmdline"
-            grep -q '^-fullscreen' "$gta_cmdline" || echo "-fullscreen" >> "$gta_cmdline"
-            sed -i "s/^-width .*/-width ${best_w}/" "$gta_cmdline" 2>/dev/null || true
-            sed -i "s/^-height .*/-height ${best_h}/" "$gta_cmdline" 2>/dev/null || true
-            grep -q '^-width' "$gta_cmdline" || echo "-width ${best_w}" >> "$gta_cmdline"
-            grep -q '^-height' "$gta_cmdline" || echo "-height ${best_h}" >> "$gta_cmdline"
-            grep -q '^-disablespecular' "$gta_cmdline" || echo "-disablespecular" >> "$gta_cmdline"
-            grep -q '^-ignoreDifferentVideoCard' "$gta_cmdline" || echo "-ignoreDifferentVideoCard" >> "$gta_cmdline"
+            cat <<EOF > "$gta_cmdline"
+-width ${gta_w}
+-height ${gta_h}
+-fullscreen
+-novsync
+-FrameQueueLimit 1
+-disablespecular
+-reflectionBlur 0
+-reflection_MipBlur 0
+-noInGameDOF
+-StraightIntoFreemode
+-ignoreDifferentVideoCard
+-ShadowQuality 0
+-ReflectionQuality 0
+-ShaderQuality 0
+-GrassQuality 0
+-WaterQuality 0
+-TextureQuality 0
+-ParticleQuality 0
+-Tessellation 0
+-pedLodBias 0.2
+-vehicleLodBias 0.2
+-shadowSoftness 0
+EOF
+            echo "[+] GTA V optimizado: Pantalla completa nativa, sin VSync artificial y configuración 60 FPS aplicada."
 
-            # Overrides específicos de DirectX 11, Bink Video y Social Club
-            export WINEDLLOVERRIDES="bink2w64=n,b;d3dcompiler_46=n,b;d3dcompiler_43=n,b;d3dcsx_46=n,b;socialclub=n,b;steam_api64=n,b;dxgi=n,b;d3d11=n,b;d3d9=n,b;${WINEDLLOVERRIDES}"
+            # Overrides específicos de DirectX 11, Bink Video, Social Club y ASI Loader
+            export WINEDLLOVERRIDES="bink2w64=n,b;asiloader=n,b;d3dcompiler_46=n,b;d3dcompiler_43=n,b;d3dcsx_46=n,b;socialclub=n,b;steam_api64=n,b;dxgi=n,b;d3d11=n,b;d3d9=n,b;${WINEDLLOVERRIDES}"
             ;;
 
         rockstar_gtasa)

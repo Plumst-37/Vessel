@@ -51,6 +51,17 @@ if command -v vulkaninfo &>/dev/null; then
     fi
 fi
 
+# Detección de GPUs de gama de entrada / portátiles / integradas para optimización adaptativa
+IS_LOW_SPEC_GPU=false
+if [ "$HAS_NVIDIA" = true ] && echo "$GPU_NAME" | grep -qiE 'MX[0-9]{3}|GT[0-9]{3}|GTX\s*(750|850|950)'; then
+    IS_LOW_SPEC_GPU=true
+elif [ "$HAS_INTEL" = true ] && [ "$HAS_NVIDIA" = false ] && [ "$HAS_AMD_DEDICATED" = false ]; then
+    IS_LOW_SPEC_GPU=true
+elif [ "$HAS_AMD_DEDICATED" = false ] && lspci 2>/dev/null | grep -iE 'vga|3d|display' | grep -qiE 'vega\s*[0-9]|radeon\s*graphics'; then
+    IS_LOW_SPEC_GPU=true
+fi
+export IS_LOW_SPEC_GPU
+
 # Función para exportar las variables de entorno óptimas según el hardware
 aplicar_entorno_hardware() {
     # 1. Hilos de compilación para DXVK basados en la CPU real
