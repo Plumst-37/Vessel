@@ -332,31 +332,55 @@ pausar() {
 # 1) INICIAR PROGRAMA
 # ==============================================================================
 iniciar_programa() {
+    # Asegurar que GameRanger portable esté siempre registrado como opción #1
+    local db_user="${DIR}/programas_usuario.db"
+    if [ ! -s "$DB_FILE" ] || ! grep -qi "gameranger" "$DB_FILE" 2>/dev/null; then
+        mkdir -p "$(dirname "$DB_FILE")"
+        if [ -s "$DB_FILE" ]; then
+            sed -i '1i GameRanger|GameRanger.exe|compartido' "$DB_FILE" 2>/dev/null || echo "GameRanger|GameRanger.exe|compartido" >> "$DB_FILE"
+        else
+            echo "GameRanger|GameRanger.exe|compartido" > "$DB_FILE"
+        fi
+        cp -f "$DB_FILE" "${DB_FILE}.bak" 2>/dev/null || true
+    fi
+
     while true; do
         mostrar_banner
         echo -e "${C_GREEN}▶ [ INICIAR PROGRAMA O JUEGO ]${C_RESET}"
         echo -e "${C_GRAY}Selecciona el programa que deseas ejecutar con aceleración gráfica:${C_RESET}"
         echo ""
 
-        if [ ! -s "$DB_FILE" ]; then
-            echo -e "${C_YELLOW}⚠️  Aún no tienes programas registrados en la lista.${C_RESET}"
-            echo -e "${C_WHITE}Ve a la opción ${C_BOLD}'2) Configurar Programa Win'${C_RESET}${C_WHITE} para añadir uno.${C_RESET}"
-            pausar
-            return
-        fi
-
         local i=1
         declare -a nombres
         declare -a rutas
+        declare -A vistos
 
-        while IFS='|' read -r nombre ruta prefijo; do
-            [ -z "$nombre" ] && continue
-            nombres[i]="$nombre"
-            rutas[i]="$ruta"
-            echo -e "  ${C_BOLD}${C_CYAN}[$i]${C_RESET} ${C_WHITE}${nombre}${C_RESET}"
-            echo -e "      ${C_GRAY}↳ ${ruta}${C_RESET}"
-            ((i++))
-        done < "$DB_FILE"
+        # GameRanger siempre como opción inicial garantizada portable
+        nombres[i]="GameRanger"
+        rutas[i]="GameRanger.exe"
+        vistos["gameranger"]=1
+        echo -e "  ${C_BOLD}${C_CYAN}[$i]${C_RESET} ${C_WHITE}GameRanger${C_RESET} ${C_GREEN}(Multijugador Online / Portable)${C_RESET}"
+        echo -e "      ${C_GRAY}↳ GameRanger.exe (Listo para jugar sin configurar nada)${C_RESET}"
+        ((i++))
+
+        # Cargar juegos registrados de DB_USER y DB_FILE
+        for db_f in "$db_user" "$DB_FILE" "${DB_FILE}.bak"; do
+            if [ -f "$db_f" ]; then
+                while IFS='|' read -r nombre ruta prefijo; do
+                    [ -z "$nombre" ] && continue
+                    [[ "$nombre" =~ ^# ]] && continue
+                    local l_key="${nombre,,}"
+                    if [ -z "${vistos[$l_key]}" ]; then
+                        vistos["$l_key"]=1
+                        nombres[i]="$nombre"
+                        rutas[i]="$ruta"
+                        echo -e "  ${C_BOLD}${C_CYAN}[$i]${C_RESET} ${C_WHITE}${nombre}${C_RESET}"
+                        echo -e "      ${C_GRAY}↳ ${ruta}${C_RESET}"
+                        ((i++))
+                    fi
+                done < "$db_f"
+            fi
+        done
 
         local total=$((i - 1))
         echo ""

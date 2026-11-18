@@ -630,14 +630,12 @@ fi
 touch "${DIR}/programas.db"
 [ -s "${DIR}/programas.db" ] && cp -f "${DIR}/programas.db" "${DIR}/programas.db.bak" 2>/dev/null || true
 if ! grep -qi "GameRanger" "${DIR}/programas.db" 2>/dev/null; then
-    FOUND_GR=$(find "${DIR}/wineprefix/drive_c/users" -name "GameRanger.exe" 2>/dev/null | head -n 1)
-    [ -z "$FOUND_GR" ] && [ -f "${DIR}/wineprefix/drive_c/Program Files/GameRanger/GameRanger.exe" ] && FOUND_GR="${DIR}/wineprefix/drive_c/Program Files/GameRanger/GameRanger.exe"
-    [ -z "$FOUND_GR" ] && [ -f "${DIR}/GameRanger/GameRanger.exe" ] && FOUND_GR="${DIR}/GameRanger/GameRanger.exe"
-    if [ -n "$FOUND_GR" ]; then
-        echo "GameRanger|${FOUND_GR}|compartido" >> "${DIR}/programas.db"
-        cp -f "${DIR}/programas.db" "${DIR}/programas.db.bak" 2>/dev/null || true
-        echo -e "${C_GREEN}✔ GameRanger registrado en la lista de programas de Vessel.${C_RESET}"
-    fi
+    sed -i '1i GameRanger|GameRanger.exe|compartido' "${DIR}/programas.db" 2>/dev/null || echo "GameRanger|GameRanger.exe|compartido" >> "${DIR}/programas.db"
+    cp -f "${DIR}/programas.db" "${DIR}/programas.db.bak" 2>/dev/null || true
+    echo -e "${C_GREEN}✔ GameRanger registrado como programa portable en la opción 1 de Vessel.${C_RESET}"
+else
+    # Si GameRanger ya estaba registrado con ruta absoluta, normalizar a GameRanger.exe portable
+    sed -i 's/^GameRanger|.*|/GameRanger|GameRanger.exe|/' "${DIR}/programas.db" 2>/dev/null || true
 fi
 chown "$TARGET_USER:$TARGET_USER" "${DIR}/programas.db" 2>/dev/null || true
 

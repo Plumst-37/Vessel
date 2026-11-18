@@ -19,6 +19,7 @@ import time
 # Rutas principales
 DIR = os.path.dirname(os.path.abspath(__file__))
 DB_FILE = os.path.join(DIR, "programas.db")
+DB_USER = os.path.join(DIR, "programas_usuario.db")
 LAUNCHER = os.path.join(DIR, "launch-win-app.sh")
 DXVK_CONF = os.path.join(DIR, "dxvk.conf")
 CONFIG_USER = os.path.join(DIR, "config_rendimiento.cfg")
@@ -408,38 +409,78 @@ def pausar():
     input(f"  {PURPLE}[Enter]{RESET} {WHITE}Presiona Enter para continuar...{RESET} ")
 
 # ==============================================================================
+# GESTIÓN Y PERSISTENCIA DE PROGRAMAS Y JUEGOS (GAMERANGER PORTABLE SIEMPRE LISTO)
+# ==============================================================================
+
+def asegurar_gameranger_en_db():
+    """Garantiza que GameRanger portable esté siempre en la base de datos."""
+    if not os.path.exists(DB_FILE) or os.path.getsize(DB_FILE) == 0:
+        try:
+            with open(DB_FILE, "w", encoding="utf-8") as f:
+                f.write("GameRanger|GameRanger.exe|compartido\n")
+            shutil.copyfile(DB_FILE, DB_FILE + ".bak")
+        except Exception:
+            pass
+
+def cargar_lista_programas():
+    """Carga y unifica la lista de juegos y programas de DB_FILE, DB_USER y .bak."""
+    asegurar_gameranger_en_db()
+    programas = []
+    vistos = set()
+
+    # 1. GameRanger siempre es la opción #1 portable sin configurar nada
+    programas.append(("GameRanger", "GameRanger.exe"))
+    vistos.add("gameranger")
+
+    # 2. Cargar juegos del usuario desde DB_USER, DB_FILE y DB_FILE.bak
+    for db_path in [DB_USER, DB_FILE, DB_FILE + ".bak"]:
+        if os.path.exists(db_path) and os.path.getsize(db_path) > 0:
+            try:
+                with open(db_path, "r", encoding="utf-8", errors="ignore") as f:
+                    for line in f:
+                        line = line.strip()
+                        if line and "|" in line and not line.startswith("#"):
+                            partes = line.split("|")
+                            nom = partes[0].strip()
+                            rut = partes[1].strip()
+                            key = nom.lower()
+                            if key not in vistos:
+                                vistos.add(key)
+                                programas.append((nom, rut))
+            except Exception:
+                pass
+
+    return programas
+
+def guardar_lista_programas(programas):
+    """Guarda la lista unificada en DB_FILE y DB_USER."""
+    lineas = []
+    for n, r in programas:
+        lineas.append(f"{n}|{r}|compartido\n")
+    for db_path in [DB_FILE, DB_USER]:
+        try:
+            with open(db_path, "w", encoding="utf-8") as f:
+                f.writelines(lineas)
+        except Exception:
+            pass
+    try:
+        shutil.copyfile(DB_FILE, DB_FILE + ".bak")
+    except Exception:
+        pass
+
+# ==============================================================================
 # SUBMENÚ 1: INICIAR PROGRAMA O JUEGO
 # ==============================================================================
 
 def menu_iniciar_programa(hw, cfg):
     """Submenú 1: Iniciar programa o juego registrado con opciones avanzadas."""
-    # Auto-recuperación de la base de datos si fue vaciada o eliminada accidentalmente
-    if (not os.path.exists(DB_FILE) or os.path.getsize(DB_FILE) == 0) and os.path.exists(DB_FILE + ".bak") and os.path.getsize(DB_FILE + ".bak") > 0:
-        try:
-            shutil.copyfile(DB_FILE + ".bak", DB_FILE)
-        except Exception:
-            pass
-
-    if not os.path.exists(DB_FILE) or os.path.getsize(DB_FILE) == 0:
-        os.system("clear")
-        render_banner(hw, cfg)
-        print(f"\n{YELLOW}⚠️  No tienes juegos o programas registrados en la lista.{RESET}")
-        print(f"{WHITE}Ve a la opción [2] 'Configurar Programa Win' para añadir uno.{RESET}")
-        pausar()
-        return
-
-    programas = []
-    with open(DB_FILE, "r", encoding="utf-8", errors="ignore") as f:
-        for line in f:
-            line = line.strip()
-            if line and "|" in line:
-                partes = line.split("|")
-                programas.append((partes[0].strip(), partes[1].strip()))
+    programas = cargar_lista_programas()
 
     if not programas:
         os.system("clear")
         render_banner(hw, cfg)
-        print(f"\n{YELLOW}⚠️  La base de datos de programas está vacía.{RESET}")
+        print(f"\n{YELLOW}⚠️  No tienes juegos o programas registrados en la lista.{RESET}")
+        print(f"{WHITE}Ve a la opción [2] 'Configurar Programa Win' para añadir uno.{RESET}")
         pausar()
         return
 
@@ -487,7 +528,7 @@ def menu_iniciar_programa(hw, cfg):
             subprocess.run(["bash", "-c", f"ENABLE_DXVK_HUD=1 bash '{LAUNCHER}' '{ruta}'"])
             pausar()
         elif accion == "3":
-            carpeta = os.path.dirname(ruta)
+            carpeta = os.path.join(DIR, "GameRanger") if "gameranger" in ruta.lower() else os.path.dirname(ruta)
             subprocess.run(f"xdg-open '{carpeta}'", shell=True, stderr=subprocess.DEVNULL)
             print(f"\n{GREEN}✔ Carpeta abierta en tu gestor de archivos.{RESET}")
             pausar()
@@ -496,13 +537,7 @@ def menu_iniciar_programa(hw, cfg):
             pausar()
         elif accion == "5":
             del programas[idx]
-            with open(DB_FILE, "w", encoding="utf-8") as f:
-                for n, r in programas:
-                    f.write(f"{n}|{r}|compartido\n")
-            try:
-                shutil.copyfile(DB_FILE, DB_FILE + ".bak")
-            except Exception:
-                pass
+            guardar_lista_programas(programas)
             print(f"\n{GREEN}✔ '{nombre}' ha sido eliminado de la lista.{RESET}")
             pausar()
 
@@ -657,18 +692,13 @@ def menu_configurar_programas(hw, cfg):
             ya_existe = False
             nombre_existente = ""
             ruta_existente = ""
-            if os.path.exists(DB_FILE):
-                with open(DB_FILE, "r", encoding="utf-8", errors="ignore") as f:
-                    for l in f:
-                        parts = l.strip().split("|")
-                        if len(parts) >= 2:
-                            db_nom, db_rut = parts[0].strip(), parts[1].strip()
-                            real_db = os.path.realpath(os.path.abspath(db_rut)) if os.path.exists(db_rut) else db_rut
-                            if real_nueva == real_db or ruta.strip() == db_rut:
-                                ya_existe = True
-                                nombre_existente = db_nom
-                                ruta_existente = db_rut
-                                break
+            for db_nom, db_rut in cargar_lista_programas():
+                real_db = os.path.realpath(os.path.abspath(db_rut)) if os.path.exists(db_rut) else db_rut
+                if real_nueva == real_db or ruta.strip() == db_rut:
+                    ya_existe = True
+                    nombre_existente = db_nom
+                    ruta_existente = db_rut
+                    break
 
             if ya_existe:
                 os.system("clear")
@@ -692,12 +722,9 @@ def menu_configurar_programas(hw, cfg):
             if not nombre_custom:
                 nombre_custom = nombre_sugerido
 
-            with open(DB_FILE, "a", encoding="utf-8") as f:
-                f.write(f"{nombre_custom}|{ruta}|compartido\n")
-            try:
-                shutil.copyfile(DB_FILE, DB_FILE + ".bak")
-            except Exception:
-                pass
+            progs_actuales = cargar_lista_programas()
+            progs_actuales.append((nombre_custom, ruta))
+            guardar_lista_programas(progs_actuales)
 
             print(f"\n{GREEN}✔ ¡Juego '{nombre_custom}' registrado exitosamente en la lista!{RESET}")
 
@@ -749,93 +776,63 @@ def menu_configurar_programas(hw, cfg):
             pausar()
         elif sel == "3":
             # Eliminación interactiva con flechas
-            if not os.path.exists(DB_FILE) or os.path.getsize(DB_FILE) == 0:
-                print(f"\n{YELLOW}⚠️  No hay programas para eliminar.{RESET}")
-                pausar()
-                continue
-
-            with open(DB_FILE, "r", encoding="utf-8", errors="ignore") as f:
-                lines = [l.strip() for l in f if l.strip()]
-
-            if not lines:
-                print(f"\n{YELLOW}⚠️  No hay programas registrados.{RESET}")
+            progs = cargar_lista_programas()
+            # GameRanger es el cliente base del sistema; permitir eliminar los juegos añadidos
+            progs_del = [p for p in progs if "gameranger" not in p[0].lower()]
+            if not progs_del:
+                print(f"\n{YELLOW}⚠️  No tienes juegos personalizados añadidos para eliminar.{RESET}")
+                print(f"{GRAY}(GameRanger es el cliente multijugador base integrado de Vessel).{RESET}")
                 pausar()
                 continue
 
             opts_del = []
-            for i, l in enumerate(lines, 1):
-                p_nombre = l.split("|")[0]
-                opts_del.append((str(i), f"❌ Eliminar: {p_nombre}"))
+            for i, (p_nom, p_rut) in enumerate(progs_del, 1):
+                opts_del.append((str(i), f"❌ Eliminar: {p_nom}"))
             opts_del.append(("0", "↩️  Cancelar"))
 
             del_sel = submenu_interactivo("❌  Selecciona el Programa a Eliminar", opts_del, hw, cfg)
             if del_sel != "0":
                 del_idx = int(del_sel) - 1
-                nom_borrado = lines[del_idx].split("|")[0]
-                del lines[del_idx]
-                with open(DB_FILE, "w", encoding="utf-8") as f:
-                    f.write("\n".join(lines) + ("\n" if lines else ""))
-                try:
-                    shutil.copyfile(DB_FILE, DB_FILE + ".bak")
-                except Exception:
-                    pass
-                print(f"\n{GREEN}✔ '{nom_borrado}' ha sido eliminado con éxito.{RESET}")
+                nom_borrado = progs_del[del_idx][0]
+                progs_nuevos = [p for p in progs if p[0] != nom_borrado]
+                guardar_lista_programas(progs_nuevos)
+                print(f"\n{GREEN}✔ '{nom_borrado}' ha sido eliminado con éxito de la lista.{RESET}")
                 pausar()
         elif sel == "4":
             # Crear acceso directo con flechas
-            if not os.path.exists(DB_FILE) or os.path.getsize(DB_FILE) == 0:
-                print(f"\n{YELLOW}⚠️  No hay programas registrados.{RESET}")
-                pausar()
-                continue
-
-            with open(DB_FILE, "r", encoding="utf-8", errors="ignore") as f:
-                lines = [l.strip() for l in f if l.strip()]
-
+            progs = cargar_lista_programas()
             opts_desk = []
-            for i, l in enumerate(lines, 1):
-                p_nombre = l.split("|")[0]
-                opts_desk.append((str(i), f"🖥️  {p_nombre}"))
+            for i, (p_nom, p_rut) in enumerate(progs, 1):
+                opts_desk.append((str(i), f"🖥️  {p_nom}"))
             opts_desk.append(("0", "↩️  Cancelar"))
 
             d_sel = submenu_interactivo("🖥️  Crear Acceso Directo en el Escritorio", opts_desk, hw, cfg)
             if d_sel != "0":
                 d_idx = int(d_sel) - 1
-                p_nom, p_rut = lines[d_idx].split("|")[:2]
+                p_nom, p_rut = progs[d_idx]
                 crear_desktop_entry(p_nom, p_rut)
                 pausar()
         elif sel == "5":
             # Abrir carpeta para mods con flechas
-            if not os.path.exists(DB_FILE) or os.path.getsize(DB_FILE) == 0:
-                print(f"\n{YELLOW}⚠️  No hay programas registrados.{RESET}")
-                pausar()
-                continue
-
-            with open(DB_FILE, "r", encoding="utf-8", errors="ignore") as f:
-                lines = [l.strip() for l in f if l.strip()]
-
+            progs = cargar_lista_programas()
             opts_mod = []
-            for i, l in enumerate(lines, 1):
-                p_nombre = l.split("|")[0]
-                opts_mod.append((str(i), f"📂 {p_nombre}"))
+            for i, (p_nom, p_rut) in enumerate(progs, 1):
+                opts_mod.append((str(i), f"📂 {p_nom}"))
             opts_mod.append(("0", "↩️  Cancelar"))
 
             m_sel = submenu_interactivo("📂  Abrir Carpeta del Juego (para Mods)", opts_mod, hw, cfg)
             if m_sel != "0":
                 m_idx = int(m_sel) - 1
-                p_rut = lines[m_idx].split("|")[1]
-                carpeta = os.path.dirname(p_rut)
+                p_nom, p_rut = progs[m_idx]
+                carpeta = os.path.join(DIR, "GameRanger") if "gameranger" in p_rut.lower() else os.path.dirname(p_rut)
                 subprocess.run(f"xdg-open '{carpeta}'", shell=True, stderr=subprocess.DEVNULL)
                 print(f"\n{GREEN}✔ Carpeta abierta en tu gestor de archivos.{RESET}")
                 pausar()
         elif sel == "6":
             os.system("clear")
             print(f"{PURPLE}📋 [ PROGRAMAS REGISTRADOS EN LA BASE DE DATOS ]{RESET}\n")
-            if os.path.exists(DB_FILE):
-                with open(DB_FILE, "r", encoding="utf-8", errors="ignore") as f:
-                    for l in f:
-                        parts = l.strip().split("|")
-                        if len(parts) >= 2:
-                            print(f"  🎮 {BOLD}{parts[0]}{RESET} -> {GRAY}{parts[1]}{RESET}")
+            for p_nom, p_rut in cargar_lista_programas():
+                print(f"  🎮 {BOLD}{p_nom}{RESET} -> {GRAY}{p_rut}{RESET}")
             pausar()
 
 # ==============================================================================
@@ -1195,6 +1192,9 @@ def main():
 
     # Comprobar si el usuario entra por primera vez (version.txt vacío)
     comprobar_primer_inicio(hw, cfg)
+
+    # Asegurar que GameRanger portable esté registrado y listo en opción 1
+    asegurar_gameranger_en_db()
 
     # Selección en 2 columnas: 1 a 6
     # 1: Iniciar, 2: Configurar

@@ -4,8 +4,8 @@ prefixes/
 wine-tkg-git/
 wine-tkg-build/
 
-# Base de datos local de juegos del usuario
-programas.db
+# Base de datos personal de juegos del usuario (no se sobreescribe al actualizar)
+programas_usuario.db
 
 # Carpeta de exportación limpia para GitHub
 Subir Github/
