@@ -1280,7 +1280,7 @@ def menu_actualizar(hw, cfg, es_primer_inicio=False):
         sel_act = submenu_interactivo("🔄  Centro de Actualizaciones de Vessel", menu_opcs, hw, cfg)
         if sel_act == "1":
             os.system("clear")
-            actualizado = verificar_actualizacion_automatica_github(mostrar_notif=True)
+            actualizado = verificar_actualizacion_automatica_github(mostrar_notif=True, cfg=cfg)
             if not actualizado:
                 pausar()
             return
@@ -1419,10 +1419,12 @@ def comprobar_primer_inicio(hw, cfg):
         except Exception:
             pass
 
-def verificar_actualizacion_automatica_github(mostrar_notif=True):
+def verificar_actualizacion_automatica_github(mostrar_notif=True, cfg=None):
     """Verifica e instala actualizaciones desde GitHub automáticamente para todos los usuarios.
     Muestra mensajes claros al usuario: buscando actualización, nueva versión encontrada o al día.
     """
+    if cfg is None:
+        cfg = cargar_config()
     total_w = get_terminal_width()
     inner_w = max(total_w - 2, 60)
 
@@ -1584,10 +1586,10 @@ def verificar_actualizacion_automatica_github(mostrar_notif=True):
 # ==============================================================================
 
 def main():
-    # Comprobar e instalar actualización automática desde GitHub para todos los usuarios
-    verificar_actualizacion_automatica_github(mostrar_notif=True)
-
     cfg = cargar_config()
+    # Comprobar e instalar actualización automática desde GitHub para todos los usuarios
+    verificar_actualizacion_automatica_github(mostrar_notif=True, cfg=cfg)
+
     hw = obtener_info_hardware()
 
     # Comprobar si el usuario entra por primera vez (version.txt vacío)
