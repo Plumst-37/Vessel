@@ -171,7 +171,12 @@ aplicar_entorno_hardware() {
         export __NV_PRIME_RENDER_OFFLOAD=1
         export __GLX_VENDOR_LIBRARY_NAME=nvidia
         export __VK_LAYER_NV_optimus=NVIDIA_only
-        export VKD3D_CONFIG="dxr11,dxr"
+        export DXVK_FILTER_DEVICE_NAME="GeForce"
+        if [ "$IS_LOW_SPEC_GPU" = "true" ] || ! echo "${GPU_NAME:-}" | grep -qiE 'RTX|Titan V|Quadro RTX'; then
+            export VKD3D_CONFIG="nodxr"
+        else
+            export VKD3D_CONFIG="dxr11,dxr"
+        fi
         export __GL_THREADED_OPTIMIZATIONS=1
         export __GL_SYNC_TO_VBLANK=0
         export __GL_MaxFramesAllowed=1

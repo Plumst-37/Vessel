@@ -62,33 +62,34 @@ dxvk.gpl = True
 # Modo Pantalla Completa: False para compatibilidad universal (evita fallos de EDID/swapchains en Wayland/PRIME)
 dxvk.allowFse = False
 
-# Precisión geométrica universal: elimina deformaciones, estiramientos y z-fighting en modelos 3D
+# Precisión geométrica universal con máxima aceleración de hardware
 d3d9.invariantPosition = True
 d3d11.invariantPosition = True
 d3d9.longMad = True
-d3d9.floatEmulation = Strict
-d3d11.floatEmulation = Strict
+d3d9.floatEmulation = Auto
+d3d11.floatEmulation = Auto
 d3d9.clampNegativeLodBias = True
 d3d11.clampNegativeLodBias = True
-d3d9.samplerAnisotropy = 16
-d3d11.samplerAnisotropy = 16
-d3d11.constantBufferRangeCheck = True
+d3d9.samplerAnisotropy = -1
+d3d11.samplerAnisotropy = -1
+d3d11.constantBufferRangeCheck = False
 d3d9.lenientClear = True
 d3d9.maxAvailableMemory = ${D3D9_MEM}
 
-# Modo Mailbox Present (Triple Buffering Tear-Free de Ultra-Baja Latencia)
-# Elimina desgarro de pantalla (tearing) SIN caídas bruscas a 30 FPS ni tirones de cámara
-# Garantiza movimiento de cámara 1:1 ultra-suave y respuesta inmediata
-dxvk.tearFree = True
+# Rendimiento Directo de Ultra-Baja Latencia
+# Desactiva copias intermedias de tearFree para Wayland/X11 y reduce latencia al mínimo
+dxvk.tearFree = False
 dxgi.syncInterval = 0
 d3d9.presentInterval = 0
-dxgi.numBackBuffers = 3
-d3d9.numBackBuffers = 3
+dxgi.numBackBuffers = 2
+d3d9.numBackBuffers = 2
 d3d9.maxFrameLatency = 1
 dxgi.maxFrameLatency = 1
 
-# Optimizaciones de memoria y pipelines DXVK 2.6
+# Optimizaciones de pipelines DXVK y buffers rápidos
 dxvk.trackPipelineLifetime = True
+dxvk.useRawSsbo = True
+d3d11.relaxedBarriers = True
 d3d9.memoryTrackTest = False
 
 # Perfiles específicos por ejecutable para máxima fidelidad 3D, estabilidad y rendimiento
@@ -117,7 +118,6 @@ d3d9.invariantPosition = True
 d3d9.longMad = True
 d3d9.floatEmulation = Auto
 d3d9.clampNegativeLodBias = True
-d3d9.samplerAnisotropy = 16
 dxvk.allowFse = False
 
 [BH6.exe]
@@ -125,7 +125,6 @@ d3d9.invariantPosition = True
 d3d9.longMad = True
 d3d9.floatEmulation = Auto
 d3d9.clampNegativeLodBias = True
-d3d9.samplerAnisotropy = 16
 d3d9.lenientClear = True
 dxvk.allowFse = False
 
@@ -133,7 +132,7 @@ dxvk.allowFse = False
 dxgi.hideNvidiaGpu = False
 dxgi.syncInterval = 0
 dxgi.maxFrameLatency = 1
-d3d11.constantBufferRangeCheck = True
+d3d11.constantBufferRangeCheck = False
 dxvk.allowFse = False
 dxvk.enableAsync = true
 dxvk.gpl = True
@@ -142,7 +141,7 @@ dxvk.gpl = True
 dxgi.hideNvidiaGpu = False
 dxgi.syncInterval = 0
 dxgi.maxFrameLatency = 1
-d3d11.constantBufferRangeCheck = True
+d3d11.constantBufferRangeCheck = False
 dxvk.allowFse = False
 dxvk.enableAsync = true
 dxvk.gpl = True
@@ -192,7 +191,6 @@ d3d9.invariantPosition = True
 d3d9.longMad = True
 d3d9.floatEmulation = Auto
 d3d9.clampNegativeLodBias = True
-d3d9.samplerAnisotropy = 16
 dxvk.allowFse = False
 
 [Swat4.exe]
@@ -200,7 +198,6 @@ d3d9.invariantPosition = True
 d3d9.longMad = True
 d3d9.floatEmulation = Strict
 d3d9.clampNegativeLodBias = True
-d3d9.samplerAnisotropy = 16
 dxvk.allowFse = False
 
 # GameRanger: cliente de lobby 2D / chat con Chromium CEF y ANGLE

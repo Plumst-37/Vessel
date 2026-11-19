@@ -563,6 +563,13 @@ if [ "$PERFIL_RENDIMIENTO" != "ahorro" ] && command -v gamemoderun &> /dev/null;
     GAMEMODE="gamemoderun"
 fi
 
+# Activar modo alto rendimiento de energía en CPU (desbloquea Turbo Boost sin throttling agresivo)
+PREV_POWER_PROFILE=""
+if [ "$PERFIL_RENDIMIENTO" != "ahorro" ] && command -v powerprofilesctl &> /dev/null; then
+    PREV_POWER_PROFILE=$(powerprofilesctl get 2>/dev/null || true)
+    powerprofilesctl set performance 2>/dev/null || true
+fi
+
 # 11. Obtener directorio y nombre del archivo
 TARGET_DIR="$(cd "$(dirname "$TARGET")" && pwd)"
 TARGET_FILE="$(basename "$TARGET")"
@@ -1115,11 +1122,18 @@ EOF_DLC
                             sed -i 's/^ShadowsDisable=ON/ShadowsDisable=OFF/' "$cini" 2>/dev/null || true
                             sed -i 's/^ShadowsQuality=HIGH/ShadowsQuality=MEDIUM/' "$cini" 2>/dev/null || true
                             sed -i 's/^ShadowsQuality=MIDDLE/ShadowsQuality=MEDIUM/' "$cini" 2>/dev/null || true
-                            sed -i 's/^JobThread=.*/JobThread=3/' "$cini" 2>/dev/null || true
+                            local job_threads=$(( CPU_CORES > 1 ? CPU_CORES - 1 : 1 ))
+                            sed -i "s/^JobThread=.*/JobThread=${job_threads}/" "$cini" 2>/dev/null || true
                             sed -i 's/^RenderingThread=OFF/RenderingThread=ON/' "$cini" 2>/dev/null || true
-                            sed -i 's/^TextureDetail=LOWEST/TextureDetail=HIGH/' "$cini" 2>/dev/null || true
-                            sed -i 's/^ScreenQuality=LOW/ScreenQuality=HIGH/' "$cini" 2>/dev/null || true
-                            sed -i 's/^TextureMipLimite=.*/TextureMipLimite=0/' "$cini" 2>/dev/null || true
+                            if [ "$IS_LOW_SPEC_GPU" = "true" ]; then
+                                sed -i 's/^TextureDetail=HIGH/TextureDetail=MEDIUM/' "$cini" 2>/dev/null || true
+                                sed -i 's/^ScreenQuality=HIGH/ScreenQuality=DEFAULT/' "$cini" 2>/dev/null || true
+                                sed -i 's/^TextureMipLimite=.*/TextureMipLimite=1/' "$cini" 2>/dev/null || true
+                            else
+                                sed -i 's/^TextureDetail=LOWEST/TextureDetail=HIGH/' "$cini" 2>/dev/null || true
+                                sed -i 's/^ScreenQuality=LOW/ScreenQuality=HIGH/' "$cini" 2>/dev/null || true
+                                sed -i 's/^TextureMipLimite=.*/TextureMipLimite=0/' "$cini" 2>/dev/null || true
+                            fi
                             sed -i 's/^MouseBaseSpeed=.*/MouseBaseSpeed=1.500000/' "$cini" 2>/dev/null || true
                             sed -i 's/^MainX=.*/MainX=0/' "$cini" 2>/dev/null || true
                             sed -i 's/^MainY=.*/MainY=0/' "$cini" 2>/dev/null || true
@@ -1461,6 +1475,9 @@ fi
 limpiar_procesos_al_interrumpir() {
     [ -n "$WATCHDOG_PID" ] && kill "$WATCHDOG_PID" 2>/dev/null || true
     [ -n "$GR_WATCHDOG_PID" ] && kill "$GR_WATCHDOG_PID" 2>/dev/null || true
+    if [ -n "$PREV_POWER_PROFILE" ] && command -v powerprofilesctl &>/dev/null; then
+        powerprofilesctl set "$PREV_POWER_PROFILE" 2>/dev/null || true
+    fi
     if [[ "$TARGET_FILE" =~ [Gg]ame[Rr]anger ]]; then
         for u_dir in "${WINEPREFIX}/drive_c/users"/*; do
             if [ -d "$u_dir" ] && [ "$(basename "$u_dir")" != "Public" ]; then
@@ -1509,6 +1526,11 @@ else
     fi
 fi
 EXIT_STATUS=$?
+
+# Restaurar perfil de energía previo del CPU
+if [ -n "$PREV_POWER_PROFILE" ] && command -v powerprofilesctl &>/dev/null; then
+    powerprofilesctl set "$PREV_POWER_PROFILE" 2>/dev/null || true
+fi
 
 # Terminar vigilantes en segundo plano si siguen activos
 [ -n "$WATCHDOG_PID" ] && kill "$WATCHDOG_PID" 2>/dev/null || true
