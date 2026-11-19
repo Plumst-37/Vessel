@@ -55,8 +55,8 @@ dxvk.numCompilerThreads = ${CPU_CORES}
 dxgi.maxFrameRate = ${FPS_VAL}
 d3d9.maxFrameRate = ${FPS_VAL}
 
-# Reducción drástica de tirones y stuttering (Shaders Asíncronos / GPL)
-dxvk.enableAsync = true
+# Reducción drástica de tirones y stuttering (Graphics Pipeline Library - Carga sincrónica sin pérdida de mallas)
+dxvk.enableAsync = False
 dxvk.gpl = True
 
 # Modo Pantalla Completa: False para compatibilidad universal (evita fallos de EDID/swapchains en Wayland/PRIME)
@@ -76,10 +76,10 @@ d3d9.lenientClear = True
 d3d9.maxAvailableMemory = ${D3D9_MEM}
 
 # Presentación Fluida sin Caídas Bruscas de FPS (Triple Buffering Tear-Free / Mailbox)
-# Mantiene 60 FPS estables sin caídas a 30 FPS cuando hay picos de carga 3D
+# Mantiene 60 FPS estables sin desgarro de imagen al girar la cámara
 dxvk.tearFree = True
-dxgi.syncInterval = 0
-d3d9.presentInterval = 0
+dxgi.syncInterval = 1
+d3d9.presentInterval = 1
 dxgi.numBackBuffers = 3
 d3d9.numBackBuffers = 3
 d3d9.maxFrameLatency = 2
@@ -95,25 +95,29 @@ dxgi.maxFrameLatency = 2
 d3d11.clampNegativeLodBias = True
 d3d11.constantBufferRangeCheck = True
 d3d11.invariantPosition = True
-dxvk.enableAsync = true
+d3d11.maxTessFactor = 8
 dxvk.gpl = True
 dxvk.allowFse = False
-dxgi.syncInterval = 0
+dxvk.tearFree = True
+dxgi.syncInterval = 1
 
 [PlayGTAV.exe]
 dxgi.maxFrameLatency = 2
 d3d11.clampNegativeLodBias = True
 d3d11.constantBufferRangeCheck = True
 d3d11.invariantPosition = True
-dxvk.enableAsync = true
+d3d11.maxTessFactor = 8
 dxvk.gpl = True
 dxvk.allowFse = False
-dxgi.syncInterval = 0
+dxvk.tearFree = True
+dxgi.syncInterval = 1
 
 [speed.exe]
 d3d9.invariantPosition = True
 d3d9.floatEmulation = Strict
 d3d9.clampNegativeLodBias = True
+d3d9.presentInterval = 1
+dxvk.tearFree = True
 dxvk.allowFse = False
 
 [BH6.exe]
@@ -121,81 +125,87 @@ d3d9.invariantPosition = True
 d3d9.floatEmulation = Strict
 d3d9.clampNegativeLodBias = True
 d3d9.lenientClear = True
+d3d9.presentInterval = 1
+dxvk.tearFree = True
 dxvk.allowFse = False
 
 [re4.exe]
 dxgi.hideNvidiaGpu = False
-dxgi.syncInterval = 0
+dxgi.syncInterval = 1
 dxgi.maxFrameLatency = 2
 d3d11.constantBufferRangeCheck = True
 dxvk.allowFse = False
-dxvk.enableAsync = true
+dxvk.tearFree = True
 dxvk.gpl = True
 
 [re4_original.exe]
 dxgi.hideNvidiaGpu = False
-dxgi.syncInterval = 0
+dxgi.syncInterval = 1
 dxgi.maxFrameLatency = 2
 d3d11.constantBufferRangeCheck = True
 dxvk.allowFse = False
-dxvk.enableAsync = true
+dxvk.tearFree = True
 dxvk.gpl = True
 
 [re2.exe]
 dxgi.hideNvidiaGpu = False
-dxgi.syncInterval = 0
+dxgi.syncInterval = 1
 dxgi.maxFrameLatency = 2
 d3d11.constantBufferRangeCheck = True
 dxvk.allowFse = False
-dxvk.enableAsync = true
+dxvk.tearFree = True
 dxvk.gpl = True
 
 [re3.exe]
 dxgi.hideNvidiaGpu = False
-dxgi.syncInterval = 0
+dxgi.syncInterval = 1
 dxgi.maxFrameLatency = 2
 d3d11.constantBufferRangeCheck = True
 dxvk.allowFse = False
-dxvk.enableAsync = true
+dxvk.tearFree = True
 dxvk.gpl = True
 
 [re7.exe]
 dxgi.hideNvidiaGpu = False
-dxgi.syncInterval = 0
+dxgi.syncInterval = 1
 dxgi.maxFrameLatency = 2
 d3d11.constantBufferRangeCheck = True
 dxvk.allowFse = False
-dxvk.enableAsync = true
+dxvk.tearFree = True
 dxvk.gpl = True
 
 [re8.exe]
 dxgi.hideNvidiaGpu = False
-dxgi.syncInterval = 0
+dxgi.syncInterval = 1
 dxgi.maxFrameLatency = 2
 d3d11.constantBufferRangeCheck = True
 dxvk.allowFse = False
-dxvk.enableAsync = true
+dxvk.tearFree = True
 dxvk.gpl = True
 
 [dmc5.exe]
 dxgi.hideNvidiaGpu = False
-dxgi.syncInterval = 0
+dxgi.syncInterval = 1
 dxgi.maxFrameLatency = 2
 d3d11.constantBufferRangeCheck = True
 dxvk.allowFse = False
-dxvk.enableAsync = true
+dxvk.tearFree = True
 dxvk.gpl = True
 
 [gta_sa.exe]
 d3d9.invariantPosition = True
 d3d9.floatEmulation = Strict
 d3d9.clampNegativeLodBias = True
+d3d9.presentInterval = 1
+dxvk.tearFree = True
 dxvk.allowFse = False
 
 [Swat4.exe]
 d3d9.invariantPosition = True
 d3d9.floatEmulation = Strict
 d3d9.clampNegativeLodBias = True
+d3d9.presentInterval = 1
+dxvk.tearFree = True
 dxvk.allowFse = False
 
 # GameRanger: cliente de lobby 2D / chat con Chromium CEF y ANGLE

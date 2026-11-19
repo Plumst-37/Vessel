@@ -154,8 +154,9 @@ aplicar_entorno_hardware() {
     mkdir -p "${HOME}/.cache/dxvk" "${HOME}/.cache/nvidia" "${HOME}/.cache/mesa_shader_cache" 2>/dev/null || true
 
     export STAGING_SHARED_MEMORY=1
-    export DXVK_ASYNC=1
-    export DXVK_GPLASYNCCACHE=1
+    # Desactivar async draw-call dropping para evitar que los modelos 3D desaparezcan/parpadeen al girar la cámara
+    unset DXVK_ASYNC
+    unset DXVK_GPLASYNCCACHE
     export __GL_SHADER_DISK_CACHE=1
     export __GL_SHADER_DISK_CACHE_SKIP_CLEANUP=1
     export __GL_SHADER_DISK_CACHE_SIZE=10737418240
@@ -223,11 +224,12 @@ aplicar_entorno_hardware() {
     export PROTON_EAC_ASYNC=1
     export WINE_DISABLE_FAST_SYNC=0
 
-    # 10. Prevención universal de pantalla negra y stutter de movimiento en Wayland/X11
+    # 10. Prevención universal de tirones de cámara, desgarro y micro-stuttering en Wayland/X11
     export SDL_VIDEO_MINIMIZE_ON_FOCUS_LOSS=0
     export WINE_FULLSCREEN_INTEGER_SCALING=0
     export GST_PLUGIN_FEATURE_RANK="libav:MAX,ugly:MAX,bad:MAX"
-    export KWIN_DRM_NO_DIRECT_SCANOUT=1
+    export SDL_MOUSE_RELATIVE_MODE_WARP=0
+    export WINE_RAW_INPUT=1
 
     # 11. Mapeo Universal de Mandos (SDL2 GameControllerDB: +2.300 mandos compatibles)
     local db_gamepad="${DIR}/herramientas/gamecontrollerdb.txt"

@@ -114,6 +114,17 @@ NATIVE_RES=$(cat /sys/class/drm/*/modes 2>/dev/null | head -n 1)
 NATIVE_RES_W=$(echo "$NATIVE_RES" | cut -d'x' -f1)
 NATIVE_RES_H=$(echo "$NATIVE_RES" | cut -d'x' -f2)
 
+raw_hz=$(xrandr 2>/dev/null | grep -E '\*' | head -n 1 | awk '{for(i=1;i<=NF;i++) if($i ~ /\*/) print $i}' | tr -d '*+' | cut -d'.' -f1)
+if [ -n "$raw_hz" ] && [ "$raw_hz" -gt 0 ] 2>/dev/null; then
+    if [ "$raw_hz" -ge 58 ] && [ "$raw_hz" -le 62 ]; then
+        SCREEN_HZ=60
+    else
+        SCREEN_HZ="$raw_hz"
+    fi
+else
+    SCREEN_HZ=60
+fi
+
 if [ "$GPU_IS_ENTRY_LEVEL" = true ]; then
     RECOMMENDED_GAME_W=1280
     RECOMMENDED_GAME_H=720
@@ -157,6 +168,7 @@ GPU_IS_ENTRY_LEVEL=${GPU_IS_ENTRY_LEVEL}
 DISPLAY_SERVER="${DISPLAY_SERVER}"
 NATIVE_RES_W=${NATIVE_RES_W}
 NATIVE_RES_H=${NATIVE_RES_H}
+SCREEN_HZ=${SCREEN_HZ}
 RECOMMENDED_GAME_W=${RECOMMENDED_GAME_W}
 RECOMMENDED_GAME_H=${RECOMMENDED_GAME_H}
 HAS_NTSYNC=${HAS_NTSYNC}

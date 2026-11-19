@@ -917,7 +917,7 @@ aplicar_perfil_aislado_juego() {
                     sed -i "s/<ScreenWidth value=\"[0-9]*\"/<ScreenWidth value=\"${gta_w}\"/" "$sxml" 2>/dev/null || true
                     sed -i "s/<ScreenHeight value=\"[0-9]*\"/<ScreenHeight value=\"${gta_h}\"/" "$sxml" 2>/dev/null || true
                     sed -i 's/<Windowed value="[0-9]*"/<Windowed value="0"/' "$sxml" 2>/dev/null || true
-                    sed -i 's/<VSync value="[0-9]*"/<VSync value="0"/' "$sxml" 2>/dev/null || true
+                    sed -i 's/<VSync value="[0-9]*"/<VSync value="1"/' "$sxml" 2>/dev/null || true
                     sed -i 's/<ShadowQuality value="[0-9]*"/<ShadowQuality value="0"/' "$sxml" 2>/dev/null || true
                     sed -i 's/<GrassQuality value="[0-9]*"/<GrassQuality value="0"/' "$sxml" 2>/dev/null || true
                     sed -i 's/<ShaderQuality value="[0-9]*"/<ShaderQuality value="1"/' "$sxml" 2>/dev/null || true
@@ -925,8 +925,14 @@ aplicar_perfil_aislado_juego() {
                     sed -i 's/<PauseOnFocusLoss value="[0-9]*"/<PauseOnFocusLoss value="0"/' "$sxml" 2>/dev/null || true
                     sed -i 's/<AspectRatio value="[0-9]*"/<AspectRatio value="0"/' "$sxml" 2>/dev/null || true
                     sed -i 's/<FXAA_Enabled value="false"/<FXAA_Enabled value="true"/' "$sxml" 2>/dev/null || true
-                    sed -i 's/<PedVarietyMultiplier value="[0-9\.]*"/<PedVarietyMultiplier value="0.200000"/' "$sxml" 2>/dev/null || true
-                    sed -i 's/<VehicleVarietyMultiplier value="[0-9\.]*"/<VehicleVarietyMultiplier value="0.200000"/' "$sxml" 2>/dev/null || true
+                    local ped_variety="0.800000"
+                    local veh_variety="0.800000"
+                    if [ "$IS_LOW_SPEC_GPU" = true ]; then
+                        ped_variety="0.200000"
+                        veh_variety="0.200000"
+                    fi
+                    sed -i "s/<PedVarietyMultiplier value=\"[0-9\.]*\"/<PedVarietyMultiplier value=\"${ped_variety}\"/" "$sxml" 2>/dev/null || true
+                    sed -i "s/<VehicleVarietyMultiplier value=\"[0-9\.]*\"/<VehicleVarietyMultiplier value=\"${veh_variety}\"/" "$sxml" 2>/dev/null || true
                     if [ -n "$GPU_NAME" ]; then
                         sed -i "s|<VideoCardDescription>.*</VideoCardDescription>|<VideoCardDescription>${GPU_NAME}</VideoCardDescription>|" "$sxml" 2>/dev/null || true
                     fi
@@ -940,7 +946,7 @@ aplicar_perfil_aislado_juego() {
 -width ${gta_w}
 -height ${gta_h}
 -fullscreen
--novsync
+-mouseRawInput
 -scOfflineOnly
 -ignoreDifferentVideoCard
 -ShadowQuality 0
@@ -1091,11 +1097,13 @@ EOF_DLC
                     sed -i 's/^AppLensDistorsion=.*/AppLensDistorsion=0/' "$re_ini" 2>/dev/null || true
                     sed -i 's/^AppMotionBlur=.*/AppMotionBlur=0/' "$re_ini" 2>/dev/null || true
                     sed -i 's/^AppFilmGrainNoise=.*/AppFilmGrainNoise=0/' "$re_ini" 2>/dev/null || true
-                    sed -i 's/^AppVsync=.*/AppVsync=0/' "$re_ini" 2>/dev/null || true
+                    sed -i 's/^AppVsync=.*/AppVsync=1/' "$re_ini" 2>/dev/null || true
                     # Calibrar texturas a nivel mínimo en GPUs con 4GB o menos para evitar agotamiento de VRAM (c0000005)
-                    sed -i 's/^AppTextureQuality=.*/AppTextureQuality=5/' "$re_ini" 2>/dev/null || true
-                    sed -i 's/^AppImageQuality=.*/AppImageQuality=0/' "$re_ini" 2>/dev/null || true
-                    sed -i 's/^AppUpScalingTypeFSR2=.*/AppUpScalingTypeFSR2=4/' "$re_ini" 2>/dev/null || true
+                    if [ "$IS_LOW_SPEC_GPU" = "true" ]; then
+                        sed -i 's/^AppTextureQuality=.*/AppTextureQuality=5/' "$re_ini" 2>/dev/null || true
+                        sed -i 's/^AppImageQuality=.*/AppImageQuality=0/' "$re_ini" 2>/dev/null || true
+                        sed -i 's/^AppUpScalingTypeFSR2=.*/AppUpScalingTypeFSR2=4/' "$re_ini" 2>/dev/null || true
+                    fi
                     sed -i 's/^AppRayTraceOnOff=.*/AppRayTraceOnOff=0/' "$re_ini" 2>/dev/null || true
                     if grep -q "^NormalWindowResolution=" "$re_ini" 2>/dev/null; then
                         sed -i "s/^NormalWindowResolution=.*/NormalWindowResolution=(${best_w}.000000,${best_h}.000000)/" "$re_ini" 2>/dev/null || true
@@ -1126,11 +1134,12 @@ EOF_DLC
                         if grep -q "\[GRAPHICS\]" "$cini" 2>/dev/null || grep -q "\[DISPLAY\]" "$cini" 2>/dev/null; then
                             crear_respaldo_seguro "$cini"
                             sed -i 's/^FullScreen=OFF/FullScreen=ON/' "$cini" 2>/dev/null || true
-                            sed -i 's/^VSYNC=ON/VSYNC=OFF/' "$cini" 2>/dev/null || true
+                            sed -i 's/^VSYNC=OFF/VSYNC=ON/' "$cini" 2>/dev/null || true
                             sed -i 's/^MotionBlurEnabled=ON/MotionBlurEnabled=OFF/' "$cini" 2>/dev/null || true
                             sed -i 's/^Aspect=.*/Aspect=DEFAULT/' "$cini" 2>/dev/null || true
                             sed -i "s/^Resolution=.*/Resolution=${best_res}/" "$cini" 2>/dev/null || true
-                            sed -i 's/^RefreshRate=.*/RefreshRate=60.00Hz/' "$cini" 2>/dev/null || true
+                            local ref_hz="${SCREEN_HZ:-60}.00Hz"
+                            sed -i "s/^RefreshRate=.*/RefreshRate=${ref_hz}/" "$cini" 2>/dev/null || true
                             sed -i 's/^AntiAlias=.*/AntiAlias=NONE/' "$cini" 2>/dev/null || true
                             sed -i 's/^AltAntiAlias=.*/AltAntiAlias=FXAA3HQ/' "$cini" 2>/dev/null || true
                             sed -i 's/^ShadowsDisable=ON/ShadowsDisable=OFF/' "$cini" 2>/dev/null || true
