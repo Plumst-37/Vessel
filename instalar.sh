@@ -235,7 +235,13 @@ case "$DISTRO_DETECTED" in
         sudo apt-get install -y gamemode libgamemode0:i386 2>/dev/null || sudo apt-get install -y gamemode 2>/dev/null || true
         if lspci 2>/dev/null | grep -qi "nvidia"; then
             echo -e "${C_CYAN}  🎮 GPU NVIDIA detectada: Asegurando librerías gráficas de 32 bits...${C_RESET}"
-            sudo apt-get install -y nvidia-driver-libs:i386 2>/dev/null || true
+            sudo apt-get install -y nvidia-driver-libs:i386 libgl1-nvidia-glvnd-glx:i386 libnvidia-glcore:i386 2>/dev/null || true
+        elif lspci 2>/dev/null | grep -qi "intel"; then
+            echo -e "${C_CYAN}  🎮 Gráficos Intel detectados: Asegurando aceleración multimedia VA-API...${C_RESET}"
+            sudo apt-get install -y intel-media-va-driver intel-media-va-driver-non-free i965-va-driver 2>/dev/null || true
+        elif lspci 2>/dev/null | grep -qiE "amd|radeon"; then
+            echo -e "${C_CYAN}  🎮 GPU AMD detectada: Asegurando controladores VA-API de video...${C_RESET}"
+            sudo apt-get install -y mesa-va-drivers mesa-va-drivers:i386 2>/dev/null || true
         fi
         sudo apt-get install -y libgnutls30:i386 2>/dev/null || sudo apt-get install -y libgnutls30t64:i386 2>/dev/null || true
         sudo apt-get install -y libnss-resolve:i386 libnss-mdns:i386 libvkd3d1:i386 2>/dev/null || true
@@ -258,8 +264,14 @@ case "$DISTRO_DETECTED" in
             if [ -n "$nv_ver" ]; then
                 sudo apt-get install -y "libnvidia-gl-${nv_ver}:i386" 2>/dev/null || true
             else
-                sudo apt-get install -y libnvidia-gl-535:i386 2>/dev/null || sudo apt-get install -y libnvidia-gl-525:i386 2>/dev/null || true
+                sudo apt-get install -y libnvidia-gl-550:i386 2>/dev/null || sudo apt-get install -y libnvidia-gl-535:i386 2>/dev/null || sudo apt-get install -y libnvidia-gl-525:i386 2>/dev/null || true
             fi
+        elif lspci 2>/dev/null | grep -qi "intel"; then
+            echo -e "${C_CYAN}  🎮 Gráficos Intel detectados: Asegurando aceleración multimedia VA-API...${C_RESET}"
+            sudo apt-get install -y intel-media-va-driver intel-media-va-driver-non-free i965-va-driver 2>/dev/null || true
+        elif lspci 2>/dev/null | grep -qiE "amd|radeon"; then
+            echo -e "${C_CYAN}  🎮 GPU AMD detectada: Asegurando controladores VA-API de video...${C_RESET}"
+            sudo apt-get install -y mesa-va-drivers mesa-va-drivers:i386 2>/dev/null || true
         fi
         sudo apt-get install -y libgnutls30:i386 2>/dev/null || sudo apt-get install -y libgnutls30t64:i386 2>/dev/null || true
         sudo apt-get install -y libnss-resolve:i386 libnss-mdns:i386 libvkd3d1:i386 2>/dev/null || true
@@ -277,11 +289,11 @@ case "$DISTRO_DETECTED" in
         sudo pacman -S --needed --noconfirm wine winetricks gamemode lib32-gamemode cabextract curl git p7zip mesa-utils vulkan-tools zenity python wine-gecko wine-mono wmctrl xdotool 2>/dev/null || sudo pacman -S --needed --noconfirm wine winetricks gamemode cabextract curl git p7zip mesa-utils vulkan-tools zenity python wmctrl xdotool 2>/dev/null || true
         sudo pacman -S --needed --noconfirm vulkan-icd-loader lib32-vulkan-icd-loader lib32-mesa lib32-libglvnd mangohud lib32-mangohud lib32-vkd3d 2>/dev/null || true
         if lspci 2>/dev/null | grep -qiE "amd|radeon"; then
-            echo -e "${C_CYAN}  🎮 GPU AMD detectada: Instalando controladores RADV Vulkan (32 y 64 bits)...${C_RESET}"
-            sudo pacman -S --needed --noconfirm vulkan-radeon lib32-vulkan-radeon mesa lib32-mesa 2>/dev/null || true
+            echo -e "${C_CYAN}  🎮 GPU AMD detectada: Instalando controladores RADV Vulkan y VA-API (32 y 64 bits)...${C_RESET}"
+            sudo pacman -S --needed --noconfirm vulkan-radeon lib32-vulkan-radeon mesa lib32-mesa libva-mesa-driver lib32-libva-mesa-driver 2>/dev/null || true
         elif lspci 2>/dev/null | grep -qi "intel"; then
-            echo -e "${C_CYAN}  🎮 Gráficos Intel detectados: Instalando controladores ANV Vulkan (32 y 64 bits)...${C_RESET}"
-            sudo pacman -S --needed --noconfirm vulkan-intel lib32-vulkan-intel mesa lib32-mesa 2>/dev/null || true
+            echo -e "${C_CYAN}  🎮 Gráficos Intel detectados: Instalando controladores ANV Vulkan y VA-API (32 y 64 bits)...${C_RESET}"
+            sudo pacman -S --needed --noconfirm vulkan-intel lib32-vulkan-intel mesa lib32-mesa intel-media-driver 2>/dev/null || true
         fi
         if lspci 2>/dev/null | grep -qi "nvidia"; then
             echo -e "${C_CYAN}  🎮 GPU NVIDIA detectada: Instalando librerías nvidia-utils (32 y 64 bits)...${C_RESET}"
@@ -438,10 +450,10 @@ if [ -f "${DIR}/generar_dxvk_conf.sh" ]; then
     echo -e "${C_GREEN}✔ Archivo dxvk.conf generado a medida.${C_RESET}"
 fi
 
-# 4.1 Asegurar librerías esenciales para instaladores (MFC, Visual C++, Fuentes) y registro
+# 4.1 Asegurar librerías esenciales para instaladores (MFC, Visual C++, DirectX 9, Fuentes) y registro
 if command -v winetricks &>/dev/null && [ ! -f "${DIR}/wineprefix/drive_c/windows/syswow64/mfc42.dll" ]; then
-    echo -e "${C_CYAN}      Instalando librerías base para instaladores y juegos clásicos (MFC, VC++, DirectPlay, Corefonts)...${C_RESET}"
-    WINEPREFIX="${DIR}/wineprefix" winetricks -q corefonts vcrun2022 vcrun2010 mfc42 directplay 2>/dev/null || true
+    echo -e "${C_CYAN}      Instalando librerías base para instaladores y juegos clásicos (MFC, VC++, DirectX 9, DirectPlay, Corefonts)...${C_RESET}"
+    WINEPREFIX="${DIR}/wineprefix" winetricks -q corefonts vcrun2022 vcrun2010 mfc42 d3dx9 directplay 2>/dev/null || true
     echo -e "${C_GREEN}✔ Entorno base optimizado para cualquier instalador.${C_RESET}"
 fi
 

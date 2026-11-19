@@ -559,6 +559,8 @@ def cargar_lista_programas():
                             prefijo = partes[2].strip() if len(partes) > 2 else "compartido"
                             if not prefijo:
                                 prefijo = "compartido"
+                            winver = partes[3].strip() if len(partes) > 3 and partes[3].strip() else "win10"
+                            fsr = partes[4].strip() if len(partes) > 4 and partes[4].strip() else "off"
 
                             # Auto-reparación transparente de rutas movidas o descomprimidas fuera de ZIP
                             if not os.path.exists(rut) and nom != "GameRanger":
@@ -576,10 +578,10 @@ def cargar_lista_programas():
                                                     rut = cand
                                                     break
 
-                            # Priorizar binario nativo óptimo (.exe) si la ruta apunta a un script .bat o wrapper
-                            if rut.endswith((".bat", ".cmd")) or os.path.basename(rut).lower() == "playgtav.exe":
+                            # Priorizar binario nativo óptimo (.exe) si la ruta apunta a un script .bat
+                            if rut.endswith((".bat", ".cmd")):
                                 d_rut = os.path.dirname(rut)
-                                for c_exe in ["GTA5.exe", "gta_sa.exe", "speed.exe", "BH6.exe", "re4.exe", "biohazard4.exe", "Swat4.exe"]:
+                                for c_exe in ["PlayGTAV.exe", "GTA5.exe", "gta_sa.exe", "speed.exe", "BH6.exe", "re4.exe", "biohazard4.exe", "Swat4.exe"]:
                                     encontrado = False
                                     for sub in ["", "gta_data", "gamedata", "bin", "System", "Content/System"]:
                                         c_path = os.path.join(d_rut, sub, c_exe) if sub else os.path.join(d_rut, c_exe)
@@ -593,24 +595,26 @@ def cargar_lista_programas():
                             key = nom.lower()
                             if key not in vistos:
                                 vistos.add(key)
-                                programas.append((nom, rut, prefijo))
+                                programas.append((nom, rut, prefijo, winver, fsr))
             except Exception:
                 pass
 
     return programas
 
 def guardar_lista_programas(programas):
-    """Guarda la lista unificada en DB_FILE y DB_USER preservando modo de prefijo."""
+    """Guarda la lista unificada en DB_FILE y DB_USER preservando modo de prefijo, versión de Windows y FSR."""
     lineas = []
     for item in programas:
         n = item[0]
         r = item[1]
-        p = item[2] if len(item) > 2 else "compartido"
-        lineas.append(f"{n}|{r}|{p}\n")
+        p = item[2] if len(item) > 2 and item[2] else "compartido"
+        w = item[3] if len(item) > 3 and item[3] else "win10"
+        f = item[4] if len(item) > 4 and item[4] else "off"
+        lineas.append(f"{n}|{r}|{p}|{w}|{f}\n")
     for db_path in [DB_FILE, DB_USER]:
         try:
-            with open(db_path, "w", encoding="utf-8") as f:
-                f.writelines(lineas)
+            with open(db_path, "w", encoding="utf-8") as file_out:
+                file_out.writelines(lineas)
         except Exception:
             pass
     try:
@@ -648,15 +652,33 @@ def menu_iniciar_programa(hw, cfg):
         item = programas[idx]
         nombre, ruta = item[0], item[1]
         prefijo = item[2] if len(item) > 2 else "compartido"
+        winver = item[3] if len(item) > 3 and item[3] else "win10"
+        fsr = item[4] if len(item) > 4 and item[4] else "off"
 
-        # Menú de acción para el juego seleccionado
+        winver_labels = {
+            "win10": "Windows 10",
+            "win7": "Windows 7",
+            "winxp": "Windows XP SP3",
+            "win81": "Windows 8.1"
+        }
+        fsr_labels = {
+            "off": "Desactivado",
+            "quality": "Calidad (+30% FPS)",
+            "balanced": "Equilibrado (+50% FPS)",
+            "performance": "Rendimiento (+75% FPS)",
+            "ultra": "Ultra (+90% FPS)"
+        }
+
+        # Menú de acción para el juego seleccionado (Mejora 1: WinVer, Mejora 4: FSR)
         opts_juego = [
             ("1", f"🚀 Iniciar {nombre} (Máximo Rendimiento Nativo en Hardware)"),
             ("2", f"📊 Iniciar con HUD de Rendimiento (FPS / Telemetría en Pantalla)"),
             ("3", f"📂 Abrir Carpeta del Juego (para Mods / Parches / Saves)"),
             ("4", f"🖥️  Crear Acceso Directo en el Escritorio (1-Clic)"),
             ("5", f"🛡️  Modo de Prefijo Wine: [{'Aislado (Sandbox Propio)' if prefijo == 'aislado' else 'Compartido (Global)'}]"),
-            ("6", f"❌ Eliminar este Juego de la Lista"),
+            ("6", f"🪟 Versión de Windows: [{winver_labels.get(winver, 'Windows 10')}]"),
+            ("7", f"⚡ Reescalado AMD FSR: [{fsr_labels.get(fsr, 'Desactivado')}]"),
+            ("8", f"❌ Eliminar este Juego de la Lista"),
             ("0", f"↩️  Volver a la Lista de Juegos")
         ]
         accion = submenu_interactivo(f"🎮  Acciones para: {nombre}", opts_juego, hw, cfg)
@@ -673,6 +695,10 @@ def menu_iniciar_programa(hw, cfg):
             cmd_args = ["bash", LAUNCHER]
             if prefijo == "aislado":
                 cmd_args.append("--isolated")
+            if winver:
+                cmd_args.extend(["--winver", winver])
+            if fsr and fsr != "off":
+                cmd_args.extend(["--fsr", fsr])
             cmd_args.append(ruta)
             subprocess.run(cmd_args)
             pausar()
@@ -690,6 +716,10 @@ def menu_iniciar_programa(hw, cfg):
             cmd_args = ["bash", LAUNCHER]
             if prefijo == "aislado":
                 cmd_args.append("--isolated")
+            if winver:
+                cmd_args.extend(["--winver", winver])
+            if fsr and fsr != "off":
+                cmd_args.extend(["--fsr", fsr])
             cmd_args.append(ruta)
             subprocess.run(cmd_args, env=env)
             pausar()
@@ -699,11 +729,11 @@ def menu_iniciar_programa(hw, cfg):
             print(f"\n{GREEN}✔ Carpeta abierta en tu gestor de archivos.{RESET}")
             pausar()
         elif accion == "4":
-            crear_desktop_entry(nombre, ruta, prefijo)
+            crear_desktop_entry(nombre, ruta, prefijo, winver, fsr)
             pausar()
         elif accion == "5":
             nuevo_prefijo = "compartido" if prefijo == "aislado" else "aislado"
-            programas[idx] = (nombre, ruta, nuevo_prefijo)
+            programas[idx] = (nombre, ruta, nuevo_prefijo, winver, fsr)
             guardar_lista_programas(programas)
             print(f"\n{GREEN}✔ Modo de prefijo Wine para '{nombre}' cambiado a: {BOLD}{nuevo_prefijo.upper()}{RESET}")
             if nuevo_prefijo == "aislado":
@@ -712,19 +742,70 @@ def menu_iniciar_programa(hw, cfg):
                 print(f"{CYAN}  El juego utilizará el prefijo wineprefix global compartido.{RESET}")
             pausar()
         elif accion == "6":
+            sub_win = [
+                ("1", "Windows 10 (Moderno - Predeterminado para DirectX 11/12 y títulos modernos)"),
+                ("2", "Windows 7 (Recomendado para juegos de la era 2008 a 2015)"),
+                ("3", "Windows XP SP3 (Recomendado para juegos retro y clásicos 1998 a 2007)"),
+                ("0", "↩️  Cancelar")
+            ]
+            w_sel = submenu_interactivo(f"🪟  Versión de Windows para: {nombre}", sub_win, hw, cfg)
+            n_win = winver
+            if w_sel == "1": n_win = "win10"
+            elif w_sel == "2": n_win = "win7"
+            elif w_sel == "3": n_win = "winxp"
+
+            if n_win != winver:
+                programas[idx] = (nombre, ruta, prefijo, n_win, fsr)
+                guardar_lista_programas(programas)
+                target_exe = os.path.basename(ruta)
+                for pfx in [WINEPREFIX, os.path.join(DIR, "wineprefixes", nombre)]:
+                    if os.path.isdir(pfx):
+                        cmd_reg = f'WINEPREFIX="{pfx}" wine reg add "HKEY_CURRENT_USER\\Software\\Wine\\AppDefaults\\{target_exe}" /v Version /t REG_SZ /d "{n_win}" /f'
+                        subprocess.run(cmd_reg, shell=True, stderr=subprocess.DEVNULL)
+                print(f"\n{GREEN}✔ Modo de compatibilidad para '{nombre}' cambiado a: {BOLD}{winver_labels.get(n_win, n_win).upper()}{RESET}")
+                pausar()
+        elif accion == "7":
+            sub_fsr = [
+                ("1", "Desactivado (Resolución nativa 1:1)"),
+                ("2", "Calidad (Quality - 1.3x Upscale con máxima nitidez, +25-35% FPS)"),
+                ("3", "Equilibrado (Balanced - 1.5x Upscale, +40-50% FPS)"),
+                ("4", "Rendimiento (Performance - 2.0x Upscale para PCs modestas, +60-80% FPS)"),
+                ("0", "↩️  Cancelar")
+            ]
+            f_sel = submenu_interactivo(f"⚡  Reescalado AMD FSR para: {nombre}", sub_fsr, hw, cfg)
+            n_fsr = fsr
+            if f_sel == "1": n_fsr = "off"
+            elif f_sel == "2": n_fsr = "quality"
+            elif f_sel == "3": n_fsr = "balanced"
+            elif f_sel == "4": n_fsr = "performance"
+
+            if n_fsr != fsr:
+                programas[idx] = (nombre, ruta, prefijo, winver, n_fsr)
+                guardar_lista_programas(programas)
+                print(f"\n{GREEN}✔ Modo AMD FSR para '{nombre}' configurado a: {BOLD}{fsr_labels.get(n_fsr, n_fsr).upper()}{RESET}")
+                pausar()
+        elif accion == "8":
             del programas[idx]
             guardar_lista_programas(programas)
             print(f"\n{GREEN}✔ '{nombre}' ha sido eliminado de la lista.{RESET}")
             pausar()
 
-def crear_desktop_entry(nombre, ruta, prefijo="compartido"):
-    """Crea y valida el acceso directo en el escritorio con soporte para prefijo aislado."""
+def crear_desktop_entry(nombre, ruta, prefijo="compartido", winver="win10", fsr="off"):
+    """Crea y valida el acceso directo en el escritorio con soporte para prefijo aislado, versión de Windows y AMD FSR."""
     d_dir = os.path.expanduser("~/Escritorio")
     if not os.path.exists(d_dir):
         d_dir = os.path.expanduser("~/Desktop")
     if os.path.exists(d_dir):
         desk_file = os.path.join(d_dir, f"{nombre}.desktop")
-        exec_str = f'bash "{LAUNCHER}" --isolated "{ruta}"' if prefijo == "aislado" else f'bash "{LAUNCHER}" "{ruta}"'
+        exec_parts = [f'bash "{LAUNCHER}"']
+        if prefijo == "aislado":
+            exec_parts.append("--isolated")
+        if winver and winver != "win10":
+            exec_parts.append(f'--winver "{winver}"')
+        if fsr and fsr != "off":
+            exec_parts.append(f'--fsr "{fsr}"')
+        exec_parts.append(f'"{ruta}"')
+        exec_str = " ".join(exec_parts)
         content = f"""[Desktop Entry]
 Version=1.0
 Type=Application
@@ -900,8 +981,20 @@ def menu_configurar_programas(hw, cfg):
             if not nombre_custom:
                 nombre_custom = nombre_sugerido
 
+            # Preguntar por aislamiento de prefijo (Shared vs Isolated)
+            sub_pref = [
+                ("1", "📁 Prefijo Compartido (Recomendado - Comparte espacio y librerías)"),
+                ("2", "🛡️ Prefijo Aislado / Sandbox (Ideal para juegos problemáticos o mods)"),
+                ("0", "↩️  Cancelar")
+            ]
+            sel_p = submenu_interactivo("Modo de Almacenamiento y Prefijo", sub_pref, hw, cfg)
+            if sel_p == "0":
+                pausar()
+                continue
+            modo_p = "aislado" if sel_p == "2" else "compartido"
+
             progs_actuales = cargar_lista_programas()
-            progs_actuales.append((nombre_custom, ruta, "compartido"))
+            progs_actuales.append((nombre_custom, ruta, modo_p, "win10", "off"))
             guardar_lista_programas(progs_actuales)
 
             print(f"\n{GREEN}✔ ¡Juego '{nombre_custom}' registrado exitosamente en la lista!{RESET}")
@@ -909,7 +1002,7 @@ def menu_configurar_programas(hw, cfg):
             # Ofrecer crear acceso directo inmediatamente
             crear = input(f"\n{WHITE}¿Deseas crear acceso directo en el Escritorio ahora? (S/n): {RESET}").strip().lower()
             if crear != 'n':
-                crear_desktop_entry(nombre_custom, ruta, "compartido")
+                crear_desktop_entry(nombre_custom, ruta, modo_p, "win10", "off")
 
             # Ofrecer iniciar ahora
             ini = input(f"\n{PURPLE}¿Deseas iniciar '{nombre_custom}' ahora mismo? (s/N): {RESET}").strip().lower()
@@ -920,7 +1013,11 @@ def menu_configurar_programas(hw, cfg):
                     termios.tcflush(sys.stdin, termios.TCIFLUSH)
                 except Exception:
                     pass
-                subprocess.run(["bash", LAUNCHER, ruta])
+                args_launch = ["bash", LAUNCHER]
+                if modo_p == "aislado":
+                    args_launch.append("--isolated")
+                args_launch.append(ruta)
+                subprocess.run(args_launch)
             pausar()
         elif sel == "2":
             sub_metodo = [
@@ -946,9 +1043,121 @@ def menu_configurar_programas(hw, cfg):
                 continue
 
             if ruta and os.path.exists(ruta):
+                # 1. Tomar snapshot previo de archivos .lnk y .exe en prefijo y escritorio
+                def escanear_instalaciones():
+                    archivos = {}
+                    rutas_buscar = [
+                        os.path.join(WINEPREFIX, "drive_c", "users"),
+                        os.path.join(WINEPREFIX, "drive_c", "Program Files"),
+                        os.path.join(WINEPREFIX, "drive_c", "Program Files (x86)"),
+                        os.path.join(WINEPREFIX, "drive_c", "Games"),
+                        os.path.join(WINEPREFIX, "drive_c", "Juegos"),
+                        os.path.expanduser("~/Escritorio"),
+                        os.path.expanduser("~/Desktop")
+                    ]
+                    for base in rutas_buscar:
+                        if os.path.isdir(base):
+                            for r_root, _, r_files in os.walk(base):
+                                for f in r_files:
+                                    ext = os.path.splitext(f)[1].lower()
+                                    if ext in ('.lnk', '.ink', '.exe'):
+                                        f_low = f.lower()
+                                        if not any(ign in f_low for ign in ['unins', 'uninst', 'uninstall', 'setup', 'dxsetup', 'vcredist', 'wine', 'notepad', 'regedit', 'explorer']):
+                                            p_full = os.path.join(r_root, f)
+                                            try:
+                                                mtime = os.path.getmtime(p_full)
+                                                archivos[p_full] = mtime
+                                            except Exception:
+                                                pass
+                    return archivos
+
+                snapshot_antes = escanear_instalaciones()
+
                 print(f"\n{GREEN}🚀 Iniciando instalador en Wine... Sigue los pasos del asistente.{RESET}\n")
                 subprocess.run(["bash", LAUNCHER, ruta])
-                print(f"\n{CYAN}💡 Si el instalador creó un ejecutable en 'Program Files', puedes registrarlo con la opción 1.{RESET}")
+
+                # 2. Tomar snapshot posterior e identificar nuevos archivos creados
+                snapshot_despues = escanear_instalaciones()
+                nuevos_candidatos = [f for f in snapshot_despues if f not in snapshot_antes]
+
+                # Priorizar accesos directos .lnk en Desktop
+                nuevo_lnk = None
+                nuevo_exe = None
+
+                for f in nuevos_candidatos:
+                    if f.lower().endswith(('.lnk', '.ink')):
+                        nuevo_lnk = f
+                        break
+
+                if not nuevo_lnk:
+                    exes = [f for f in nuevos_candidatos if f.lower().endswith('.exe')]
+                    if exes:
+                        exes.sort(key=lambda x: os.path.getsize(x) if os.path.exists(x) else 0, reverse=True)
+                        nuevo_exe = exes[0]
+
+                # Si se detectó algo nuevo, ofrecer registrarlo automáticamente con 1 clic
+                auto_detectado_path = None
+                auto_detectado_nombre = ""
+
+                if nuevo_lnk:
+                    try:
+                        sys.path.insert(0, DIR)
+                        from resolver_lnk import resolve_lnk
+                        res_lnk = resolve_lnk(nuevo_lnk, WINEPREFIX)
+                        if res_lnk.get("status") == "RESOLVED" and os.path.isfile(res_lnk.get("path", "")):
+                            auto_detectado_path = res_lnk["path"]
+                            auto_detectado_nombre = res_lnk.get("name") or os.path.splitext(os.path.basename(nuevo_lnk))[0]
+                    except Exception:
+                        pass
+                    if not auto_detectado_path:
+                        auto_detectado_path = nuevo_lnk
+                        auto_detectado_nombre = os.path.splitext(os.path.basename(nuevo_lnk))[0]
+                elif nuevo_exe:
+                    auto_detectado_path = nuevo_exe
+                    auto_detectado_nombre = os.path.splitext(os.path.basename(nuevo_exe))[0]
+
+                if auto_detectado_path:
+                    auto_detectado_nombre = auto_detectado_nombre.replace("_", " ").replace("-", " ")
+                    print(f"\n{PURPLE}╭──────────────────────────────────────────────────────────────────────────────╮{RESET}")
+                    print(f"{PURPLE}│  🎮 {BOLD}{WHITE}¡NUEVO JUEGO O PROGRAMA DETECTADO TRAS LA INSTALACIÓN!{RESET}{PURPLE}                    │{RESET}")
+                    print(f"{PURPLE}╰──────────────────────────────────────────────────────────────────────────────╯{RESET}")
+                    print(f"  {WHITE}Nombre sugerido :{RESET} {BOLD}{CYAN}{auto_detectado_nombre}{RESET}")
+                    print(f"  {WHITE}Ruta ejecutable :{RESET} {GRAY}{auto_detectado_path}{RESET}\n")
+
+                    resp = input(f"{YELLOW}¿Deseas registrar este juego en el menú de Vessel automáticamente? (S/n): {RESET}").strip().lower()
+                    if resp != 'n':
+                        nom_custom = input(f"{WHITE}Nombre para mostrar en el menú [{CYAN}{auto_detectado_nombre}{WHITE}]: {RESET}").strip()
+                        if not nom_custom:
+                            nom_custom = auto_detectado_nombre
+
+                        sub_pref = [
+                            ("1", "📁 Prefijo Compartido (Recomendado - Comparte espacio y librerías)"),
+                            ("2", "🛡️ Prefijo Aislado / Sandbox (Ideal para juegos problemáticos o mods)"),
+                            ("0", "↩️  Cancelar")
+                        ]
+                        sel_p = submenu_interactivo("Modo de Almacenamiento y Prefijo", sub_pref, hw, cfg)
+                        if sel_p != "0":
+                            modo_p = "aislado" if sel_p == "2" else "compartido"
+                            progs_actuales = cargar_lista_programas()
+                            progs_actuales.append((nom_custom, auto_detectado_path, modo_p, "win10", "off"))
+                            guardar_lista_programas(progs_actuales)
+                            print(f"\n{GREEN}✔ ¡'{nom_custom}' registrado exitosamente en Vessel!{RESET}")
+
+                            c_desk = input(f"\n{WHITE}¿Deseas crear acceso directo en el Escritorio de Linux ahora? (S/n): {RESET}").strip().lower()
+                            if c_desk != 'n':
+                                crear_desktop_entry(nom_custom, auto_detectado_path, modo_p, "win10", "off")
+
+                            c_ini = input(f"\n{PURPLE}¿Deseas iniciar '{nom_custom}' ahora mismo? (s/N): {RESET}").strip().lower()
+                            if c_ini == 's':
+                                os.system("clear")
+                                print(f"{GREEN}🚀 Iniciando: {BOLD}{nom_custom}{RESET}...\n")
+                                args_launch = ["bash", LAUNCHER]
+                                if modo_p == "aislado":
+                                    args_launch.append("--isolated")
+                                args_launch.append(auto_detectado_path)
+                                subprocess.run(args_launch)
+                else:
+                    print(f"\n{CYAN}💡 Si el instalador creó un ejecutable en 'Program Files', puedes registrarlo con la opción 1.{RESET}")
             else:
                 print(f"\n{RED}❌ Instalador no encontrado.{RESET}")
             pausar()
@@ -989,7 +1198,9 @@ def menu_configurar_programas(hw, cfg):
                 item = progs[d_idx]
                 p_nom, p_rut = item[0], item[1]
                 p_pref = item[2] if len(item) > 2 else "compartido"
-                crear_desktop_entry(p_nom, p_rut, p_pref)
+                p_wver = item[3] if len(item) > 3 else "win10"
+                p_fsr = item[4] if len(item) > 4 else "off"
+                crear_desktop_entry(p_nom, p_rut, p_pref, p_wver, p_fsr)
                 pausar()
         elif sel == "5":
             # Abrir carpeta para mods con flechas
@@ -1014,8 +1225,12 @@ def menu_configurar_programas(hw, cfg):
             for item in cargar_lista_programas():
                 p_nom, p_rut = item[0], item[1]
                 p_pref = item[2] if len(item) > 2 else "compartido"
+                p_wver = item[3] if len(item) > 3 else "win10"
+                p_fsr = item[4] if len(item) > 4 else "off"
                 tag_pref = f"{CYAN}[🛡️ Aislado]{RESET}" if p_pref == "aislado" else f"{GRAY}[Compartido]{RESET}"
-                print(f"  🎮 {BOLD}{p_nom}{RESET} {tag_pref} -> {GRAY}{p_rut}{RESET}")
+                tag_wver = f"{PURPLE}[🪟 {p_wver.upper()}]{RESET}"
+                tag_fsr = f" {GREEN}[⚡ FSR {p_fsr.capitalize()}]{RESET}" if p_fsr != "off" else ""
+                print(f"  🎮 {BOLD}{p_nom}{RESET} {tag_pref} {tag_wver}{tag_fsr} -> {GRAY}{p_rut}{RESET}")
             pausar()
 
 # ==============================================================================
@@ -1179,6 +1394,7 @@ def menu_herramientas(hw, cfg):
             ("6", "📦 Instalar Dependencias de Windows (Winetricks: DirectX, VC++, Fuentes)"),
             ("7", "🛡️ Comprobador de Compatibilidad Anti-Cheat (EAC / BattlEye)"),
             ("8", "💾 Respaldar / Restaurar Prefijo Wine (Backup wineprefix)"),
+            ("9", "🔍 Diagnóstico de Controladores Gráficos y 32-bit (NVIDIA / AMD / Intel)"),
             ("0", "↩️  Volver al Menú Principal")
         ]
         sel = submenu_interactivo("🔧  Herramientas de Windows y Reparación", opciones, hw, cfg)
@@ -1248,6 +1464,10 @@ def menu_herramientas(hw, cfg):
                     print(f"\n{YELLOW}Comprimiendo wineprefix (puede tardar unos segundos)...{RESET}")
                     subprocess.run(f"tar -czf '{bak_tar}' -C '{DIR}' wineprefix", shell=True)
                     print(f"{GREEN}✔ Respaldo creado en: {bak_tar}{RESET}")
+            pausar()
+        elif sel == "9":
+            os.system("clear")
+            subprocess.run(["bash", os.path.join(DIR, "hardware_detect.sh"), "--check-drivers"])
             pausar()
 
 # ==============================================================================

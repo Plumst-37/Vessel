@@ -32,10 +32,12 @@ source "${DIR}/hardware_detect.sh"
 # 2. Aplicar optimizaciones dinámicas para el hardware real del equipo
 aplicar_entorno_hardware
 
-# 3. Procesar banderas opcionales (prefijo dedicado, modo aislado y runner custom)
+# 3. Procesar banderas opcionales (prefijo dedicado, modo aislado, runner custom, versión de Windows y AMD FSR)
 CUSTOM_PREFIX=""
 FORCE_ISOLATED=0
 CUSTOM_RUNNER=""
+CUSTOM_WINVER=""
+CUSTOM_FSR=""
 while [ $# -gt 0 ]; do
     case "$1" in
         --prefix)
@@ -50,6 +52,14 @@ while [ $# -gt 0 ]; do
             CUSTOM_RUNNER="$2"
             shift 2
             ;;
+        --winver)
+            CUSTOM_WINVER="$2"
+            shift 2
+            ;;
+        --fsr)
+            CUSTOM_FSR="$2"
+            shift 2
+            ;;
         *)
             break
             ;;
@@ -57,7 +67,7 @@ while [ $# -gt 0 ]; do
 done
 
 if [ $# -eq 0 ]; then
-    echo "Uso: $0 [--prefix /ruta/al/prefijo] [--isolated] [--runner /ruta/a/wine] /ruta/al/programa.exe [argumentos]"
+    echo "Uso: $0 [--prefix /ruta/al/prefijo] [--isolated] [--runner /ruta/a/wine] [--winver win10|win7|winxp] [--fsr off|quality|performance] /ruta/al/programa.exe [argumentos]"
     exit 1
 fi
 
@@ -155,8 +165,10 @@ fi
 if [ -n "$CUSTOM_PREFIX" ]; then
     export WINEPREFIX="$CUSTOM_PREFIX"
 else
-    # Comprobar en base de datos si el juego tiene configurado prefijo aislado
+    # Comprobar en base de datos si el juego tiene configurado prefijo aislado, versión de Windows o FSR
     PREF_TYPE="compartido"
+    GAME_WINVER="${CUSTOM_WINVER:-}"
+    GAME_FSR="${CUSTOM_FSR:-}"
     for db in "${DIR}/programas_usuario.db" "${DIR}/programas.db"; do
         if [ -f "$db" ]; then
             matched_line=$(grep -F "$TARGET" "$db" 2>/dev/null | head -n 1)
@@ -164,10 +176,29 @@ else
             if [ -n "$matched_line" ]; then
                 db_ptype=$(echo "$matched_line" | cut -d'|' -f3 | tr -d '\r\n ')
                 [ -n "$db_ptype" ] && PREF_TYPE="$db_ptype"
+                if [ -z "$GAME_WINVER" ]; then
+                    db_winver=$(echo "$matched_line" | cut -d'|' -f4 | tr -d '\r\n ')
+                    [ -n "$db_winver" ] && GAME_WINVER="$db_winver"
+                fi
+                if [ -z "$GAME_FSR" ]; then
+                    db_fsr=$(echo "$matched_line" | cut -d'|' -f5 | tr -d '\r\n ')
+                    [ -n "$db_fsr" ] && GAME_FSR="$db_fsr"
+                fi
                 break
             fi
         fi
     done
+
+    # Auto-detección de versión de Windows óptima si no está especificada en la BD (Mejora 1)
+    if [ -z "$GAME_WINVER" ]; then
+        local t_base
+        t_base=$(basename "$TARGET" | tr '[:upper:]' '[:lower:]')
+        if [[ "$t_base" =~ ^(speed|speed2|nfs|swat4|swat4x|empires2|age2_x1|starcraft|ra2|diablo|re4|biohazard4)\.exe$ ]]; then
+            GAME_WINVER="winxp"
+        else
+            GAME_WINVER="win10"
+        fi
+    fi
 
     if [ "$PREF_TYPE" = "aislado" ] || [ "$FORCE_ISOLATED" -eq 1 ]; then
         SAFE_BASE=$(basename "$TARGET" | sed -E 's/[^a-zA-Z0-9_-]/_/g')
@@ -354,6 +385,18 @@ if [ "$RENDERER_IN_USE" != "WineD3D (OpenGL Compatibilidad)" ]; then
     fi
 fi
 
+# 7.2 Inyección silenciosa de runtimes esenciales (Visual C++, MFC, DirectX) desde la plantilla base (Mejora 3)
+if [ -d "${DIR}/wineprefix/drive_c/windows" ] && [ "$WINEPREFIX" != "${DIR}/wineprefix" ]; then
+    for r_dll in mfc42.dll vcruntime140.dll vcruntime140_1.dll msvcp140.dll d3dx9_43.dll d3dcompiler_43.dll d3dcompiler_47.dll xinput1_3.dll; do
+        if [ -f "${DIR}/wineprefix/drive_c/windows/syswow64/${r_dll}" ] && [ ! -f "${WINEPREFIX}/drive_c/windows/syswow64/${r_dll}" ]; then
+            cp -n "${DIR}/wineprefix/drive_c/windows/syswow64/${r_dll}" "${WINEPREFIX}/drive_c/windows/syswow64/" 2>/dev/null || true
+        fi
+        if [ -f "${DIR}/wineprefix/drive_c/windows/system32/${r_dll}" ] && [ ! -f "${WINEPREFIX}/drive_c/windows/system32/${r_dll}" ]; then
+            cp -n "${DIR}/wineprefix/drive_c/windows/system32/${r_dll}" "${WINEPREFIX}/drive_c/windows/system32/" 2>/dev/null || true
+        fi
+    done
+fi
+
 # 8. Configuración de pantalla completa universal, ratón ultra-fluido, estabilidad 3D y supresión de crash dialogs
 if [ ! -f "${WINEPREFIX}/.vessel_reg_v4" ]; then
     "$WINE_CMD" reg add "HKEY_CURRENT_USER\Software\Wine\WineDbg" /v ShowCrashDialog /t REG_DWORD /d 0 /f >/dev/null 2>&1 || true
@@ -371,6 +414,11 @@ if [ ! -f "${WINEPREFIX}/.vessel_reg_v4" ]; then
     touch "${WINEPREFIX}/.vessel_reg_v4" 2>/dev/null || true
 fi
 
+# 8.1 Configuración de Versión de Windows por juego en AppDefaults (Mejora 1: win10 / win7 / winxp)
+if [ -n "$GAME_WINVER" ]; then
+    "$WINE_CMD" reg add "HKEY_CURRENT_USER\Software\Wine\AppDefaults\\${TARGET_FILE}" /v "Version" /t REG_SZ /d "$GAME_WINVER" /f >/dev/null 2>&1 || true
+fi
+
 # 9. Generar archivo DXVK optimizado según la CPU y límite de FPS configurado
 if [ "$RENDERER_IN_USE" != "WineD3D (OpenGL Compatibilidad)" ]; then
     export DXVK_CONFIG_FILE="${DIR}/dxvk.conf"
@@ -381,9 +429,20 @@ else
     unset DXVK_CONFIG_FILE
 fi
 
-# 10. Soporte para AMD FSR (FidelityFX Super Resolution - Reescalado de FPS)
-if [ "$ACTIVAR_FSR" = "1" ]; then
+# 10. Soporte para AMD FSR (FidelityFX Super Resolution - Reescalado de FPS) (Mejora 4)
+ACTIVAR_FSR_FINAL=0
+MODO_FSR_FINAL="quality"
+if [ -n "$GAME_FSR" ] && [ "$GAME_FSR" != "off" ] && [ "$GAME_FSR" != "0" ]; then
+    ACTIVAR_FSR_FINAL=1
+    MODO_FSR_FINAL="$GAME_FSR"
+elif [ "$ACTIVAR_FSR" = "1" ]; then
+    ACTIVAR_FSR_FINAL=1
+    MODO_FSR_FINAL="${FSR_MODE:-quality}"
+fi
+
+if [ "$ACTIVAR_FSR_FINAL" -eq 1 ]; then
     export WINE_FULLSCREEN_FSR=1
+    export WINE_FULLSCREEN_FSR_MODE="$MODO_FSR_FINAL"
     export WINE_FULLSCREEN_FSR_STRENGTH="${FSR_STRENGTH:-2}"
 fi
 
@@ -953,7 +1012,12 @@ echo "    - GPU: ${DETECTED_GPU}"
 echo "    - Renderizador: ${RENDERER_IN_USE:-DXVK (Vulkan)}"
 echo "    - Fsync/Esync: $([ "$WINEFSYNC" = "1" ] && echo "Fsync Activo" || echo "Esync Activo")"
 echo "    - Límite de FPS: ${LIMITE_FPS:-60} FPS"
-echo "    - AMD FSR Upscaling: $([ "$ACTIVAR_FSR" = "1" ] && echo "Activado" || echo "Desactivado")"
+local fsr_banner="Desactivado"
+if [ "$ACTIVAR_FSR_FINAL" -eq 1 ]; then
+    fsr_banner="Activo [Modo: ${MODO_FSR_FINAL}, Nitidez: ${FSR_STRENGTH:-2}]"
+fi
+echo "    - AMD FSR Upscaling: ${fsr_banner}"
+echo "    - Versión de Windows: ${GAME_WINVER^^}"
 if [[ "$TARGET_FILE" =~ [Gg]ame[Rr]anger ]]; then
     echo "    - GameMode: Desactivado (Aplicación de Escritorio / Lobby)"
     echo "    - Modo Pantalla: Ventana de Escritorio (Lobby / Multijugador)"

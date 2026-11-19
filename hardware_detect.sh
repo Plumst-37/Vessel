@@ -155,10 +155,15 @@ aplicar_entorno_hardware() {
         export __GL_VRR_ALLOWED=0
         export __GL_SHOW_GRAPHICS_OSD=0
     elif [ "$HAS_AMD_DEDICATED" = true ]; then
-        # Activar optimizaciones AMD Radeon (PRIME, compilador ACO y SAM)
+        # Activar optimizaciones AMD Radeon (PRIME, compilador ACO, SAM y forzado de RADV)
         export DRI_PRIME=1
+        export AMD_VULKAN_ICD=RADV
         export RADV_PERFTEST=aco,sam,dcc
         export vblank_mode=0
+        export LIBVA_DRIVER_NAME=radeonsi
+    elif [ "$HAS_INTEL" = true ]; then
+        # Activar aceleración multimedia y controlador de video Intel
+        export LIBVA_DRIVER_NAME=iHD
     fi
 
     # 9. Puentes y compatibilidad para Anti-Cheat (EAC / BattlEye en juegos con soporte Linux)
@@ -173,3 +178,90 @@ aplicar_entorno_hardware() {
     export GST_PLUGIN_FEATURE_RANK="libav:MAX,ugly:MAX,bad:MAX"
     export KWIN_DRM_NO_DIRECT_SCANOUT=1
 }
+
+# ==============================================================================
+# DIAGNÓSTICO PROFUNDO DE CONTROLADORES GRÁFICOS Y 32-BIT
+# Comprueba estado de drivers propietarios, librerías 32 bits y aceleración de video
+# ==============================================================================
+diagnostico_controladores_gaming() {
+    echo "══════════════════════════════════════════════════════════════════════"
+    echo "🔍 DIAGNÓSTICO DE CONTROLADORES GRÁFICOS Y 32-BIT PARA GAMING"
+    echo "══════════════════════════════════════════════════════════════════════"
+    local warning_count=0
+
+    # 1. GPU y Drivers Principales
+    echo -n "  • GPU Detectada: $DETECTED_GPU "
+    if [ "$HAS_NVIDIA" = true ]; then
+        if lsmod 2>/dev/null | grep -qi "nouveau"; then
+            echo -e "\n    \033[31m[!] ADVERTENCIA CRÍTICA: Driver libre 'nouveau' detectado.\033[0m"
+            echo "        Nouveau limita drásticamente las frecuencias 3D de GPUs GeForce (10-15 FPS)."
+            echo "        Solución: Instalar el controlador propietario oficial de NVIDIA (rama 535, 550 o 560+)."
+            warning_count=$((warning_count+1))
+        elif lsmod 2>/dev/null | grep -qi "nvidia"; then
+            local nv_kver
+            nv_kver=$(cat /sys/module/nvidia/version 2>/dev/null || modinfo -F version nvidia 2>/dev/null || echo "Oficial")
+            echo -e "(\033[32mDriver Oficial Propietario NVIDIA Activo: v${nv_kver}\033[0m)"
+        fi
+
+        # Comprobar librerías 32 bits de NVIDIA
+        local has_nv32=false
+        for lib in /usr/lib/i386-linux-gnu/libGLX_nvidia.so.0 /usr/lib32/libGLX_nvidia.so.0 /usr/lib/libGLX_nvidia.so.0 /usr/lib/i386-linux-gnu/libEGL_nvidia.so.0; do
+            if [ -f "$lib" ]; then has_nv32=true; break; fi
+        done
+        if [ "$has_nv32" = true ]; then
+            echo -e "    \033[32m✔ Librerías gráficas NVIDIA 32-bit: Instaladas (compatibilidad 100% con juegos clásicos)\033[0m"
+        else
+            echo -e "    \033[33m⚠️ Faltan librerías NVIDIA 32-bit (libnvidia-gl:i386 o lib32-nvidia-utils).\033[0m"
+            echo "       Juegos de 32 bits (GTA SA, NFS, SWAT 4) no podrán usar la GPU NVIDIA sin este paquete."
+            warning_count=$((warning_count+1))
+        fi
+    elif [ "$HAS_AMD_DEDICATED" = true ]; then
+        echo -e "(\033[32mControlador Mesa RADV Vulkan con compilador ACO activo\033[0m)"
+        local has_radv32=false
+        for lib in /usr/lib/i386-linux-gnu/libvulkan_radeon.so /usr/lib32/libvulkan_radeon.so /usr/lib/i386-linux-gnu/dri/radeonsi_dri.so; do
+            if [ -f "$lib" ]; then has_radv32=true; break; fi
+        done
+        if [ "$has_radv32" = true ]; then
+            echo -e "    \033[32m✔ Librerías gráficas AMD Mesa 32-bit: Instaladas\033[0m"
+        else
+            echo -e "    \033[33m⚠️ Faltan librerías AMD Mesa 32-bit (mesa-vulkan-drivers:i386 o lib32-vulkan-radeon).\033[0m"
+            warning_count=$((warning_count+1))
+        fi
+    elif [ "$HAS_INTEL" = true ]; then
+        echo -e "(\033[32mControlador Mesa ANV Vulkan activo\033[0m)"
+        local has_vaapi=false
+        for drv in /usr/lib/x86_64-linux-gnu/dri/iHD_drv_video.so /usr/lib/dri/iHD_drv_video.so /usr/lib64/dri/iHD_drv_video.so; do
+            if [ -f "$drv" ]; then has_vaapi=true; break; fi
+        done
+        if [ "$has_vaapi" = true ]; then
+            echo -e "    \033[32m✔ Driver de Aceleración de Video Intel (intel-media-driver / VA-API): Instalado\033[0m"
+        else
+            echo -e "    \033[33m⚠️ Se recomienda instalar 'intel-media-va-driver' para aceleración de video en cinemáticas.\033[0m"
+        fi
+    fi
+
+    # 2. Soporte Vulkan
+    if [ "$HAS_VULKAN" = true ]; then
+        echo -e "  • Soporte Vulkan 64-bit : \033[32m✔ Compatible (Capas DXVK activas)\033[0m"
+    else
+        echo -e "  • Soporte Vulkan 64-bit : \033[33m⚠️ No detectado (Se usará fallback seguro WineD3D OpenGL)\033[0m"
+    fi
+
+    # 3. Soporte Kernel Fsync / Esync
+    if [ "$WINEFSYNC" = "1" ]; then
+        echo -e "  • Sincronización Kernel : \033[32m✔ Fsync nativo (futex_waitv) activo (Kernel $(uname -r))\033[0m"
+    else
+        echo -e "  • Sincronización Kernel : \033[34mℹ Esync activo\033[0m"
+    fi
+
+    # 4. Soporte DLSS / NVAPI
+    echo -e "  • Soporte DLSS / NVAPI  : \033[32m✔ Habilitado (PROTON_ENABLE_NVAPI=1)\033[0m"
+    echo "══════════════════════════════════════════════════════════════════════"
+    return $warning_count
+}
+
+if [ "$1" = "--check-drivers" ]; then
+    aplicar_entorno_hardware
+    diagnostico_controladores_gaming
+    exit $?
+fi
