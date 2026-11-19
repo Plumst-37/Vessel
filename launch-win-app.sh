@@ -563,27 +563,46 @@ EOF
 optimizar_red_y_wifi
 
 # Overrides universales de gráficos 3D, red, sockets, SSL/TLS, DirectPlay y librerías base
-export WINEDLLOVERRIDES="winemenubuilder.exe=d;dxgi=n,b;d3d11=n,b;d3d10core=n,b;d3d9=n,b;d3d8=n,b;ddraw=n,b;dplayx=n,b;dpnet=n,b;dpwsockx=n,b;secur32=b;wininet=b;winhttp=b;ws2_32=b;iphlpapi=b;dnsapi=b;${WINEDLLOVERRIDES}"
+export WINEDLLOVERRIDES="winemenubuilder.exe=d;dinput8=n,b;dxgi=n,b;d3d11=n,b;d3d10core=n,b;d3d9=n,b;d3d8=n,b;ddraw=n,b;dplayx=n,b;dpnet=n,b;dpwsockx=n,b;vorbisfile=n,b;vorbishooked=n,b;dsound=n,b;secur32=b;wininet=b;winhttp=b;ws2_32=b;iphlpapi=b;dnsapi=b;${WINEDLLOVERRIDES}"
 
 # 11.1 Configuración específica para el cliente de lobby GameRanger
 EXTRA_APP_ARGS=""
 if [[ "$TARGET_FILE" =~ [Gg]ame[Rr]anger ]]; then
     # GameRanger es una aplicación de escritorio/chat con interfaz Win32 GDI y CEF ligero.
-    # Usamos GDI nativo sin wrappers artificiales de Direct3D ni contenedor de escritorio virtual.
-    export RENDERER_IN_USE="GDI / Nativo (Modo Ventana)"
+    # Sus configuraciones específicas de GDI y DllOverrides están aisladas en AppDefaults\GameRanger.exe
+    # para permitir que los juegos 3D (Need for Speed, GTA, etc.) disfruten de DXVK y pantalla completa al 100%.
+    export RENDERER_IN_USE="GDI / Nativo (Modo Ventana) + 3D DXVK para Juegos"
     unset PROTON_USE_WINED3D
-    export LIBGL_ALWAYS_SOFTWARE=1
-    export WINEDLLOVERRIDES="dxgi,d3d11,d3d10core,d3d9,d3d8=b;winemenubuilder.exe=d;dplayx,dpnet,dpwsockx=n,b;riched20,riched32=n,b;mfc42,mfc42u=n,b"
+    unset LIBGL_ALWAYS_SOFTWARE
+    export WINEDLLOVERRIDES="winemenubuilder.exe=d;dinput8=n,b;d3d9=n,b;d3d8=n,b;dxgi=n,b;d3d11=n,b;ddraw=n,b;dplayx=n,b;dpnet=n,b;dpwsockx=n,b;vorbisfile=n,b;vorbishooked=n,b;dsound=n,b;mfc42=n,b;mfc42u=n,b;riched20=n,b;riched32=n,b;${WINEDLLOVERRIDES}"
     unset DXVK_CONFIG_FILE
     unset DXVK_STATE_CACHE_PATH
     unset DXVK_ASYNC
     unset DXVK_GPLASYNCCACHE
 
+    # Auto-optimizar pantalla completa y resolución nativa para todos los juegos de la biblioteca de GameRanger
+    for db in "${DIR}/programas_usuario.db" "${DIR}/programas.db"; do
+        if [ -f "$db" ]; then
+            while IFS='|' read -r _pname ppath _rest; do
+                [ -z "$ppath" ] && continue
+                pdir="$(dirname "$ppath" 2>/dev/null || true)"
+                if [ -d "$pdir" ]; then
+                    find "$pdir" -maxdepth 3 -iname "*widescreen*.ini" 2>/dev/null | while read -r wf_ini; do
+                        sed -i "s/^ResX = .*/ResX = ${best_w}/" "$wf_ini" 2>/dev/null || true
+                        sed -i "s/^ResY = .*/ResY = ${best_h}/" "$wf_ini" 2>/dev/null || true
+                        sed -i "s/^WindowedMode = .*/WindowedMode = 4/" "$wf_ini" 2>/dev/null || true
+                        sed -i "s/^ForceAspectRatio = .*/ForceAspectRatio = auto/" "$wf_ini" 2>/dev/null || true
+                    done
+                fi
+            done < "$db"
+        fi
+    done
+
     # Desactivar gamemode para evitar mensajes en consola (GameRanger es una app de chat 2D)
     GAMEMODE=""
 
     # Registro de GameRanger: garantizar MODO VENTANA nativa (decoraciones completas, sin captura fullscreen ni escritorio virtual)
-    if [ ! -f "${WINEPREFIX}/.gameranger_reg_v5" ]; then
+    if [ ! -f "${WINEPREFIX}/.gameranger_reg_v6" ]; then
         "$WINE_CMD" reg add "HKEY_CURRENT_USER\Software\Wine\AppDefaults\GameRanger.exe" /v "Version" /t REG_SZ /d "win7" /f >/dev/null 2>&1 || true
         # Eliminar cualquier contenedor virtual o renderer GL forzado que cause ventana negra de fondo
         "$WINE_CMD" reg delete "HKEY_CURRENT_USER\Software\Wine\AppDefaults\GameRanger.exe\X11 Driver" /v "Desktop" /f >/dev/null 2>&1 || true
@@ -605,11 +624,20 @@ if [[ "$TARGET_FILE" =~ [Gg]ame[Rr]anger ]]; then
         "$WINE_CMD" reg add "HKEY_CURRENT_USER\Software\Wine\AppDefaults\GameRanger.exe\X11 Driver" /v "Decorated" /t REG_SZ /d "Y" /f >/dev/null 2>&1 || true
         "$WINE_CMD" reg add "HKEY_CURRENT_USER\Software\Wine\AppDefaults\GameRanger.exe\X11 Driver" /v "Managed" /t REG_SZ /d "Y" /f >/dev/null 2>&1 || true
         "$WINE_CMD" reg add "HKEY_CURRENT_USER\Software\Wine\AppDefaults\GameRanger.exe\X11 Driver" /v "GrabFullscreen" /t REG_SZ /d "N" /f >/dev/null 2>&1 || true
+        # Asegurar hooks de mods y ASI loaders universales en el registro de Wine para juegos
+        "$WINE_CMD" reg add "HKEY_CURRENT_USER\Software\Wine\DllOverrides" /v "dinput8" /t REG_SZ /d "native,builtin" /f >/dev/null 2>&1 || true
+        "$WINE_CMD" reg add "HKEY_CURRENT_USER\Software\Wine\DllOverrides" /v "d3d9" /t REG_SZ /d "native,builtin" /f >/dev/null 2>&1 || true
+        "$WINE_CMD" reg add "HKEY_CURRENT_USER\Software\Wine\DllOverrides" /v "d3d8" /t REG_SZ /d "native,builtin" /f >/dev/null 2>&1 || true
+        "$WINE_CMD" reg add "HKEY_CURRENT_USER\Software\Wine\DllOverrides" /v "dxgi" /t REG_SZ /d "native,builtin" /f >/dev/null 2>&1 || true
+        "$WINE_CMD" reg add "HKEY_CURRENT_USER\Software\Wine\DllOverrides" /v "d3d11" /t REG_SZ /d "native,builtin" /f >/dev/null 2>&1 || true
+        "$WINE_CMD" reg add "HKEY_CURRENT_USER\Software\Wine\DllOverrides" /v "vorbisfile" /t REG_SZ /d "native,builtin" /f >/dev/null 2>&1 || true
+        "$WINE_CMD" reg add "HKEY_CURRENT_USER\Software\Wine\DllOverrides" /v "vorbishooked" /t REG_SZ /d "native,builtin" /f >/dev/null 2>&1 || true
+        "$WINE_CMD" reg add "HKEY_CURRENT_USER\Software\Wine\DllOverrides" /v "dsound" /t REG_SZ /d "native,builtin" /f >/dev/null 2>&1 || true
         # Optimización de red e Internet para máxima compatibilidad con servidores antiguos de GameRanger y certificados TLS
         "$WINE_CMD" reg add "HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Internet Settings" /v "CertificateRevocation" /t REG_DWORD /d 0 /f >/dev/null 2>&1 || true
         "$WINE_CMD" reg add "HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Internet Settings" /v "WarnonBadCertRecving" /t REG_DWORD /d 0 /f >/dev/null 2>&1 || true
         "$WINE_CMD" reg add "HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Internet Settings" /v "SecureProtocols" /t REG_DWORD /d 2720 /f >/dev/null 2>&1 || true
-        touch "${WINEPREFIX}/.gameranger_reg_v5" 2>/dev/null || true
+        touch "${WINEPREFIX}/.gameranger_reg_v6" 2>/dev/null || true
     fi
 
     # GameRanger es un programa/lobby de escritorio, debe ejecutarse en MODO VENTANA (NUNCA en pantalla completa)
@@ -1160,7 +1188,7 @@ fi
 
 # Guardián en segundo plano para asegurar pantalla completa en juegos retro que no manejan fullscreen nativo
 WATCHDOG_PID=""
-if [ "$IS_WAYLAND" -eq 0 ] && [ -n "${DISPLAY:-}" ] && [[ ! "$TARGET_FILE" =~ ([Gg]ame[Rr]anger|winecfg|regedit|cmd|notepad|GTA|GTA5|PlayGTAV) ]]; then
+if [ -n "${DISPLAY:-}" ] && [[ ! "$TARGET_FILE" =~ ([Gg]ame[Rr]anger|winecfg|regedit|cmd|notepad|GTA|GTA5|PlayGTAV) ]]; then
     (
         for i in $(seq 1 30); do
             sleep 0.5
@@ -1179,18 +1207,19 @@ if [ "$IS_WAYLAND" -eq 0 ] && [ -n "${DISPLAY:-}" ] && [[ ! "$TARGET_FILE" =~ ([
     WATCHDOG_PID=$!
 fi
 
-# Guardián inteligente en segundo plano para GameRanger (modo ventana normal, multimonitor y sin parpadeo)
+# Guardián inteligente en segundo plano para GameRanger y juegos multijugador lanzados desde el lobby
 GR_WATCHDOG_PID=""
 if [[ "$TARGET_FILE" =~ [Gg]ame[Rr]anger ]]; then
     (
         seen_wids=""
-        for i in $(seq 1 300); do
+        for i in $(seq 1 7200); do
             sleep 1
             if [ -n "${DISPLAY:-}" ]; then
                 if command -v wmctrl &>/dev/null; then
                     while read -r wid desk x y w h wmclass client title; do
                         [ -z "$wid" ] && continue
-                        # Si detectamos una ventana de GameRanger (Asistente, Ventana Principal, Lista de Amigos, etc.)
+
+                        # 1. Ventanas de GameRanger (Asistente, Ventana Principal, Lista de Amigos, etc.)
                         if [[ "$wmclass" =~ [Gg]ame[Rr]anger ]] || [[ "$title" =~ ([Gg]ame[Rr]anger|[Aa]ccount [Aa]ssistant|[Ff]riends) ]]; then
                             if [[ ! "$seen_wids" =~ "$wid" ]]; then
                                 # Quitar fullscreen o maximizado una sola vez cuando la ventana es creada
@@ -1233,6 +1262,19 @@ if [[ "$TARGET_FILE" =~ [Gg]ame[Rr]anger ]]; then
                                 wmctrl -i -r "$wid" -e "0,$target_x,$target_y,-1,-1" 2>/dev/null || true
 
                                 # Activar y enfocar la ventana en el monitor del usuario
+                                wmctrl -i -a "$wid" 2>/dev/null || true
+                                if command -v xdotool &>/dev/null; then
+                                    xdotool windowactivate "$wid" 2>/dev/null || true
+                                fi
+                                seen_wids="$seen_wids $wid"
+                            fi
+
+                        # 2. Ventanas de JUEGOS lanzados desde GameRanger (Need for Speed, GTA, SWAT, Age of Empires, etc.)
+                        elif [[ "$wmclass" =~ \.([eE][xX][eE]) ]] && [[ ! "$wmclass" =~ [Gg]ame[Rr]anger ]]; then
+                            # Forzar pantalla completa nativa en el monitor activo para que llene el 100% de la pantalla
+                            if [[ ! "$seen_wids" =~ "$wid" ]]; then
+                                wmctrl -i -r "$wid" -e "0,${ACTIVE_MON_X},${ACTIVE_MON_Y},${best_w},${best_h}" 2>/dev/null || true
+                                wmctrl -i -r "$wid" -b add,fullscreen 2>/dev/null || true
                                 wmctrl -i -a "$wid" 2>/dev/null || true
                                 if command -v xdotool &>/dev/null; then
                                     xdotool windowactivate "$wid" 2>/dev/null || true
