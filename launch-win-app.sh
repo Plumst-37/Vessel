@@ -1034,13 +1034,20 @@ EOF_DLC
                 cp -f "${TARGET_DIR}/d3d12core.dll" "${TARGET_DIR}/D3D12/D3D12Core.dll" 2>/dev/null || true
             fi
 
-            # 2. Desactivar Ray Tracing (DXR) para evitar fallo D3D12CreateDevice en GPUs sin RT (Maxwell/Pascal/Intel)
+            # 2. Desactivar Ray Tracing (DXR) y extensiones inestables en GPUs Maxwell/Pascal (NVIDIA MX/GTX)
             export VKD3D_CONFIG="nodxr"
             export VKD3D_FEATURE_LEVEL="12_0"
+            export VKD3D_DISABLE_EXTENSIONS="VK_EXT_descriptor_buffer"
 
-            # 3. Copiar configuración limpia si existe en opti/local_config.ini
-            if [ -f "${TARGET_DIR}/opti/local_config.ini" ] && [ ! -f "${TARGET_DIR}/local_config.ini" ]; then
-                cp -p "${TARGET_DIR}/opti/local_config.ini" "${TARGET_DIR}/local_config.ini" 2>/dev/null || true
+            # 3. Aplicar perfil optimizado de bajo consumo si existe en opti/local_config.ini
+            if [ -f "${TARGET_DIR}/opti/local_config.ini" ]; then
+                if [ ! -f "${TARGET_DIR}/local_config.ini.vessel_orig" ]; then
+                    crear_respaldo_seguro "${TARGET_DIR}/local_config.ini"
+                fi
+                cp -f "${TARGET_DIR}/opti/local_config.ini" "${TARGET_DIR}/local_config.ini" 2>/dev/null || true
+                if [ -f "${TARGET_DIR}/opti/local_config_default.ini" ]; then
+                    cp -f "${TARGET_DIR}/opti/local_config_default.ini" "${TARGET_DIR}/local_config_default.ini" 2>/dev/null || true
+                fi
             fi
 
             # 4. Limpiar adaptadores gráficos ajenos hardcodeados en local_config.ini / *config*.ini
@@ -1064,6 +1071,11 @@ EOF_DLC
                     sed -i 's/^AppMotionBlur=.*/AppMotionBlur=0/' "$re_ini" 2>/dev/null || true
                     sed -i 's/^AppFilmGrainNoise=.*/AppFilmGrainNoise=0/' "$re_ini" 2>/dev/null || true
                     sed -i 's/^AppVsync=.*/AppVsync=0/' "$re_ini" 2>/dev/null || true
+                    # Calibrar texturas a nivel mínimo en GPUs con 4GB o menos para evitar agotamiento de VRAM (c0000005)
+                    sed -i 's/^AppTextureQuality=.*/AppTextureQuality=5/' "$re_ini" 2>/dev/null || true
+                    sed -i 's/^AppImageQuality=.*/AppImageQuality=0/' "$re_ini" 2>/dev/null || true
+                    sed -i 's/^AppUpScalingTypeFSR2=.*/AppUpScalingTypeFSR2=4/' "$re_ini" 2>/dev/null || true
+                    sed -i 's/^AppRayTraceOnOff=.*/AppRayTraceOnOff=0/' "$re_ini" 2>/dev/null || true
                     if grep -q "^NormalWindowResolution=" "$re_ini" 2>/dev/null; then
                         sed -i "s/^NormalWindowResolution=.*/NormalWindowResolution=(${best_w}.000000,${best_h}.000000)/" "$re_ini" 2>/dev/null || true
                     fi
@@ -1075,7 +1087,7 @@ EOF_DLC
                     fi
                 fi
             done
-            export WINEDLLOVERRIDES="d3d12=n,b;d3d12core=n,b;dxgi=n,b;d3d11=n,b;d3dcompiler_47=n,b;dinput8=n,b;version=n,b;xinput1_3=n,b;xinput1_4=n,b;${WINEDLLOVERRIDES}"
+            export WINEDLLOVERRIDES="EMP=n;d3d12=n,b;d3d12core=n,b;dxgi=n,b;d3d11=n,b;d3dcompiler_47=n,b;dinput8=n,b;version=n,b;xinput1_3=n,b;xinput1_4=n,b;${WINEDLLOVERRIDES}"
             ;;
 
         capcom_mt_framework)
