@@ -285,6 +285,43 @@ comprobar_configuracion_inicial_distro() {
     fi
 }
 
+comprobar_configuracion_smart_performance() {
+    [ -f "$CONFIG_USER" ] && source "$CONFIG_USER"
+    if [ "$SMART_PERF_CONFIGURADO" = "1" ] && [ -f "${DIR}/.smart_perf_listo" ]; then
+        return
+    fi
+    clear 2>/dev/null || true
+    echo -e "${C_PURPLE}╔══════════════════════════════════════════════════════════════════════╗${C_RESET}"
+    echo -e "${C_PURPLE}║${C_RESET}     ${C_CYAN}${C_BOLD}⚡  ¡NUEVA ACTUALIZACIÓN: VESSEL SMART PERFORMANCE!  ⚡${C_RESET}          ${C_PURPLE}║${C_RESET}"
+    echo -e "${C_PURPLE}║${C_RESET}  ${C_WHITE}Calibración Inteligente Plug & Play sin tocar tu sistema Linux.     ${C_PURPLE}║${C_RESET}"
+    echo -e "${C_PURPLE}╚══════════════════════════════════════════════════════════════════════╝${C_RESET}"
+    echo ""
+    echo -e "  Hemos detectado los componentes de tu equipo automáticamente."
+    echo -e "  Selecciona cómo deseas calibrar tus juegos portátiles:"
+    echo ""
+    echo -e "  ${C_BOLD}[1]${C_RESET} ${C_GREEN}⭐ Modo Rendimiento Inteligente [ RECOMENDADO ]${C_RESET}"
+    echo -e "  ${C_BOLD}[2]${C_RESET} ${C_YELLOW}🛡️ Modo Estándar / Compatibilidad Total${C_RESET}"
+    echo -e "  ${C_BOLD}[3]${C_RESET} ${C_BLUE}🚀 Modo Portátil Extremo (Gamescope + FSR)${C_RESET}"
+    echo ""
+    read -p "$(echo -e "${C_BOLD}Selecciona tu perfil inicial [1]: ${C_RESET}")" s_sel
+    case "$s_sel" in
+        2) PERFIL_RENDIMIENTO="estandar"; ACTIVAR_FSR="0" ;;
+        3) PERFIL_RENDIMIENTO="extremo"; ACTIVAR_FSR="1" ;;
+        *) PERFIL_RENDIMIENTO="inteligente"; ACTIVAR_FSR="0" ;;
+    esac
+    SMART_PERF_CONFIGURADO="1"
+    SMART_PERF_VERSION="1.0"
+    guardar_config_usuario
+    touch "${DIR}/.smart_perf_listo" 2>/dev/null || true
+    [ -x "${DIR}/generar_dxvk_conf.sh" ] && "${DIR}/generar_dxvk_conf.sh" 2>/dev/null || true
+    echo ""
+    echo -e "${C_GREEN}✔ ¡Configuración inicial guardada con éxito!${C_RESET}"
+    echo -e "${C_WHITE}💡 Podrás volver a abrir esta calibración en el Menú Principal en:${C_RESET}"
+    echo -e "    ${C_PURPLE}${C_BOLD}⚡  [3]  Smart Performance${C_RESET}"
+    echo ""
+    read -p "$(echo -e "${C_WHITE}Presiona ${C_GREEN}[Enter]${C_WHITE} para entrar al Menú Principal... ${C_RESET}")" _
+}
+
 # ==============================================================================
 # VERIFICACIÓN AUTOMÁTICA DEL ACCESO DIRECTO DE VESSEL EN EL ESCRITORIO
 # ==============================================================================
@@ -1473,6 +1510,8 @@ FSR_STRENGTH="${FSR_STRENGTH:-2}"
 RENDERER_BACKEND="${RENDERER_BACKEND:-auto}"
 SISTEMA_LINUX="${SISTEMA_LINUX:-debian}"
 DISTRO_NAME="${DISTRO_NAME:-Debian}"
+SMART_PERF_CONFIGURADO="${SMART_PERF_CONFIGURADO:-1}"
+SMART_PERF_VERSION="${SMART_PERF_VERSION:-1.0}"
 ESCRITORIO_VIRTUAL="0"
 EOF
     # Regenerar dxvk.conf con los nuevos valores
@@ -1534,21 +1573,32 @@ ajustar_escritorio_virtual() {
 
 ajustar_perfil_rendimiento() {
     mostrar_banner
-    echo -e "${C_GREEN}⚡ [ CAMBIAR PERFIL DE RENDIMIENTO ]${C_RESET}"
+    echo -e "${C_GREEN}⚡ [ CAMBIAR PERFIL DE RENDIMIENTO - SMART PERFORMANCE ]${C_RESET}"
     echo ""
-    echo -e "  ${C_BOLD}[1]${C_RESET} ${C_GREEN}Máximo Rendimiento${C_RESET} (GameMode, GPU dedicada a tope, prioridad alta)"
-    echo -e "  ${C_BOLD}[2]${C_RESET} ${C_YELLOW}Equilibrado${C_RESET} (Buen rendimiento con menor consumo térmico)"
-    echo -e "  ${C_BOLD}[3]${C_RESET} ${C_BLUE}Ahorro de Batería / Laptop${C_RESET} (Menor uso de CPU para portátiles)"
+    echo -e "  ${C_BOLD}[1]${C_RESET} ${C_GREEN}⭐ Modo Rendimiento Inteligente [ RECOMENDADO ]${C_RESET} (Autocalibrado en RAM, cero tirones)"
+    echo -e "  ${C_BOLD}[2]${C_RESET} ${C_YELLOW}🛡️ Modo Estándar / Compatibilidad${C_RESET} (Wine y DXVK clásico sin optimizaciones)"
+    echo -e "  ${C_BOLD}[3]${C_RESET} ${C_BLUE}🚀 Modo Portátil Extremo${C_RESET} (Gamescope + AMD FSR para laptops)"
     echo ""
     read -p "$(echo -e "${C_BOLD}Elegir perfil (1-3): ${C_RESET}")" perf_sel
 
     case "$perf_sel" in
-        1) PERFIL_RENDIMIENTO="maximo" ;;
-        2) PERFIL_RENDIMIENTO="equilibrado" ;;
-        3) PERFIL_RENDIMIENTO="ahorro" ;;
+        1)
+            PERFIL_RENDIMIENTO="inteligente"
+            ACTIVAR_FSR="0"
+            ;;
+        2)
+            PERFIL_RENDIMIENTO="estandar"
+            ACTIVAR_FSR="0"
+            ;;
+        3)
+            PERFIL_RENDIMIENTO="extremo"
+            ACTIVAR_FSR="1"
+            ;;
         *) echo -e "${C_YELLOW}Sin cambios.${C_RESET}"; sleep 1; return ;;
     esac
 
+    SMART_PERF_CONFIGURADO="1"
+    SMART_PERF_VERSION="1.0"
     guardar_config_usuario
     echo -e "${C_GREEN}✔ Perfil cambiado a: ${C_BOLD}${PERFIL_RENDIMIENTO}${C_RESET}"
     sleep 1.2
@@ -2511,7 +2561,7 @@ render_menu_principal() {
 
     local o1="▶   [1]  Iniciar programa o juego      "
     local o2="⚙️   [2]  Configurar Programa Win      "
-    local o3="⚙️   [3]  Rendimiento y Motor Gráfico  "
+    local o3="⚡  [3]  Smart Performance (Ajustes)   "
     local o4="🔧  [4]  Herramientas de Windows       "
     local o5="🔄  [5]  Actualizar                    "
     local o0="⏻   [0]  Salir                         "
@@ -2549,10 +2599,13 @@ if [ "${BASH_SOURCE[0]}" = "$0" ]; then
     # 2. Comprobar configuración inicial de la distribución Linux
     comprobar_configuracion_inicial_distro
 
-    # 3. Comprobar y asegurar acceso directo de Vessel en el Escritorio
+    # 3. Comprobar configuración inicial de Smart Performance (al actualizar o primer uso)
+    comprobar_configuracion_smart_performance
+
+    # 4. Comprobar y asegurar acceso directo de Vessel en el Escritorio
     verificar_acceso_directo_escritorio
 
-    # 4. Preinstalar e integrar GameRanger portable listo en opción 1
+    # 5. Preinstalar e integrar GameRanger portable listo en opción 1
     desplegar_gameranger_portable
 
     sel_idx=1

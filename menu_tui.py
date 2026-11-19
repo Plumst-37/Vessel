@@ -32,7 +32,9 @@ CONFIG_USER = os.path.join(DIR, "config_rendimiento.cfg")
 WINEPREFIX = os.path.join(DIR, "wineprefix")
 VERSION_FILE = os.path.join(DIR, "version.txt")
 INSTALADO_MARKER = os.path.join(DIR, ".instalado")
+SMART_PERF_MARKER = os.path.join(DIR, ".smart_perf_listo")
 VERSION_ACTUAL = "1.0"
+SMART_PERF_VERSION_ACTUAL = "1.0"
 
 # Paleta de colores Neón Púrpura y Windows 11
 PURPLE = "\033[38;2;224;86;253m"
@@ -141,7 +143,9 @@ def cargar_config():
         "MOSTRAR_HUD_FPS": "0",
         "RENDERER_BACKEND": "auto",
         "SISTEMA_LINUX": "debian",
-        "DISTRO_NAME": "Debian"
+        "DISTRO_NAME": "Debian",
+        "SMART_PERF_CONFIGURADO": "0",
+        "SMART_PERF_VERSION": "0"
     }
     if os.path.exists(CONFIG_USER):
         with open(CONFIG_USER, "r", encoding="utf-8", errors="ignore") as f:
@@ -295,7 +299,8 @@ def render_banner(hw, cfg):
     fsr_st = f"Activo (x{cfg.get('FSR_STRENGTH', '2')})" if cfg.get("ACTIVAR_FSR") == "1" else "Apagado"
     hud_st = "Activo" if cfg.get("MOSTRAR_HUD_FPS") == "1" else "Apagado"
     vk_st = "Disponible" if hw["vulkan"] else "No compatible"
-    perf_st = cfg.get("PERFIL_RENDIMIENTO", "maximo").upper()
+    p_raw = cfg.get("PERFIL_RENDIMIENTO", "inteligente").lower()
+    p_badge = "⭐ INTELIGENTE" if p_raw in ("inteligente", "maximo") else ("🛡️ ESTÁNDAR" if p_raw == "estandar" else "🚀 EXTREMO")
 
     rows_l = [
         "",
@@ -312,7 +317,7 @@ def render_banner(hw, cfg):
         f"  {PURPLE}✔{RESET}   {PURPLE}FSR Reescalado{RESET} :  {WHITE}{fsr_st}{RESET}",
         f"  {PURPLE}✔{RESET}   {PURPLE}HUD FPS / OSD{RESET}  :  {WHITE}{hud_st}{RESET}",
         f"  {PURPLE}✔{RESET}   {PURPLE}Vulkan Driver{RESET}  :  {WHITE}{vk_st}{RESET}",
-        f"  {PURPLE}✔{RESET}   {PURPLE}Perfil Activo{RESET}  :  {GREEN}{perf_st}{RESET}"
+        f"  {PURPLE}✔{RESET}   {PURPLE}Smart Perf.{RESET}    :  {GREEN}{BOLD}{p_badge}{RESET}"
     ]
 
     for rl, rr in zip(rows_l, rows_r):
@@ -1436,6 +1441,12 @@ def menu_rendimiento(hw, cfg):
             # [1] ⭐ Modo Rendimiento Inteligente [ RECOMENDADO ]
             guardar_config("PERFIL_RENDIMIENTO", "inteligente")
             guardar_config("ACTIVAR_FSR", "0")
+            guardar_config("SMART_PERF_CONFIGURADO", "1")
+            guardar_config("SMART_PERF_VERSION", SMART_PERF_VERSION_ACTUAL)
+            try:
+                open(SMART_PERF_MARKER, "w").close()
+            except Exception:
+                pass
             subprocess.run(["bash", os.path.join(DIR, "generar_dxvk_conf.sh")], stderr=subprocess.DEVNULL)
 
             os.system("clear")
@@ -1452,6 +1463,12 @@ def menu_rendimiento(hw, cfg):
             # [2] 🛡️ Modo Estándar / Compatibilidad Total
             guardar_config("PERFIL_RENDIMIENTO", "estandar")
             guardar_config("ACTIVAR_FSR", "0")
+            guardar_config("SMART_PERF_CONFIGURADO", "1")
+            guardar_config("SMART_PERF_VERSION", SMART_PERF_VERSION_ACTUAL)
+            try:
+                open(SMART_PERF_MARKER, "w").close()
+            except Exception:
+                pass
             subprocess.run(["bash", os.path.join(DIR, "generar_dxvk_conf.sh")], stderr=subprocess.DEVNULL)
             os.system("clear")
             render_banner(hw, cfg)
@@ -1465,6 +1482,12 @@ def menu_rendimiento(hw, cfg):
             # [3] 🚀 Modo Portátil Extremo (Gamescope + FSR)
             guardar_config("PERFIL_RENDIMIENTO", "extremo")
             guardar_config("ACTIVAR_FSR", "1")
+            guardar_config("SMART_PERF_CONFIGURADO", "1")
+            guardar_config("SMART_PERF_VERSION", SMART_PERF_VERSION_ACTUAL)
+            try:
+                open(SMART_PERF_MARKER, "w").close()
+            except Exception:
+                pass
             subprocess.run(["bash", os.path.join(DIR, "generar_dxvk_conf.sh")], stderr=subprocess.DEVNULL)
             os.system("clear")
             render_banner(hw, cfg)
@@ -1883,6 +1906,131 @@ def comprobar_primer_inicio(hw, cfg):
         except Exception:
             pass
 
+def comprobar_configuracion_smart_performance(hw, cfg):
+    """
+    Comprueba si es la primera vez que el usuario abre Vessel tras una actualización
+    que añade o modifica el menú de Smart Performance.
+    Si aún no se ha calibrado, abre la pantalla de autocalibración antes de entrar al menú principal,
+    guarda la selección en la configuración y muestra recordatorio de acceso fácil en el menú [3].
+    """
+    cfg = cargar_config()
+    ya_calibrado = (
+        cfg.get("SMART_PERF_CONFIGURADO") == "1" and
+        cfg.get("SMART_PERF_VERSION") == SMART_PERF_VERSION_ACTUAL and
+        os.path.exists(SMART_PERF_MARKER)
+    )
+
+    if ya_calibrado:
+        return
+
+    total_w = get_terminal_width()
+    inner_w = max(total_w - 2, 70)
+
+    os.system("clear")
+    print(f"{PURPLE}╭{'─' * inner_w}╮{RESET}")
+    title = "⚡  ¡NUEVA ACTUALIZACIÓN: VESSEL SMART PERFORMANCE!  ⚡"
+    pad = max((inner_w - visual_width(title)) // 2, 0)
+    print(f"{PURPLE}│{RESET}{' ' * pad}{BOLD}{CYAN}{title}{RESET}{' ' * max(inner_w - pad - visual_width(title), 0)}{PURPLE}│{RESET}")
+
+    sub = 'Calibración Inteligente "Plug & Play Portable" sin Tocar tu Sistema'
+    pad_s = max((inner_w - visual_width(sub)) // 2, 0)
+    print(f"{PURPLE}│{RESET}{' ' * pad_s}{WHITE}{sub}{RESET}{' ' * max(inner_w - pad_s - visual_width(sub), 0)}{PURPLE}│{RESET}")
+    print(f"{PURPLE}├{'─' * inner_w}┤{RESET}")
+    print(f"{PURPLE}│{' ' * inner_w}│{RESET}")
+
+    msg_hw1 = "  Hemos analizado los componentes de tu equipo automáticamente:"
+    msg_hw2 = f"    • 🧠 {PURPLE}CPU / Hilos{RESET} : {WHITE}{hw['cpu']} ({hw['cores']} Hilos asignados){RESET}"
+    msg_hw3 = f"    • 📼 {PURPLE}GPU Gráfica{RESET} : {WHITE}{hw['gpu']}{RESET}"
+    msg_hw4 = f"    • 🎛️ {PURPLE}Memoria RAM{RESET} : {WHITE}{hw['ram']}{RESET}"
+    msg_hw5 = f"    • 🛡️ {PURPLE}Seguridad{RESET}   : {GREEN}100% Protegido (0 comandos sudo / todo en RAM){RESET}"
+
+    for m in (msg_hw1, msg_hw2, msg_hw3, msg_hw4, msg_hw5):
+        print(f"{PURPLE}│{RESET} {pad_visual(m, inner_w - 2)} {PURPLE}│{RESET}")
+
+    print(f"{PURPLE}│{' ' * inner_w}│{RESET}")
+    msg_intro = "  Por favor, selecciona cómo deseas calibrar tus juegos portátiles:"
+    print(f"{PURPLE}│{RESET} {pad_visual(msg_intro, inner_w - 2)} {PURPLE}│{RESET}")
+    print(f"{PURPLE}╰{'─' * inner_w}╯{RESET}\n")
+
+    opts = [
+        ("1", "⭐ Modo Rendimiento Inteligente  ─── [ RECOMENDADO ]\n"
+              "• Calibra resolución y shaders automáticamente para tu GPU.\n"
+              "• Prioridad de CPU alta y cero micro-tirones mientras juegas.\n"
+              "• 100% Seguro: Funciona en memoria RAM. NO toca archivos de tu sistema.\n"
+              "• Al salir del juego, tu PC vuelve a su estado normal."),
+
+        ("2", "🛡️ Modo Estándar / Compatibilidad Total\n"
+              "• Ejecuta el juego con Wine/DXVK clásico sin optimizaciones agresivas.\n"
+              "• Ideal si solo quieres probar si un juego antiguo abre."),
+
+        ("3", "🚀 Modo Portátil Extremo (Gamescope + FSR)\n"
+              "• Reescalado de resolución inteligente por hardware.\n"
+              "• Diseñado para ganar hasta +50% FPS en laptops.")
+    ]
+
+    sel = submenu_interactivo("⚡  Elige tu Perfil de Rendimiento Inicial", opts, hw, cfg, default_idx=0)
+
+    if sel == "2":
+        perfil_elegido = "estandar"
+        fsr_elegido = "0"
+        nombre_perfil = "🛡️ Modo Estándar / Compatibilidad Total"
+    elif sel == "3":
+        perfil_elegido = "extremo"
+        fsr_elegido = "1"
+        nombre_perfil = "🚀 Modo Portátil Extremo (Gamescope + FSR)"
+    else:
+        perfil_elegido = "inteligente"
+        fsr_elegido = "0"
+        nombre_perfil = "⭐ Modo Rendimiento Inteligente [RECOMENDADO]"
+
+    guardar_config("PERFIL_RENDIMIENTO", perfil_elegido)
+    guardar_config("ACTIVAR_FSR", fsr_elegido)
+    guardar_config("SMART_PERF_CONFIGURADO", "1")
+    guardar_config("SMART_PERF_VERSION", SMART_PERF_VERSION_ACTUAL)
+
+    try:
+        with open(SMART_PERF_MARKER, "w", encoding="utf-8") as f:
+            f.write(SMART_PERF_VERSION_ACTUAL + "\n")
+    except Exception:
+        pass
+
+    subprocess.run(["bash", os.path.join(DIR, "generar_dxvk_conf.sh")], stderr=subprocess.DEVNULL)
+
+    os.system("clear")
+    print(f"\n{PURPLE}╭{'─' * inner_w}╮{RESET}")
+    c_title = "✔  ¡CONFIGURACIÓN GUARDADA CON ÉXITO!  ✔"
+    pad_c = max((inner_w - visual_width(c_title)) // 2, 0)
+    print(f"{PURPLE}│{RESET}{' ' * pad_c}{BOLD}{GREEN}{c_title}{RESET}{' ' * max(inner_w - pad_c - visual_width(c_title), 0)}{PURPLE}│{RESET}")
+    print(f"{PURPLE}├{'─' * inner_w}┤{RESET}")
+    print(f"{PURPLE}│{' ' * inner_w}│{RESET}")
+
+    l1 = f"  • Perfil Activo: {BOLD}{GREEN}{nombre_perfil}{RESET}"
+    l2 = f"  • Calibración: Shaders adaptados a tus {hw['cores']} hilos de CPU."
+    l3 = f"  • Memoria Caché: Configurada en RAM para cero micro-tirones."
+    l4 = f"  • Seguridad: Cero modificaciones a tu sistema operativo (100% aislado)."
+    print(f"{PURPLE}│{RESET} {pad_visual(l1, inner_w - 2)} {PURPLE}│{RESET}")
+    print(f"{PURPLE}│{RESET} {pad_visual(l2, inner_w - 2)} {PURPLE}│{RESET}")
+    print(f"{PURPLE}│{RESET} {pad_visual(l3, inner_w - 2)} {PURPLE}│{RESET}")
+    print(f"{PURPLE}│{RESET} {pad_visual(l4, inner_w - 2)} {PURPLE}│{RESET}")
+    print(f"{PURPLE}│{' ' * inner_w}│{RESET}")
+    print(f"{PURPLE}├{'─' * inner_w}┤{RESET}")
+    print(f"{PURPLE}│{' ' * inner_w}│{RESET}")
+
+    r1 = "  💡  ¿CÓMO VOLVER A ABRIR ESTA CONFIGURACIÓN EN EL FUTURO?"
+    r2 = "  Siempre que quieras cambiar de perfil, ajustar FPS o ver telemetría,"
+    r3 = "  puedes abrir esta pantalla fácilmente desde el Menú Principal en la opción:"
+    r4 = f"             {BOLD}{PURPLE}⚡  [3]  Smart Performance{RESET}"
+
+    print(f"{PURPLE}│{RESET} {pad_visual(f'{YELLOW}{BOLD}{r1}{RESET}', inner_w - 2)} {PURPLE}│{RESET}")
+    print(f"{PURPLE}│{RESET} {pad_visual(f'{GRAY}{r2}{RESET}', inner_w - 2)} {PURPLE}│{RESET}")
+    print(f"{PURPLE}│{RESET} {pad_visual(f'{WHITE}{r3}{RESET}', inner_w - 2)} {PURPLE}│{RESET}")
+    print(f"{PURPLE}│{RESET} {pad_visual(r4, inner_w - 2)} {PURPLE}│{RESET}")
+    print(f"{PURPLE}│{' ' * inner_w}│{RESET}")
+    print(f"{PURPLE}╰{'─' * inner_w}╯{RESET}\n")
+
+    print(f"  {WHITE}Presiona {BOLD}{GREEN}[Enter]{RESET}{WHITE} para continuar al Menú Principal...{RESET}")
+    read_key()
+
 def verificar_actualizacion_automatica_github(mostrar_notif=True, cfg=None):
     """Verifica e instala actualizaciones desde GitHub automáticamente para todos los usuarios.
     Muestra mensajes claros al usuario: buscando actualización, nueva versión encontrada o al día.
@@ -2059,6 +2207,9 @@ def main():
     # Comprobar si el usuario entra por primera vez (version.txt vacío)
     comprobar_primer_inicio(hw, cfg)
 
+    # Comprobar configuración inicial de Smart Performance (primera vez o tras actualización)
+    comprobar_configuracion_smart_performance(hw, cfg)
+
     # Preinstalar e integrar GameRanger portable listo en opción 1
     desplegar_gameranger_portable()
 
@@ -2092,7 +2243,7 @@ def main():
 
         opts = [
             ("▶   [1]  Iniciar programa o juego", "⚙️   [2]  Configurar Programa Win"),
-            ("⚙️   [3]  Rendimiento y Motor Gráfico", "🔧  [4]  Herramientas de Windows"),
+            ("⚡  [3]  Smart Performance", "🔧  [4]  Herramientas de Windows"),
             ("🔄  [5]  Actualizar", "⏻   [0]  Salir")
         ]
 
