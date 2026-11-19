@@ -254,20 +254,30 @@ if [[ "$TARGET" =~ [Gg]ame[Rr]anger ]] || [ ! -f "$TARGET" ]; then
             done
         fi
 
-        # Sanitizar coordenadas de ventana en Settings para evitar que GameRanger se abra fuera de pantalla o en modo oculto (SW_HIDE)
+        # Sanitizar coordenadas de ventana y estado de descolapsado en Settings para evitar que GameRanger se abra fuera de pantalla o colapsado
         python3 -c "
-import struct, glob
-for sf in glob.glob('${WINEPREFIX}/drive_c/users/*/AppData/Roaming/GameRanger/GameRanger Prefs/Settings'):
+import struct, glob, os
+files = glob.glob('${WINEPREFIX}/drive_c/users/*/AppData/Roaming/GameRanger/GameRanger Prefs/Settings')
+if os.path.exists('${DIR}/.gameranger_prefs_backup/Settings'):
+    files.append('${DIR}/.gameranger_prefs_backup/Settings')
+for sf in files:
     try:
         with open(sf, 'rb') as f:
             data = bytearray(f.read())
         mod = False
-        for tag, dl, dt, dw, dh in [(b'WBndMain', 100, 80, 804, 553), (b'WBndBudd', 920, 80, 220, 553)]:
+        # 1. Descolapsar lobby principal (ClpsMain = 0) para que la lista de salas y juegos aparezca visible
+        c_idx = data.find(b'ClpsMain')
+        if c_idx != -1 and len(data) > c_idx + 17:
+            if data[c_idx + 17] != 0:
+                data[c_idx + 17] = 0
+                mod = True
+        # 2. Sanitizar coordenadas de ventana para evitar que se abran fuera de pantalla o en modo oculto (SW_HIDE)
+        for tag, dl, dt, dw, dh in [(b'WBndMain', 60, 60, 804, 553), (b'WBndBudd', 874, 60, 220, 553)]:
             idx = data.find(tag)
             if idx != -1:
                 wp = idx + 16
                 l, f, s, mx, my, mx2, my2, left, top, right, bottom = struct.unpack('<IIIiiiiiiii', data[wp:wp+44])
-                if left < 0 or top < 0 or s != 1 or right <= left or bottom <= top:
+                if left < 0 or top < 0 or s != 1 or right <= left or bottom <= top or left > 1920:
                     data[wp:wp+44] = struct.pack('<IIIiiiiiiii', 44, 0, 1, -1, -1, -1, -1, dl, dt, dl+dw, dt+dh)
                     mod = True
         if mod:
@@ -563,7 +573,7 @@ if [[ "$TARGET_FILE" =~ [Gg]ame[Rr]anger ]]; then
     export RENDERER_IN_USE="GDI / Nativo (Modo Ventana)"
     unset PROTON_USE_WINED3D
     export LIBGL_ALWAYS_SOFTWARE=1
-    export WINEDLLOVERRIDES="dxgi,d3d11,d3d10core,d3d9,d3d8=b;winemenubuilder.exe=d;dplayx,dpnet,dpwsockx=n,b;riched20,riched32=n,b"
+    export WINEDLLOVERRIDES="dxgi,d3d11,d3d10core,d3d9,d3d8=b;winemenubuilder.exe=d;dplayx,dpnet,dpwsockx=n,b;riched20,riched32=n,b;mfc42,mfc42u=n,b"
     unset DXVK_CONFIG_FILE
     unset DXVK_STATE_CACHE_PATH
     unset DXVK_ASYNC
@@ -573,11 +583,13 @@ if [[ "$TARGET_FILE" =~ [Gg]ame[Rr]anger ]]; then
     GAMEMODE=""
 
     # Registro de GameRanger: garantizar MODO VENTANA nativa (decoraciones completas, sin captura fullscreen ni escritorio virtual)
-    if [ ! -f "${WINEPREFIX}/.gameranger_reg_v4" ]; then
+    if [ ! -f "${WINEPREFIX}/.gameranger_reg_v5" ]; then
         "$WINE_CMD" reg add "HKEY_CURRENT_USER\Software\Wine\AppDefaults\GameRanger.exe" /v "Version" /t REG_SZ /d "win7" /f >/dev/null 2>&1 || true
         # Eliminar cualquier contenedor virtual o renderer GL forzado que cause ventana negra de fondo
         "$WINE_CMD" reg delete "HKEY_CURRENT_USER\Software\Wine\AppDefaults\GameRanger.exe\X11 Driver" /v "Desktop" /f >/dev/null 2>&1 || true
-        "$WINE_CMD" reg delete "HKEY_CURRENT_USER\Software\Wine\AppDefaults\GameRanger.exe\Direct3D" /f >/dev/null 2>&1 || true
+        # Forzar renderer GDI en Direct3D para que CEF y GameRanger no intenten crear contextos GL conflictivos
+        "$WINE_CMD" reg add "HKEY_CURRENT_USER\Software\Wine\AppDefaults\GameRanger.exe\Direct3D" /v "renderer" /t REG_SZ /d "gdi" /f >/dev/null 2>&1 || true
+        "$WINE_CMD" reg add "HKEY_CURRENT_USER\Software\Wine\AppDefaults\GameRanger.exe\Direct3D" /v "MaxVersionGL" /t REG_DWORD /d 0 /f >/dev/null 2>&1 || true
         # Limpiar overrides que interfieren con la red Winsock nativa de Wine
         "$WINE_CMD" reg delete "HKEY_CURRENT_USER\Software\Wine\AppDefaults\GameRanger.exe\DllOverrides" /v "dnsapi" /f >/dev/null 2>&1 || true
         "$WINE_CMD" reg delete "HKEY_CURRENT_USER\Software\Wine\AppDefaults\GameRanger.exe\DllOverrides" /v "iphlpapi" /f >/dev/null 2>&1 || true
@@ -588,6 +600,8 @@ if [[ "$TARGET_FILE" =~ [Gg]ame[Rr]anger ]]; then
         "$WINE_CMD" reg add "HKEY_CURRENT_USER\Software\Wine\AppDefaults\GameRanger.exe\DllOverrides" /v "d3d11" /t REG_SZ /d "builtin" /f >/dev/null 2>&1 || true
         "$WINE_CMD" reg add "HKEY_CURRENT_USER\Software\Wine\AppDefaults\GameRanger.exe\DllOverrides" /v "d3d9" /t REG_SZ /d "builtin" /f >/dev/null 2>&1 || true
         "$WINE_CMD" reg add "HKEY_CURRENT_USER\Software\Wine\AppDefaults\GameRanger.exe\DllOverrides" /v "d3d10core" /t REG_SZ /d "builtin" /f >/dev/null 2>&1 || true
+        "$WINE_CMD" reg add "HKEY_CURRENT_USER\Software\Wine\AppDefaults\GameRanger.exe\DllOverrides" /v "mfc42" /t REG_SZ /d "native,builtin" /f >/dev/null 2>&1 || true
+        "$WINE_CMD" reg add "HKEY_CURRENT_USER\Software\Wine\AppDefaults\GameRanger.exe\DllOverrides" /v "mfc42u" /t REG_SZ /d "native,builtin" /f >/dev/null 2>&1 || true
         "$WINE_CMD" reg add "HKEY_CURRENT_USER\Software\Wine\AppDefaults\GameRanger.exe\X11 Driver" /v "Decorated" /t REG_SZ /d "Y" /f >/dev/null 2>&1 || true
         "$WINE_CMD" reg add "HKEY_CURRENT_USER\Software\Wine\AppDefaults\GameRanger.exe\X11 Driver" /v "Managed" /t REG_SZ /d "Y" /f >/dev/null 2>&1 || true
         "$WINE_CMD" reg add "HKEY_CURRENT_USER\Software\Wine\AppDefaults\GameRanger.exe\X11 Driver" /v "GrabFullscreen" /t REG_SZ /d "N" /f >/dev/null 2>&1 || true
@@ -595,7 +609,7 @@ if [[ "$TARGET_FILE" =~ [Gg]ame[Rr]anger ]]; then
         "$WINE_CMD" reg add "HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Internet Settings" /v "CertificateRevocation" /t REG_DWORD /d 0 /f >/dev/null 2>&1 || true
         "$WINE_CMD" reg add "HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Internet Settings" /v "WarnonBadCertRecving" /t REG_DWORD /d 0 /f >/dev/null 2>&1 || true
         "$WINE_CMD" reg add "HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Internet Settings" /v "SecureProtocols" /t REG_DWORD /d 2720 /f >/dev/null 2>&1 || true
-        touch "${WINEPREFIX}/.gameranger_reg_v4" 2>/dev/null || true
+        touch "${WINEPREFIX}/.gameranger_reg_v5" 2>/dev/null || true
     fi
 
     # GameRanger es un programa/lobby de escritorio, debe ejecutarse en MODO VENTANA (NUNCA en pantalla completa)
@@ -666,16 +680,16 @@ detectar_pantalla_activa() {
         done < <(xrandr 2>/dev/null | grep -E 'connected')
 
         if [ "$cur_found" -eq 0 ]; then
-            if [ -n "$prim_w" ]; then
-                ACTIVE_MON_W="$prim_w"
-                ACTIVE_MON_H="$prim_h"
-                ACTIVE_MON_X="$prim_x"
-                ACTIVE_MON_Y="$prim_y"
-            elif [ -n "$max_w" ]; then
+            if [ -n "$max_w" ]; then
                 ACTIVE_MON_W="$max_w"
                 ACTIVE_MON_H="$max_h"
                 ACTIVE_MON_X="$max_x"
                 ACTIVE_MON_Y="$max_y"
+            elif [ -n "$prim_w" ]; then
+                ACTIVE_MON_W="$prim_w"
+                ACTIVE_MON_H="$prim_h"
+                ACTIVE_MON_X="$prim_x"
+                ACTIVE_MON_Y="$prim_y"
             fi
         fi
     fi
@@ -1170,28 +1184,63 @@ GR_WATCHDOG_PID=""
 if [[ "$TARGET_FILE" =~ [Gg]ame[Rr]anger ]]; then
     (
         seen_wids=""
-        for i in $(seq 1 120); do
+        for i in $(seq 1 300); do
             sleep 1
             if [ -n "${DISPLAY:-}" ]; then
                 if command -v wmctrl &>/dev/null; then
-                    while read -r wid d x y w h rest; do
+                    while read -r wid desk x y w h wmclass client title; do
                         [ -z "$wid" ] && continue
-                        # Si detectamos una ventana nueva de GameRanger (Asistente, Ventana Principal o Lista de Amigos)
-                        if [[ ! "$seen_wids" =~ "$wid" ]]; then
-                            # Quitar fullscreen o maximizado una sola vez cuando la ventana es creada
-                            wmctrl -i -r "$wid" -b remove,fullscreen,maximized_vert,maximized_horz 2>/dev/null || true
-                            # Si la ventana se abre fuera del monitor activo del usuario o con coordenadas negativas, moverla al monitor actual
-                            if [ "$x" -lt "$ACTIVE_MON_X" ] || [ "$x" -ge "$((ACTIVE_MON_X + ACTIVE_MON_W - 100))" ] || [ "$y" -lt "$ACTIVE_MON_Y" ]; then
-                                wmctrl -i -r "$wid" -e "0,$((ACTIVE_MON_X + 120)),$((ACTIVE_MON_Y + 80)),-1,-1" 2>/dev/null || true
+                        # Si detectamos una ventana de GameRanger (Asistente, Ventana Principal, Lista de Amigos, etc.)
+                        if [[ "$wmclass" =~ [Gg]ame[Rr]anger ]] || [[ "$title" =~ ([Gg]ame[Rr]anger|[Aa]ccount [Aa]ssistant|[Ff]riends) ]]; then
+                            if [[ ! "$seen_wids" =~ "$wid" ]]; then
+                                # Quitar fullscreen o maximizado una sola vez cuando la ventana es creada
+                                wmctrl -i -r "$wid" -b remove,fullscreen,maximized_vert,maximized_horz 2>/dev/null || true
+
+                                # Determinar posición óptima según el tipo de ventana
+                                target_x="$ACTIVE_MON_X"
+                                target_y="$ACTIVE_MON_Y"
+
+                                if [[ "$title" =~ [Aa]ssistant ]]; then
+                                    # El asistente de inicio de sesión se centra en el monitor activo
+                                    target_x=$((ACTIVE_MON_X + (ACTIVE_MON_W - w) / 2))
+                                    target_y=$((ACTIVE_MON_Y + (ACTIVE_MON_H - h) / 2))
+                                elif [[ "$title" =~ [Ff]riends ]]; then
+                                    # La lista de amigos se ubica a la derecha del lobby principal
+                                    target_x=$((ACTIVE_MON_X + 874))
+                                    target_y=$((ACTIVE_MON_Y + 60))
+                                elif [[ "$title" =~ [Gg]ame[Rr]anger ]]; then
+                                    # El lobby principal se ubica en la posición principal
+                                    target_x=$((ACTIVE_MON_X + 60))
+                                    target_y=$((ACTIVE_MON_Y + 60))
+                                else
+                                    # Ventanas de salas, chat o ajustes
+                                    target_x=$((ACTIVE_MON_X + 120))
+                                    target_y=$((ACTIVE_MON_Y + 80))
+                                fi
+
+                                # Asegurar que la ventana quepa dentro del monitor activo
+                                if [ $((target_x + w)) -gt $((ACTIVE_MON_X + ACTIVE_MON_W)) ]; then
+                                    target_x=$((ACTIVE_MON_X + ACTIVE_MON_W - w - 20))
+                                fi
+                                [ "$target_x" -lt "$ACTIVE_MON_X" ] && target_x="$ACTIVE_MON_X"
+
+                                if [ $((target_y + h)) -gt $((ACTIVE_MON_Y + ACTIVE_MON_H)) ]; then
+                                    target_y=$((ACTIVE_MON_Y + ACTIVE_MON_H - h - 40))
+                                fi
+                                [ "$target_y" -lt "$ACTIVE_MON_Y" ] && target_y="$ACTIVE_MON_Y"
+
+                                # Mover a la coordenada calculada
+                                wmctrl -i -r "$wid" -e "0,$target_x,$target_y,-1,-1" 2>/dev/null || true
+
+                                # Activar y enfocar la ventana en el monitor del usuario
+                                wmctrl -i -a "$wid" 2>/dev/null || true
+                                if command -v xdotool &>/dev/null; then
+                                    xdotool windowactivate "$wid" 2>/dev/null || true
+                                fi
+                                seen_wids="$seen_wids $wid"
                             fi
-                            # Activar y enfocar la ventana en el monitor del usuario
-                            wmctrl -i -a "$wid" 2>/dev/null || true
-                            if command -v xdotool &>/dev/null; then
-                                xdotool windowactivate "$wid" 2>/dev/null || true
-                            fi
-                            seen_wids="$seen_wids $wid"
                         fi
-                    done < <(wmctrl -l -G 2>/dev/null | grep -iE 'GameRanger|Account Assistant')
+                    done < <(wmctrl -l -x -G 2>/dev/null)
                 fi
             fi
 
