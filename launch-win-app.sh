@@ -192,11 +192,17 @@ else
     # Auto-detección de versión de Windows óptima si no está especificada en la BD (Mejora 1)
     if [ -z "$GAME_WINVER" ]; then
         t_base=$(basename "$TARGET" | tr '[:upper:]' '[:lower:]')
-        if [[ "$t_base" =~ ^(speed|speed2|nfs|swat4|swat4x|empires2|age2_x1|starcraft|ra2|diablo|re4|biohazard4)\.exe$ ]]; then
+        if [[ "$t_base" =~ ^(gameranger)\.exe$ ]]; then
+            GAME_WINVER="win7"
+        elif [[ "$t_base" =~ ^(speed|speed2|nfs|swat4|swat4x|empires2|age2_x1|starcraft|ra2|diablo|re4|biohazard4)\.exe$ ]]; then
             GAME_WINVER="winxp"
         else
             GAME_WINVER="win10"
         fi
+    fi
+    # Para GameRanger forzar siempre win7 (evita incompatibilidad de CEF y modo Win10)
+    if [[ "$TARGET" =~ [Gg]ame[Rr]anger ]]; then
+        GAME_WINVER="win7"
     fi
 
     if [ "$PREF_TYPE" = "aislado" ] || [ "$FORCE_ISOLATED" -eq 1 ]; then
@@ -230,15 +236,15 @@ if [[ "$TARGET" =~ [Gg]ame[Rr]anger ]] || [ ! -f "$TARGET" ]; then
         # Restaurar preferencias y sesión guardada del usuario en cualquier perfil existente
         if [ -d "${DIR}/.gameranger_prefs_backup" ]; then
             mkdir -p "$GR_PREFS"
-            if [ ! -s "${GR_PREFS}/Settings" ] || ! grep -q "SessMail" "${GR_PREFS}/Settings" 2>/dev/null; then
-                cp -rf "${DIR}/.gameranger_prefs_backup"/* "$GR_PREFS/" 2>/dev/null || true
+            if [ -f "${DIR}/.gameranger_prefs_backup/Settings" ] && { [ ! -s "${GR_PREFS}/Settings" ] || ! grep -q "SessMail" "${GR_PREFS}/Settings" 2>/dev/null; }; then
+                cp -p "${DIR}/.gameranger_prefs_backup/Settings" "${GR_PREFS}/Settings" 2>/dev/null || true
             fi
             for u_dir in "${WINEPREFIX}/drive_c/users"/*; do
                 if [ -d "$u_dir" ] && [ "$(basename "$u_dir")" != "Public" ]; then
                     u_prefs="${u_dir}/AppData/Roaming/GameRanger/GameRanger Prefs"
                     mkdir -p "$u_prefs"
-                    if [ ! -s "${u_prefs}/Settings" ] || ! grep -q "SessMail" "${u_prefs}/Settings" 2>/dev/null; then
-                        cp -rf "${DIR}/.gameranger_prefs_backup"/* "$u_prefs/" 2>/dev/null || true
+                    if [ -f "${DIR}/.gameranger_prefs_backup/Settings" ] && { [ ! -s "${u_prefs}/Settings" ] || ! grep -q "SessMail" "${u_prefs}/Settings" 2>/dev/null; }; then
+                        cp -p "${DIR}/.gameranger_prefs_backup/Settings" "${u_prefs}/Settings" 2>/dev/null || true
                     fi
                 fi
             done
@@ -526,7 +532,7 @@ if [[ "$TARGET_FILE" =~ [Gg]ame[Rr]anger ]]; then
     # Desactivamos DXVK para GameRanger y usamos WineD3D nativo, eliminando cualquier cuelgue de UI.
     export RENDERER_IN_USE="WineD3D (Lobby Compatibilidad)"
     export PROTON_USE_WINED3D=1
-    export WINEDLLOVERRIDES="winemenubuilder.exe=d;dxgi=b;d3d11=b;d3d10core=b;d3d9=b;dnsapi=b;dplayx=n,b;dpnet=n,b;dpwsockx=n,b;riched20=n,b;riched32=n,b;ws2_32=b;wininet=b;iphlpapi=b;secur32=b;winhttp=b"
+    export WINEDLLOVERRIDES="winemenubuilder.exe=d;dxgi=b;d3d11=b;d3d10core=b;d3d9=b;dnsapi=b;dplayx=n,b;dpnet=n,b;dpwsockx=n,b;riched20=n,b;riched32=n,b;ws2_32=b;wininet=b;iphlpapi=b;secur32=b;winhttp=b;${WINEDLLOVERRIDES}"
     unset DXVK_CONFIG_FILE
     unset DXVK_STATE_CACHE_PATH
     unset DXVK_ASYNC
@@ -535,11 +541,16 @@ if [[ "$TARGET_FILE" =~ [Gg]ame[Rr]anger ]]; then
     # Desactivar gamemode para evitar mensajes en consola (GameRanger es una app de chat 2D)
     GAMEMODE=""
 
-    # Forzar modo Windows 7 y renderer GL en registro Wine AppDefaults para GameRanger
-    "$WINE_CMD" reg add "HKEY_CURRENT_USER\Software\Wine\AppDefaults\GameRanger.exe" /v "Version" /t REG_SZ /d "win7" /f >/dev/null 2>&1 || true
-    "$WINE_CMD" reg add "HKEY_CURRENT_USER\Software\Wine\AppDefaults\GameRanger.exe\Direct3D" /v "renderer" /t REG_SZ /d "gl" /f >/dev/null 2>&1 || true
+    # Registro de GameRanger (solo una vez por prefijo para no retrasar el inicio)
+    if [ ! -f "${WINEPREFIX}/.gameranger_reg_v2" ]; then
+        "$WINE_CMD" reg add "HKEY_CURRENT_USER\Software\Wine\AppDefaults\GameRanger.exe" /v "Version" /t REG_SZ /d "win7" /f >/dev/null 2>&1 || true
+        "$WINE_CMD" reg add "HKEY_CURRENT_USER\Software\Wine\AppDefaults\GameRanger.exe\Direct3D" /v "renderer" /t REG_SZ /d "gl" /f >/dev/null 2>&1 || true
+        touch "${WINEPREFIX}/.gameranger_reg_v2" 2>/dev/null || true
+    fi
 
-    # CEF interno en GameRanger renderiza limpiamente con GDI/WineD3D sin flags conflictivas
+    # Forzar contenedor de Escritorio Virtual para GameRanger (1024x720)
+    ESCRITORIO_VIRTUAL="1"
+    DESKTOP_RES="1024x720"
     EXTRA_APP_ARGS=""
 fi
 
@@ -1024,9 +1035,12 @@ done
 
 CANT_ASI=$(ls -1 *.asi scripts/*.asi plugins/*.asi 2>/dev/null | wc -l)
 
-# Modo Pantalla Nativo Directo en Hardware (sin capas virtuales)
-ESCRITORIO_VIRTUAL="0"
+# Modo Pantalla Nativo Directo en Hardware (sin capas virtuales por defecto)
+[ -z "$ESCRITORIO_VIRTUAL" ] && ESCRITORIO_VIRTUAL="0"
 RUN_PREFIX=""
+if [ "$ESCRITORIO_VIRTUAL" = "1" ]; then
+    RUN_PREFIX="explorer /desktop=${DESKTOP_NAME:-GameRanger},${DESKTOP_RES:-1024x720}"
+fi
 
 echo ""
 echo "[+] Ejecutando con Perfil [${PERFIL_RENDIMIENTO:-maximo}]..."
@@ -1092,15 +1106,15 @@ if [ "$IS_WAYLAND" -eq 0 ] && [ -n "${DISPLAY:-}" ] && [[ ! "$TARGET_FILE" =~ ([
     WATCHDOG_PID=$!
 fi
 
-# Guardián inteligente en segundo plano para GameRanger
+# Guardián inteligente en segundo plano para GameRanger (soporta X11 y Wayland vía Xwayland)
 GR_WATCHDOG_PID=""
 if [[ "$TARGET_FILE" =~ [Gg]ame[Rr]anger ]]; then
     (
-        for i in $(seq 1 60); do
+        for i in $(seq 1 45); do
             sleep 1
-            if [ "$IS_WAYLAND" -eq 0 ] && [ -n "${DISPLAY:-}" ]; then
+            if [ -n "${DISPLAY:-}" ]; then
                 if command -v xdotool &>/dev/null; then
-                    for gr_w in $(xdotool search --class "gameranger" 2>/dev/null); do
+                    for gr_w in $(xdotool search --name "GameRanger" 2>/dev/null); do
                         xdotool windowmap "$gr_w" 2>/dev/null || true
                         xdotool windowraise "$gr_w" 2>/dev/null || true
                     done
@@ -1113,13 +1127,13 @@ if [[ "$TARGET_FILE" =~ [Gg]ame[Rr]anger ]]; then
                 fi
             fi
 
-            # Auto-respaldo dinámico de la sesión en cuanto el usuario inicie sesión
+            # Auto-respaldo dinámico y ultraligero de la sesión (solo archivo Settings de 15KB)
             for u_dir in "${WINEPREFIX}/drive_c/users"/*; do
                 if [ -d "$u_dir" ] && [ "$(basename "$u_dir")" != "Public" ]; then
                     u_s="${u_dir}/AppData/Roaming/GameRanger/GameRanger Prefs/Settings"
                     if [ -s "$u_s" ] && grep -q "SessMail" "$u_s" 2>/dev/null; then
                         mkdir -p "${DIR}/.gameranger_prefs_backup"
-                        cp -rf "${u_dir}/AppData/Roaming/GameRanger/GameRanger Prefs"/* "${DIR}/.gameranger_prefs_backup/" 2>/dev/null || true
+                        cp -p "$u_s" "${DIR}/.gameranger_prefs_backup/Settings" 2>/dev/null || true
                     fi
                 fi
             done
@@ -1138,7 +1152,7 @@ limpiar_procesos_al_interrumpir() {
                 u_prefs="${u_dir}/AppData/Roaming/GameRanger/GameRanger Prefs"
                 if [ -d "$u_prefs" ] && [ -s "${u_prefs}/Settings" ] && grep -q "SessMail" "${u_prefs}/Settings" 2>/dev/null; then
                     mkdir -p "${DIR}/.gameranger_prefs_backup"
-                    cp -rf "$u_prefs"/* "${DIR}/.gameranger_prefs_backup/" 2>/dev/null || true
+                    cp -p "${u_prefs}/Settings" "${DIR}/.gameranger_prefs_backup/Settings" 2>/dev/null || true
                 fi
             fi
         done
@@ -1169,8 +1183,10 @@ elif [[ "$TARGET_FILE" =~ \.([bB][aA][tT]|[cC][mM][dD])$ ]]; then
         $GAMEMODE "$WINE_CMD" cmd /c "$TARGET_FILE" "$@"
     fi
 elif [[ "$TARGET_FILE" =~ [Gg]ame[Rr]anger ]]; then
-    # GameRanger: silenciar logs ruidosos de CEF/Chromium hacia log dedicado y ejecutar fluidamente
-    "$WINE_CMD" "$TARGET_FILE" "$@" $EXTRA_APP_ARGS 2>"${WINEPREFIX}/gameranger_cef.log"
+    # GameRanger: se ejecuta obligatoriamente en Contenedor de Escritorio Virtual (1024x720)
+    # Contiene todas las ventanas hijas flotantes (Lobby, Amigos, Asistente) para evitar que
+    # aparezcan fuera de pantalla (Y=-19) o se dibujen negras por fallo de swapchain de CEF
+    "$WINE_CMD" explorer /desktop=GameRanger,${DESKTOP_RES:-1024x720} "$TARGET_FILE" "$@" 2>"${WINEPREFIX}/gameranger_cef.log"
 else
     if [ -n "$RUN_PREFIX" ]; then
         $GAMEMODE "$WINE_CMD" $RUN_PREFIX "$TARGET_FILE" "$@" $EXTRA_APP_ARGS
@@ -1191,7 +1207,7 @@ if [[ "$TARGET_FILE" =~ [Gg]ame[Rr]anger ]]; then
             u_prefs="${u_dir}/AppData/Roaming/GameRanger/GameRanger Prefs"
             if [ -d "$u_prefs" ] && [ -s "${u_prefs}/Settings" ] && grep -q "SessMail" "${u_prefs}/Settings" 2>/dev/null; then
                 mkdir -p "${DIR}/.gameranger_prefs_backup"
-                cp -rf "$u_prefs"/* "${DIR}/.gameranger_prefs_backup/" 2>/dev/null || true
+                cp -p "${u_prefs}/Settings" "${DIR}/.gameranger_prefs_backup/Settings" 2>/dev/null || true
             fi
         fi
     done
