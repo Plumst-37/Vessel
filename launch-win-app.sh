@@ -970,6 +970,11 @@ EOF_DLC
                 sed -i "s/^height=.*/height=${best_h}/" "$ddini" 2>/dev/null || true
                 sed -i 's/^boxing=.*/boxing=false/' "$ddini" 2>/dev/null || true
                 sed -i 's/^maintas=.*/maintas=false/' "$ddini" 2>/dev/null || true
+                if [ -f "${TARGET_DIR}/Shaders/interpolation/catmull-rom-bilinear.glsl" ]; then
+                    sed -i 's|^shader=.*|shader=Shaders\\interpolation\\catmull-rom-bilinear.glsl|' "$ddini" 2>/dev/null || true
+                else
+                    sed -i 's|^shader=.*|shader=Bilinear|' "$ddini" 2>/dev/null || true
+                fi
             done
 
             # 4. Configurar DirectDraw nativo en el registro de Wine (para juegos sin cnc-ddraw)
