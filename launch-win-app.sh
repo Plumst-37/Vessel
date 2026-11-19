@@ -224,6 +224,10 @@ else
     if [ "$PE_IS_64" = "1" ] || file -b "$TARGET" 2>/dev/null | grep -qiE 'x86-64|PE32\+'; then
         es_64bit=true
     fi
+    if [ "$es_64bit" = false ] && [ "$CPU_CORES" -gt 16 ]; then
+        # Limitar topología en juegos 32-bit a máx 16 hilos para prevenir desbordamiento de búfer en motores clásicos
+        export WINE_CPU_TOPOLOGY="16"
+    fi
     es_dx12=false
     if [ "$PE_HAS_DX12" = "1" ] || [ -f "$(dirname "$TARGET")/d3d12.dll" ] || [ -f "$(dirname "$TARGET")/d3d12core.dll" ] || \
        find "$(dirname "$TARGET")" -maxdepth 2 -iname "d3d12*.dll" 2>/dev/null | grep -q . || \
@@ -563,11 +567,21 @@ if [ "$PERFIL_RENDIMIENTO" != "ahorro" ] && command -v gamemoderun &> /dev/null;
     GAMEMODE="gamemoderun"
 fi
 
-# Activar modo alto rendimiento de energía en CPU (desbloquea Turbo Boost sin throttling agresivo)
+# Activar modo alto rendimiento de energía en CPU (desbloquea Turbo Boost sin throttling agresivo en cualquier distro)
 PREV_POWER_PROFILE=""
-if [ "$PERFIL_RENDIMIENTO" != "ahorro" ] && command -v powerprofilesctl &> /dev/null; then
-    PREV_POWER_PROFILE=$(powerprofilesctl get 2>/dev/null || true)
-    powerprofilesctl set performance 2>/dev/null || true
+if [ "$PERFIL_RENDIMIENTO" != "ahorro" ]; then
+    if command -v powerprofilesctl &> /dev/null; then
+        PREV_POWER_PROFILE=$(powerprofilesctl get 2>/dev/null || true)
+        powerprofilesctl set performance 2>/dev/null || true
+    elif command -v cpupower &> /dev/null; then
+        cpupower frequency-set -g performance 2>/dev/null || true
+    fi
+    for gov in /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor; do
+        [ -w "$gov" ] && echo performance > "$gov" 2>/dev/null || true
+    done
+    for epp in /sys/devices/system/cpu/cpu*/cpufreq/energy_performance_preference; do
+        [ -w "$epp" ] && echo performance > "$epp" 2>/dev/null || true
+    done
 fi
 
 # 11. Obtener directorio y nombre del archivo

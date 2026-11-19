@@ -20,6 +20,8 @@ if [ "$FLAG" = "--cached" ] && [ -f "$CFG_FILE" ]; then
     exit 0
 fi
 
+HOST_ID="$(cat /etc/machine-id 2>/dev/null || hostname 2>/dev/null || echo "host_generic")"
+
 # 1. CPU e Hilos Reales
 CPU_CORES=$(nproc 2>/dev/null || grep -c '^processor' /proc/cpuinfo 2>/dev/null || echo 4)
 CPU_MODEL=$(grep -m 1 -E 'model name' /proc/cpuinfo 2>/dev/null | cut -d: -f2 | xargs)
@@ -71,11 +73,16 @@ elif echo "$LSPCI_DATA" | grep -qiE 'amd|radeon'; then
         GPU_PRIMARY="AMD ${AMD_LINE}"
     fi
 
-    # VRAM de AMD en sysfs si está disponible
-    if [ -f /sys/class/drm/card0/device/mem_info_vram_total ]; then
-        vram_bytes=$(cat /sys/class/drm/card0/device/mem_info_vram_total 2>/dev/null || echo 0)
-        [ "$vram_bytes" -gt 0 ] 2>/dev/null && GPU_VRAM_MB=$((vram_bytes / 1024 / 1024))
-    fi
+    # VRAM de AMD en sysfs si está disponible (escanea todas las tarjetas card0, card1 para detectar GPUs dedicadas)
+    for card_vram in /sys/class/drm/card*/device/mem_info_vram_total; do
+        if [ -f "$card_vram" ]; then
+            vram_bytes=$(cat "$card_vram" 2>/dev/null || echo 0)
+            if [ "$vram_bytes" -gt 0 ] 2>/dev/null; then
+                c_mb=$((vram_bytes / 1024 / 1024))
+                [ "$c_mb" -gt "$GPU_VRAM_MB" ] && GPU_VRAM_MB="$c_mb"
+            fi
+        fi
+    done
 
     if [ "$GPU_VRAM_MB" -le 2048 ] || echo "$AMD_LINE" | grep -qiE 'vega\s*[0-9]|radeon\s*graphics'; then
         GPU_IS_ENTRY_LEVEL=true
@@ -139,6 +146,7 @@ pgrep -x pipewire &>/dev/null && HAS_PIPEWIRE=true
 if [ "$FLAG" = "--save" ] || [ "$FLAG" = "--refresh" ] || [ ! -f "$CFG_FILE" ]; then
     cat <<EOF > "$CFG_FILE"
 # Generado automáticamente por Vessel Hardware Scanner
+HOST_ID="${HOST_ID}"
 CPU_MODEL="${CPU_MODEL}"
 CPU_THREADS=${CPU_CORES}
 RAM_TOTAL_MB=${RAM_TOTAL_MB}

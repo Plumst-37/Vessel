@@ -13,8 +13,29 @@ fi
 
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
 CFG_HW="${DIR}/perfil_hardware.cfg"
+CURRENT_HOST_ID="$(cat /etc/machine-id 2>/dev/null || hostname 2>/dev/null || echo "host_generic")"
 
-# Cargar perfil de hardware pre-escaneado en 0.0005s si ya existe
+# Comprobar si el equipo físico cambió o si el perfil no existe
+RESCAN_REQUIRED=false
+if [ ! -f "$CFG_HW" ]; then
+    RESCAN_REQUIRED=true
+else
+    source "$CFG_HW"
+    if [ -z "$HOST_ID" ] || [ "$HOST_ID" != "$CURRENT_HOST_ID" ]; then
+        RESCAN_REQUIRED=true
+    fi
+fi
+
+if [ "$RESCAN_REQUIRED" = true ]; then
+    # El equipo cambió (Vessel fue copiado a otra PC o pendrive) o no hay perfil previo:
+    # Re-escanear inmediatamente para calibrar al nuevo hardware en 0.1s
+    [ -x "${DIR}/herramientas/detector_hardware.sh" ] && bash "${DIR}/herramientas/detector_hardware.sh" --save 2>/dev/null || true
+    [ -f "$CFG_HW" ] && source "$CFG_HW"
+    # Auto-regenerar dxvk.conf para adaptarlo al nuevo procesador y memoria
+    [ -x "${DIR}/generar_dxvk_conf.sh" ] && bash "${DIR}/generar_dxvk_conf.sh" 2>/dev/null || true
+fi
+
+# Cargar perfil de hardware pre-escaneado
 if [ -f "$CFG_HW" ]; then
     source "$CFG_HW"
     CPU_CORES="${CPU_THREADS:-4}"
@@ -171,8 +192,8 @@ aplicar_entorno_hardware() {
         export __NV_PRIME_RENDER_OFFLOAD=1
         export __GLX_VENDOR_LIBRARY_NAME=nvidia
         export __VK_LAYER_NV_optimus=NVIDIA_only
-        export DXVK_FILTER_DEVICE_NAME="GeForce"
-        if [ "$IS_LOW_SPEC_GPU" = "true" ] || ! echo "${GPU_NAME:-}" | grep -qiE 'RTX|Titan V|Quadro RTX'; then
+        export DXVK_FILTER_DEVICE_NAME="NVIDIA"
+        if [ "$IS_LOW_SPEC_GPU" = "true" ] || ! echo "${GPU_NAME:-${GPU_PRIMARY:-}}" | grep -qiE 'RTX|Titan V|Quadro RTX'; then
             export VKD3D_CONFIG="nodxr"
         else
             export VKD3D_CONFIG="dxr11,dxr"
@@ -189,9 +210,11 @@ aplicar_entorno_hardware() {
         export RADV_PERFTEST=aco,sam,dcc
         export vblank_mode=0
         export LIBVA_DRIVER_NAME=radeonsi
+        [ -z "$DXVK_FILTER_DEVICE_NAME" ] && export DXVK_FILTER_DEVICE_NAME="AMD"
     elif [ "$HAS_INTEL" = true ]; then
         # Activar aceleración multimedia y controlador de video Intel
         export LIBVA_DRIVER_NAME=iHD
+        export ANV_ENABLE_PIPELINE_CACHE=1
     fi
 
     # 9. Puentes y compatibilidad para Anti-Cheat (EAC / BattlEye en juegos con soporte Linux)

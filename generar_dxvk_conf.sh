@@ -62,39 +62,36 @@ dxvk.gpl = True
 # Modo Pantalla Completa: False para compatibilidad universal (evita fallos de EDID/swapchains en Wayland/PRIME)
 dxvk.allowFse = False
 
-# Precisión geométrica universal con máxima aceleración de hardware
+# Precisión geométrica universal con máxima fidelidad 3D (elimina deformación de mallas, estiramientos y z-fighting)
 d3d9.invariantPosition = True
 d3d11.invariantPosition = True
-d3d9.longMad = True
-d3d9.floatEmulation = Auto
-d3d11.floatEmulation = Auto
+d3d9.floatEmulation = Strict
+d3d11.floatEmulation = Strict
 d3d9.clampNegativeLodBias = True
 d3d11.clampNegativeLodBias = True
 d3d9.samplerAnisotropy = -1
 d3d11.samplerAnisotropy = -1
-d3d11.constantBufferRangeCheck = False
+d3d11.constantBufferRangeCheck = True
 d3d9.lenientClear = True
 d3d9.maxAvailableMemory = ${D3D9_MEM}
 
-# Rendimiento Directo de Ultra-Baja Latencia
-# Desactiva copias intermedias de tearFree para Wayland/X11 y reduce latencia al mínimo
-dxvk.tearFree = False
+# Presentación Fluida sin Caídas Bruscas de FPS (Triple Buffering Tear-Free / Mailbox)
+# Mantiene 60 FPS estables sin caídas a 30 FPS cuando hay picos de carga 3D
+dxvk.tearFree = True
 dxgi.syncInterval = 0
 d3d9.presentInterval = 0
-dxgi.numBackBuffers = 2
-d3d9.numBackBuffers = 2
-d3d9.maxFrameLatency = 1
-dxgi.maxFrameLatency = 1
+dxgi.numBackBuffers = 3
+d3d9.numBackBuffers = 3
+d3d9.maxFrameLatency = 2
+dxgi.maxFrameLatency = 2
 
-# Optimizaciones de pipelines DXVK y buffers rápidos
-dxvk.trackPipelineLifetime = True
-dxvk.useRawSsbo = True
-d3d11.relaxedBarriers = True
+# Optimizaciones de pipelines DXVK y memoria
+dxvk.trackPipelineLifetime = False
 d3d9.memoryTrackTest = False
 
 # Perfiles específicos por ejecutable para máxima fidelidad 3D, estabilidad y rendimiento
 [GTA5.exe]
-dxgi.maxFrameLatency = 1
+dxgi.maxFrameLatency = 2
 d3d11.clampNegativeLodBias = True
 d3d11.constantBufferRangeCheck = True
 d3d11.invariantPosition = True
@@ -104,7 +101,7 @@ dxvk.allowFse = False
 dxgi.syncInterval = 0
 
 [PlayGTAV.exe]
-dxgi.maxFrameLatency = 1
+dxgi.maxFrameLatency = 2
 d3d11.clampNegativeLodBias = True
 d3d11.constantBufferRangeCheck = True
 d3d11.invariantPosition = True
@@ -115,15 +112,13 @@ dxgi.syncInterval = 0
 
 [speed.exe]
 d3d9.invariantPosition = True
-d3d9.longMad = True
-d3d9.floatEmulation = Auto
+d3d9.floatEmulation = Strict
 d3d9.clampNegativeLodBias = True
 dxvk.allowFse = False
 
 [BH6.exe]
 d3d9.invariantPosition = True
-d3d9.longMad = True
-d3d9.floatEmulation = Auto
+d3d9.floatEmulation = Strict
 d3d9.clampNegativeLodBias = True
 d3d9.lenientClear = True
 dxvk.allowFse = False
@@ -131,8 +126,8 @@ dxvk.allowFse = False
 [re4.exe]
 dxgi.hideNvidiaGpu = False
 dxgi.syncInterval = 0
-dxgi.maxFrameLatency = 1
-d3d11.constantBufferRangeCheck = False
+dxgi.maxFrameLatency = 2
+d3d11.constantBufferRangeCheck = True
 dxvk.allowFse = False
 dxvk.enableAsync = true
 dxvk.gpl = True
@@ -140,8 +135,8 @@ dxvk.gpl = True
 [re4_original.exe]
 dxgi.hideNvidiaGpu = False
 dxgi.syncInterval = 0
-dxgi.maxFrameLatency = 1
-d3d11.constantBufferRangeCheck = False
+dxgi.maxFrameLatency = 2
+d3d11.constantBufferRangeCheck = True
 dxvk.allowFse = False
 dxvk.enableAsync = true
 dxvk.gpl = True
@@ -149,7 +144,8 @@ dxvk.gpl = True
 [re2.exe]
 dxgi.hideNvidiaGpu = False
 dxgi.syncInterval = 0
-dxgi.maxFrameLatency = 1
+dxgi.maxFrameLatency = 2
+d3d11.constantBufferRangeCheck = True
 dxvk.allowFse = False
 dxvk.enableAsync = true
 dxvk.gpl = True
@@ -157,7 +153,8 @@ dxvk.gpl = True
 [re3.exe]
 dxgi.hideNvidiaGpu = False
 dxgi.syncInterval = 0
-dxgi.maxFrameLatency = 1
+dxgi.maxFrameLatency = 2
+d3d11.constantBufferRangeCheck = True
 dxvk.allowFse = False
 dxvk.enableAsync = true
 dxvk.gpl = True
@@ -165,7 +162,8 @@ dxvk.gpl = True
 [re7.exe]
 dxgi.hideNvidiaGpu = False
 dxgi.syncInterval = 0
-dxgi.maxFrameLatency = 1
+dxgi.maxFrameLatency = 2
+d3d11.constantBufferRangeCheck = True
 dxvk.allowFse = False
 dxvk.enableAsync = true
 dxvk.gpl = True
@@ -173,7 +171,8 @@ dxvk.gpl = True
 [re8.exe]
 dxgi.hideNvidiaGpu = False
 dxgi.syncInterval = 0
-dxgi.maxFrameLatency = 1
+dxgi.maxFrameLatency = 2
+d3d11.constantBufferRangeCheck = True
 dxvk.allowFse = False
 dxvk.enableAsync = true
 dxvk.gpl = True
@@ -181,21 +180,20 @@ dxvk.gpl = True
 [dmc5.exe]
 dxgi.hideNvidiaGpu = False
 dxgi.syncInterval = 0
-dxgi.maxFrameLatency = 1
+dxgi.maxFrameLatency = 2
+d3d11.constantBufferRangeCheck = True
 dxvk.allowFse = False
 dxvk.enableAsync = true
 dxvk.gpl = True
 
 [gta_sa.exe]
 d3d9.invariantPosition = True
-d3d9.longMad = True
-d3d9.floatEmulation = Auto
+d3d9.floatEmulation = Strict
 d3d9.clampNegativeLodBias = True
 dxvk.allowFse = False
 
 [Swat4.exe]
 d3d9.invariantPosition = True
-d3d9.longMad = True
 d3d9.floatEmulation = Strict
 d3d9.clampNegativeLodBias = True
 dxvk.allowFse = False
