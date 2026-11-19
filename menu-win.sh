@@ -118,7 +118,7 @@ verificar_actualizacion_github() {
                 fi
                 if [ "$ya_configurado" -eq 1 ]; then
                     echo "$VERSION_ACTUAL" > "${DIR}/.instalado" 2>/dev/null || true
-                    echo "$VERSION_ACTUAL" > "${DIR}/version.txt" 2>/dev/null || true
+                    > "${DIR}/version.txt" 2>/dev/null || true
                 fi
                 chmod +x "${DIR}"/*.sh "${DIR}"/*.py 2>/dev/null || true
                 desplegar_gameranger_portable 2>/dev/null || true
@@ -282,6 +282,106 @@ comprobar_configuracion_inicial_distro() {
         echo ""
         read -p "$(echo -e "${C_WHITE}Presiona ${C_GREEN}[Enter]${C_WHITE} para seleccionar tu sistema Linux y continuar... ${C_RESET}")"
         instalar_recursos_actualizar
+    fi
+}
+
+# ==============================================================================
+# VERIFICACIÓN AUTOMÁTICA DEL ACCESO DIRECTO DE VESSEL EN EL ESCRITORIO
+# ==============================================================================
+verificar_acceso_directo_escritorio() {
+    local target_user="${SUDO_USER:-$USER}"
+    local target_home
+    target_home=$(eval echo "~$target_user")
+
+    local d_dir=""
+    if command -v xdg-user-dir &>/dev/null; then
+        d_dir=$(su - "$target_user" -c 'xdg-user-dir DESKTOP' 2>/dev/null || xdg-user-dir DESKTOP 2>/dev/null || true)
+    fi
+    [ -z "$d_dir" ] && d_dir="$target_home/Escritorio"
+    [ ! -d "$d_dir" ] && d_dir="$target_home/Desktop"
+
+    # Si no existe carpeta de escritorio en absoluto, nada que hacer
+    [ ! -d "$d_dir" ] && return 0
+
+    local desk_file="${d_dir}/Vessel.desktop"
+    local app_file="$target_home/.local/share/applications/vessel.desktop"
+    local vessel_launcher="${DIR}/vessel.sh"
+    [ ! -f "$vessel_launcher" ] && vessel_launcher="${DIR}/menu-win.sh"
+
+    local icon_path="wine"
+    if [ -f "${DIR}/herramientas/vessel.svg" ]; then
+        mkdir -p "$target_home/.local/share/icons/hicolor/scalable/apps" 2>/dev/null || true
+        cp -f "${DIR}/herramientas/vessel.svg" "$target_home/.local/share/icons/hicolor/scalable/apps/vessel.svg" 2>/dev/null || true
+        chown "$target_user:$target_user" "$target_home/.local/share/icons/hicolor/scalable/apps/vessel.svg" 2>/dev/null || true
+        icon_path="vessel"
+    fi
+
+    # Asegurar que vessel.sh tenga permisos de ejecución
+    chmod +x "${DIR}"/*.sh "${DIR}"/*.py 2>/dev/null || true
+
+    local necesita_crear=0
+    if [ ! -f "$desk_file" ]; then
+        necesita_crear=1
+    elif ! grep -q "${DIR}" "$desk_file" 2>/dev/null; then
+        necesita_crear=1
+    fi
+
+    if [ "$necesita_crear" -eq 1 ]; then
+        cat <<EOF > "$desk_file"
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=Vessel
+GenericName=Gestor y Optimizador de Juegos Windows
+Comment=Lanzador y Optimizador Universal de Juegos y Programas de Windows
+Exec=/bin/bash "${vessel_launcher}"
+Path=${DIR}
+Icon=${icon_path}
+Terminal=false
+Categories=Game;
+StartupNotify=true
+EOF
+        chown "$target_user:$target_user" "$desk_file" 2>/dev/null || true
+        chmod +x "$desk_file" 2>/dev/null || true
+        gio set "$desk_file" metadata::trusted true 2>/dev/null || true
+
+        # En KDE Plasma, habilitar ejecución directa sin diálogos de confirmación
+        if command -v kwriteconfig5 &>/dev/null; then
+            su - "$target_user" -c 'kwriteconfig5 --file kiorc --group "Executable scripts" --key behaviourOnLaunch execute' 2>/dev/null || true
+        fi
+        if command -v kwriteconfig6 &>/dev/null; then
+            su - "$target_user" -c 'kwriteconfig6 --file kiorc --group "Executable scripts" --key behaviourOnLaunch execute' 2>/dev/null || true
+        fi
+
+        # Limpiar accesos obsoletos antiguos
+        rm -f "${d_dir}/Menu Win (PC).desktop" "${d_dir}/Menu Win.desktop" 2>/dev/null || true
+    else
+        # Asegurar permisos correctos
+        chmod +x "$desk_file" 2>/dev/null || true
+        gio set "$desk_file" metadata::trusted true 2>/dev/null || true
+    fi
+
+    # Asegurar también en el menú de aplicaciones del sistema
+    mkdir -p "$target_home/.local/share/applications" 2>/dev/null || true
+    if [ ! -f "$app_file" ] || ! grep -q "${DIR}" "$app_file" 2>/dev/null; then
+        cat <<EOF > "$app_file"
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=Vessel
+GenericName=Gestor y Optimizador de Juegos Windows
+Comment=Lanzador y Optimizador Universal de Juegos y Programas de Windows
+Exec=/bin/bash "${vessel_launcher}"
+Path=${DIR}
+Icon=${icon_path}
+Terminal=false
+Categories=Game;
+StartupNotify=true
+EOF
+        chown "$target_user:$target_user" "$app_file" 2>/dev/null || true
+        chmod +x "$app_file" 2>/dev/null || true
+        gio set "$app_file" metadata::trusted true 2>/dev/null || true
+        rm -f "$target_home/.local/share/applications/menu-win-pc.desktop" 2>/dev/null || true
     fi
 }
 
@@ -2305,56 +2405,94 @@ EOF
     chown -R "$target_user:$target_user" "${DIR}/wineprefix" 2>/dev/null || true
     chown -R "$target_user:$target_user" "${DIR}"/*.cfg "${DIR}"/*.conf 2>/dev/null || true
 
-    local launch_exec="sh -c 'if command -v konsole >/dev/null 2>&1; then exec konsole -e \"\$0\"; elif command -v gnome-terminal >/dev/null 2>&1; then exec gnome-terminal -- \"\$0\"; else exec x-terminal-emulator -e \"\$0\"; fi' \"${DIR}/menu-win.sh\""
+    local vessel_launcher="${DIR}/vessel.sh"
+    [ ! -f "$vessel_launcher" ] && vessel_launcher="${DIR}/menu-win.sh"
+
+    local icon_path="wine"
+    if [ -f "${DIR}/herramientas/vessel.svg" ]; then
+        mkdir -p "$target_home/.local/share/icons/hicolor/scalable/apps" 2>/dev/null || true
+        cp -f "${DIR}/herramientas/vessel.svg" "$target_home/.local/share/icons/hicolor/scalable/apps/vessel.svg" 2>/dev/null || true
+        chown "$target_user:$target_user" "$target_home/.local/share/icons/hicolor/scalable/apps/vessel.svg" 2>/dev/null || true
+        icon_path="vessel"
+    fi
 
     # Menú del Sistema (~/.local/share/applications)
     mkdir -p "$target_home/.local/share/applications"
-    cat <<EOF > "$target_home/.local/share/applications/menu-win-pc.desktop"
+    cat <<EOF > "$target_home/.local/share/applications/vessel.desktop"
 [Desktop Entry]
 Version=1.0
 Type=Application
-Name=Menu Win (PC)
-Comment=Gestor y Optimizador de Juegos de Windows para PC
-Exec=${launch_exec}
-Icon=wine
+Name=Vessel
+GenericName=Gestor y Optimizador de Juegos Windows
+Comment=Lanzador y Optimizador Universal de Juegos y Programas de Windows
+Exec=/bin/bash "${vessel_launcher}"
+Path=${DIR}
+Icon=${icon_path}
 Terminal=false
-Categories=Game;System;
+Categories=Game;
 StartupNotify=true
 EOF
-    chown "$target_user:$target_user" "$target_home/.local/share/applications/menu-win-pc.desktop" 2>/dev/null || true
-    chmod +x "$target_home/.local/share/applications/menu-win-pc.desktop" 2>/dev/null || true
-    gio set "$target_home/.local/share/applications/menu-win-pc.desktop" metadata::trusted true 2>/dev/null || true
+    chown "$target_user:$target_user" "$target_home/.local/share/applications/vessel.desktop" 2>/dev/null || true
+    chmod +x "$target_home/.local/share/applications/vessel.desktop" 2>/dev/null || true
+    gio set "$target_home/.local/share/applications/vessel.desktop" metadata::trusted true 2>/dev/null || true
+    rm -f "$target_home/.local/share/applications/menu-win-pc.desktop" 2>/dev/null || true
     echo -e "${C_GREEN}  ✔ Acceso directo en Menú de Aplicaciones (.local/share/applications) validado.${C_RESET}"
 
     # Escritorio del Usuario
-    local d_dir="$target_home/Escritorio"
+    local d_dir=""
+    if command -v xdg-user-dir &>/dev/null; then
+        d_dir=$(su - "$target_user" -c 'xdg-user-dir DESKTOP' 2>/dev/null || xdg-user-dir DESKTOP 2>/dev/null || true)
+    fi
+    [ -z "$d_dir" ] && d_dir="$target_home/Escritorio"
     [ ! -d "$d_dir" ] && d_dir="$target_home/Desktop"
+
     if [ -d "$d_dir" ]; then
-        cat <<EOF > "${d_dir}/Menu Win (PC).desktop"
+        cat <<EOF > "${d_dir}/Vessel.desktop"
 [Desktop Entry]
 Version=1.0
 Type=Application
-Name=Menu Win (PC)
-Comment=Gestor y Optimizador de Juegos de Windows para PC
-Exec=${launch_exec}
-Icon=wine
+Name=Vessel
+GenericName=Gestor y Optimizador de Juegos Windows
+Comment=Lanzador y Optimizador Universal de Juegos y Programas de Windows
+Exec=/bin/bash "${vessel_launcher}"
+Path=${DIR}
+Icon=${icon_path}
 Terminal=false
-Categories=Game;System;
+Categories=Game;
 StartupNotify=true
 EOF
-        chown "$target_user:$target_user" "${d_dir}/Menu Win (PC).desktop" 2>/dev/null || true
-        chmod +x "${d_dir}/Menu Win (PC).desktop" 2>/dev/null || true
-        gio set "${d_dir}/Menu Win (PC).desktop" metadata::trusted true 2>/dev/null || true
-        echo -e "${C_GREEN}  ✔ Acceso directo en el Escritorio validado.${C_RESET}"
+        chown "$target_user:$target_user" "${d_dir}/Vessel.desktop" 2>/dev/null || true
+        chmod +x "${d_dir}/Vessel.desktop" 2>/dev/null || true
+        gio set "${d_dir}/Vessel.desktop" metadata::trusted true 2>/dev/null || true
+
+        # Habilitar ejecución directa con un clic en entornos KDE Plasma (sin diálogos de confirmación)
+        if command -v kwriteconfig5 &>/dev/null; then
+            su - "$target_user" -c 'kwriteconfig5 --file kiorc --group "Executable scripts" --key behaviourOnLaunch execute' 2>/dev/null || true
+        fi
+        if command -v kwriteconfig6 &>/dev/null; then
+            su - "$target_user" -c 'kwriteconfig6 --file kiorc --group "Executable scripts" --key behaviourOnLaunch execute' 2>/dev/null || true
+        fi
+
+        # Limpiar accesos directos obsoletos
+        rm -f "${d_dir}/Menu Win (PC).desktop" "${d_dir}/Menu Win.desktop" 2>/dev/null || true
+        echo -e "${C_GREEN}  ✔ Acceso directo 'Vessel' en el Escritorio validado con éxito.${C_RESET}"
     fi
+
+    # Enlace simbólico en PATH
+    if [ "$EUID" -eq 0 ] && [ -d "/usr/local/bin" ]; then
+        ln -sf "${DIR}/vessel.sh" /usr/local/bin/vessel 2>/dev/null || true
+    elif [ -d "$target_home/.local/bin" ]; then
+        ln -sf "${DIR}/vessel.sh" "$target_home/.local/bin/vessel" 2>/dev/null || true
+    fi
+
     echo ""
     echo ""
 
     echo -e "${C_CYAN}══════════════════════════════════════════════════════════════════════${C_RESET}"
     echo -e "${C_BOLD}${C_GREEN}🎉 ¡OPTIMIZACIÓN Y CONFIGURACIÓN COMPLETADA CON ÉXITO AL 100%! 🎉${C_RESET}"
-    echo -e "${C_WHITE}Esta computadora (${DISTRO_NAME:-Linux}) está lista para correr cualquier juego o programa.${C_RESET}"
+    echo -e "${C_WHITE}Esta computadora (${DISTRO_NAME:-Linux}) está lista para correr cualquier juego o programa con Vessel.${C_RESET}"
     echo -e "${C_CYAN}══════════════════════════════════════════════════════════════════════${C_RESET}"
-    echo "$VERSION_ACTUAL" > "$VERSION_FILE" 2>/dev/null || true
+    > "$VERSION_FILE" 2>/dev/null || true
     chown "$target_user:$target_user" "$VERSION_FILE" 2>/dev/null || true
     echo "$VERSION_ACTUAL" > "${DIR}/.instalado" 2>/dev/null || true
     chown "$target_user:$target_user" "${DIR}/.instalado" 2>/dev/null || true
@@ -2411,7 +2549,10 @@ if [ "${BASH_SOURCE[0]}" = "$0" ]; then
     # 2. Comprobar configuración inicial de la distribución Linux
     comprobar_configuracion_inicial_distro
 
-    # 3. Preinstalar e integrar GameRanger portable listo en opción 1
+    # 3. Comprobar y asegurar acceso directo de Vessel en el Escritorio
+    verificar_acceso_directo_escritorio
+
+    # 4. Preinstalar e integrar GameRanger portable listo en opción 1
     desplegar_gameranger_portable
 
     sel_idx=1

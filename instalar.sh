@@ -681,7 +681,7 @@ fi
 echo ""
 
 # 5. Crear accesos directos universales (Escritorio y Menú del Sistema)
-echo -e "${C_CYAN}[5/5] Creando accesos directos en el Escritorio y Menú del Sistema...${C_RESET}"
+echo -e "${C_CYAN}[5/5] Creando accesos directos de Vessel en el Escritorio y Menú del Sistema...${C_RESET}"
 
 TARGET_USER="${SUDO_USER:-$USER}"
 TARGET_HOME=$(eval echo "~$TARGET_USER")
@@ -691,45 +691,91 @@ chmod +x "${DIR}"/*.sh "${DIR}"/*.py 2>/dev/null || true
 chown -R "$TARGET_USER:$TARGET_USER" "${DIR}/wineprefix" 2>/dev/null || true
 chown -R "$TARGET_USER:$TARGET_USER" "${DIR}"/*.cfg "${DIR}"/*.conf 2>/dev/null || true
 
-LAUNCH_EXEC="sh -c 'for term in x-terminal-emulator gnome-terminal konsole xfce4-terminal mate-terminal qterminal ptyxis tilix terminator kitty alacritty foot urxvt xterm; do if command -v \"\$term\" >/dev/null 2>&1; then case \"\$term\" in gnome-terminal|tilix|ptyxis) exec \"\$term\" -- \"\$0\" ;; alacritty|kitty|foot) exec \"\$term\" -e \"\$0\" ;; *) exec \"\$term\" -e \"\$0\" ;; esac; fi; done; exec \"\$0\"' \"${DIR}/menu-win.sh\""
+# Configurar icono oficial de Vessel
+ICON_PATH="wine"
+if [ -f "${DIR}/herramientas/vessel.svg" ]; then
+    mkdir -p "$TARGET_HOME/.local/share/icons/hicolor/scalable/apps" 2>/dev/null || true
+    cp -f "${DIR}/herramientas/vessel.svg" "$TARGET_HOME/.local/share/icons/hicolor/scalable/apps/vessel.svg" 2>/dev/null || true
+    chown "$TARGET_USER:$TARGET_USER" "$TARGET_HOME/.local/share/icons/hicolor/scalable/apps/vessel.svg" 2>/dev/null || true
+    if [ "$EUID" -eq 0 ]; then
+        mkdir -p /usr/share/icons/hicolor/scalable/apps 2>/dev/null || true
+        cp -f "${DIR}/herramientas/vessel.svg" /usr/share/icons/hicolor/scalable/apps/vessel.svg 2>/dev/null || true
+    fi
+    ICON_PATH="vessel"
+fi
 
+VESSEL_LAUNCHER="${DIR}/vessel.sh"
+[ ! -f "$VESSEL_LAUNCHER" ] && VESSEL_LAUNCHER="${DIR}/menu-win.sh"
+
+# Menú del Sistema (~/.local/share/applications/vessel.desktop)
 mkdir -p "$TARGET_HOME/.local/share/applications"
-cat <<EOF > "$TARGET_HOME/.local/share/applications/menu-win-pc.desktop"
+cat <<EOF > "$TARGET_HOME/.local/share/applications/vessel.desktop"
 [Desktop Entry]
 Version=1.0
 Type=Application
-Name=Menu Win (PC)
-Comment=Gestor y Optimizador de Juegos de Windows para PC
-Exec=${LAUNCH_EXEC}
-Icon=wine
+Name=Vessel
+GenericName=Gestor y Optimizador de Juegos Windows
+Comment=Lanzador y Optimizador Universal de Juegos y Programas de Windows
+Exec=/bin/bash "${VESSEL_LAUNCHER}"
+Path=${DIR}
+Icon=${ICON_PATH}
 Terminal=false
-Categories=Game;System;
+Categories=Game;
 StartupNotify=true
 EOF
-chown "$TARGET_USER:$TARGET_USER" "$TARGET_HOME/.local/share/applications/menu-win-pc.desktop" 2>/dev/null || true
-chmod +x "$TARGET_HOME/.local/share/applications/menu-win-pc.desktop"
-gio set "$TARGET_HOME/.local/share/applications/menu-win-pc.desktop" metadata::trusted true 2>/dev/null || true
+chown "$TARGET_USER:$TARGET_USER" "$TARGET_HOME/.local/share/applications/vessel.desktop" 2>/dev/null || true
+chmod +x "$TARGET_HOME/.local/share/applications/vessel.desktop" 2>/dev/null || true
+gio set "$TARGET_HOME/.local/share/applications/vessel.desktop" metadata::trusted true 2>/dev/null || true
 
-DESKTOP_DIR="$TARGET_HOME/Escritorio"
+# Limpiar accesos obsoletos antiguos del menú
+rm -f "$TARGET_HOME/.local/share/applications/menu-win-pc.desktop" 2>/dev/null || true
+
+# Acceso directo en el Escritorio del Usuario
+DESKTOP_DIR=""
+if command -v xdg-user-dir &>/dev/null; then
+    DESKTOP_DIR=$(su - "$TARGET_USER" -c 'xdg-user-dir DESKTOP' 2>/dev/null || xdg-user-dir DESKTOP 2>/dev/null || true)
+fi
+[ -z "$DESKTOP_DIR" ] && DESKTOP_DIR="$TARGET_HOME/Escritorio"
 [ ! -d "$DESKTOP_DIR" ] && DESKTOP_DIR="$TARGET_HOME/Desktop"
 
 if [ -d "$DESKTOP_DIR" ]; then
-    cat <<EOF > "${DESKTOP_DIR}/Menu Win (PC).desktop"
+    cat <<EOF > "${DESKTOP_DIR}/Vessel.desktop"
 [Desktop Entry]
 Version=1.0
 Type=Application
-Name=Menu Win (PC)
-Comment=Gestor y Optimizador de Juegos de Windows para PC
-Exec=${LAUNCH_EXEC}
-Icon=wine
+Name=Vessel
+GenericName=Gestor y Optimizador de Juegos Windows
+Comment=Lanzador y Optimizador Universal de Juegos y Programas de Windows
+Exec=/bin/bash "${VESSEL_LAUNCHER}"
+Path=${DIR}
+Icon=${ICON_PATH}
 Terminal=false
-Categories=Game;System;
+Categories=Game;
 StartupNotify=true
 EOF
-    chown "$TARGET_USER:$TARGET_USER" "${DESKTOP_DIR}/Menu Win (PC).desktop" 2>/dev/null || true
-    chmod +x "${DESKTOP_DIR}/Menu Win (PC).desktop"
-    gio set "${DESKTOP_DIR}/Menu Win (PC).desktop" metadata::trusted true 2>/dev/null || true
-    echo -e "${C_GREEN}✔ Acceso directo creado y validado en tu Escritorio: 'Menu Win (PC)'${C_RESET}"
+    chown "$TARGET_USER:$TARGET_USER" "${DESKTOP_DIR}/Vessel.desktop" 2>/dev/null || true
+    chmod +x "${DESKTOP_DIR}/Vessel.desktop" 2>/dev/null || true
+    gio set "${DESKTOP_DIR}/Vessel.desktop" metadata::trusted true 2>/dev/null || true
+
+    # Habilitar ejecución directa con un clic en entornos KDE Plasma (sin diálogos de confirmación)
+    if command -v kwriteconfig5 &>/dev/null; then
+        su - "$TARGET_USER" -c 'kwriteconfig5 --file kiorc --group "Executable scripts" --key behaviourOnLaunch execute' 2>/dev/null || true
+    fi
+    if command -v kwriteconfig6 &>/dev/null; then
+        su - "$TARGET_USER" -c 'kwriteconfig6 --file kiorc --group "Executable scripts" --key behaviourOnLaunch execute' 2>/dev/null || true
+    fi
+
+    # Limpiar accesos directos obsoletos del escritorio
+    rm -f "${DESKTOP_DIR}/Menu Win (PC).desktop" "${DESKTOP_DIR}/Menu Win.desktop" 2>/dev/null || true
+
+    echo -e "${C_GREEN}✔ Acceso directo creado y validado en tu Escritorio: 'Vessel'${C_RESET}"
+fi
+
+# Comando directo 'vessel' en el PATH del sistema o usuario
+if [ "$EUID" -eq 0 ] && [ -d "/usr/local/bin" ]; then
+    ln -sf "${DIR}/vessel.sh" /usr/local/bin/vessel 2>/dev/null || true
+elif [ -d "$TARGET_HOME/.local/bin" ]; then
+    ln -sf "${DIR}/vessel.sh" "$TARGET_HOME/.local/bin/vessel" 2>/dev/null || true
 fi
 
 echo "1.0" > "${DIR}/.instalado" 2>/dev/null || true
@@ -740,7 +786,7 @@ chown "$TARGET_USER:$TARGET_USER" "${DIR}/version.txt" 2>/dev/null || true
 
 echo ""
 echo -e "${C_BOLD}${C_GREEN}🎉 ¡INSTALACIÓN COMPLETADA CON ÉXITO! 🎉${C_RESET}"
-echo -e "${C_WHITE}Tu PC ahora está optimizada y lista para correr cualquier juego o programa.${C_RESET}"
-echo -e "${C_CYAN}Puedes iniciar el menú en cualquier momento ejecutando:${C_RESET}"
-echo -e "   ${C_BOLD}${DIR}/menu-win.sh${C_RESET}"
+echo -e "${C_WHITE}Tu PC ahora está optimizada y lista para correr cualquier juego o programa con Vessel.${C_RESET}"
+echo -e "${C_CYAN}Puedes iniciar Vessel haciendo doble clic en el acceso directo 'Vessel' en tu Escritorio o ejecutando:${C_RESET}"
+echo -e "   ${C_BOLD}${DIR}/menu-win.sh${C_RESET}  o  ${C_BOLD}vessel${C_RESET}"
 echo ""

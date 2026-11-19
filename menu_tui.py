@@ -524,6 +524,138 @@ StartupNotify=true
     if mostrar_notif:
         print(f"\n{GREEN}✔ GameRanger portable preinstalado e integrado en tu PC con éxito.{RESET}")
 
+def verificar_acceso_directo_vessel(mostrar_notif=False):
+    """
+    Verifica si el acceso directo de Vessel existe en el Escritorio.
+    Si no existe o si la ruta del proyecto cambió, lo genera automáticamente
+    asegurando permisos ejecutables (+x) y confianza XDG / KDE Plasma para abrir con un clic.
+    """
+    home = os.path.expanduser("~")
+    desk_dir = None
+    if shutil.which("xdg-user-dir"):
+        try:
+            res = subprocess.run(["xdg-user-dir", "DESKTOP"], stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True)
+            cand = res.stdout.strip()
+            if cand and os.path.isdir(cand):
+                desk_dir = cand
+        except Exception:
+            pass
+
+    if not desk_dir:
+        for cand in [os.path.join(home, "Escritorio"), os.path.join(home, "Desktop")]:
+            if os.path.isdir(cand):
+                desk_dir = cand
+                break
+
+    if not desk_dir or not os.path.isdir(desk_dir):
+        return False
+
+    desk_file = os.path.join(desk_dir, "Vessel.desktop")
+    vessel_sh = os.path.join(DIR, "vessel.sh")
+    app_dir = os.path.join(home, ".local", "share", "applications")
+    app_file = os.path.join(app_dir, "vessel.desktop")
+
+    # Asegurar que vessel.sh sea ejecutable
+    try:
+        if os.path.exists(vessel_sh):
+            os.chmod(vessel_sh, 0o755)
+    except Exception:
+        pass
+
+    icon_path = "wine"
+    svg_icon = os.path.join(DIR, "herramientas", "vessel.svg")
+    if os.path.exists(svg_icon):
+        user_icons = os.path.join(home, ".local", "share", "icons", "hicolor", "scalable", "apps")
+        try:
+            os.makedirs(user_icons, exist_ok=True)
+            shutil.copy2(svg_icon, os.path.join(user_icons, "vessel.svg"))
+            icon_path = "vessel"
+        except Exception:
+            icon_path = svg_icon
+
+    desktop_content = f"""[Desktop Entry]
+Version=1.0
+Type=Application
+Name=Vessel
+GenericName=Gestor y Optimizador de Juegos Windows
+Comment=Lanzador y Optimizador Universal de Juegos y Programas de Windows
+Exec=/bin/bash "{vessel_sh}"
+Path={DIR}
+Icon={icon_path}
+Terminal=false
+Categories=Game;
+StartupNotify=true
+"""
+
+    necesita_crear = False
+    if not os.path.exists(desk_file):
+        necesita_crear = True
+    else:
+        try:
+            with open(desk_file, "r", encoding="utf-8", errors="ignore") as f:
+                content = f.read()
+                if DIR not in content or "Exec=" not in content:
+                    necesita_crear = True
+        except Exception:
+            necesita_crear = True
+
+    if necesita_crear:
+        try:
+            with open(desk_file, "w", encoding="utf-8") as f:
+                f.write(desktop_content)
+            os.chmod(desk_file, 0o755)
+            if shutil.which("gio"):
+                subprocess.run(["gio", "set", desk_file, "metadata::trusted", "true"], stderr=subprocess.DEVNULL)
+            # Limpiar accesos obsoletos antiguos
+            for old_name in ["Menu Win (PC).desktop", "Menu Win.desktop"]:
+                old_path = os.path.join(desk_dir, old_name)
+                if os.path.exists(old_path):
+                    try:
+                        os.remove(old_path)
+                    except Exception:
+                        pass
+        except Exception:
+            pass
+
+        # Habilitar ejecución directa con un clic en entornos KDE Plasma (sin diálogos de confirmación)
+        for ktool in ["kwriteconfig5", "kwriteconfig6"]:
+            if shutil.which(ktool):
+                try:
+                    subprocess.run([ktool, "--file", "kiorc", "--group", "Executable scripts", "--key", "behaviourOnLaunch", "execute"], stderr=subprocess.DEVNULL)
+                except Exception:
+                    pass
+    else:
+        # Asegurar permisos correctos si ya existe
+        try:
+            os.chmod(desk_file, 0o755)
+            if shutil.which("gio"):
+                subprocess.run(["gio", "set", desk_file, "metadata::trusted", "true"], stderr=subprocess.DEVNULL)
+        except Exception:
+            pass
+
+    # Asegurar también en el menú de aplicaciones del sistema (~/.local/share/applications)
+    try:
+        os.makedirs(app_dir, exist_ok=True)
+        if not os.path.exists(app_file) or DIR not in open(app_file, "r", encoding="utf-8", errors="ignore").read():
+            with open(app_file, "w", encoding="utf-8") as f:
+                f.write(desktop_content)
+            os.chmod(app_file, 0o755)
+            if shutil.which("gio"):
+                subprocess.run(["gio", "set", app_file, "metadata::trusted", "true"], stderr=subprocess.DEVNULL)
+            old_app = os.path.join(app_dir, "menu-win-pc.desktop")
+            if os.path.exists(old_app):
+                try:
+                    os.remove(old_app)
+                except Exception:
+                    pass
+    except Exception:
+        pass
+
+    if mostrar_notif:
+        print(f"\n{GREEN}✔ Acceso directo 'Vessel' verificado y configurado en tu Escritorio: {desk_file}{RESET}")
+
+    return True
+
 def cargar_lista_programas():
     """Carga y unifica la lista de juegos y programas de DB_FILE, DB_USER y .bak."""
     desplegar_gameranger_portable()
@@ -1395,6 +1527,7 @@ def menu_herramientas(hw, cfg):
             ("8", "💾 Respaldar / Restaurar Prefijo Wine (Backup wineprefix)"),
             ("9", "🔍 Diagnóstico de Controladores Gráficos y 32-bit (NVIDIA / AMD / Intel)"),
             ("10", "🎮 Gestor de Librerías y Mandos (SDL2 Gamepad, cnc-ddraw, DSOAL 3D, vkBasalt)"),
+            ("11", "🖥️  Regenerar y Validar Acceso Directo de Vessel en el Escritorio"),
             ("0", "↩️  Volver al Menú Principal")
         ]
         sel = submenu_interactivo("🔧  Herramientas de Windows y Reparación", opciones, hw, cfg)
@@ -1476,6 +1609,11 @@ def menu_herramientas(hw, cfg):
                 subprocess.run(["bash", script_lib, "menu"])
             else:
                 print(f"{RED}No se encontró el gestor de librerías en: {script_lib}{RESET}")
+            pausar()
+        elif sel == "11":
+            os.system("clear")
+            print(f"{PURPLE}🖥️  [ VALIDAR / REGENERAR ACCESO DIRECTO DE VESSEL EN EL ESCRITORIO ]{RESET}\n")
+            verificar_acceso_directo_vessel(mostrar_notif=True)
             pausar()
 
 # ==============================================================================
@@ -1574,11 +1712,10 @@ source "{os.path.join(DIR, 'menu-win.sh')}"
 ejecutar_descarga_e_instalacion_automatica
 """])
 
-    # Si la instalación completó con éxito, registrar versión actual en version.txt e INSTALADO_MARKER
+    # Si la instalación completó con éxito, registrar versión actual en INSTALADO_MARKER y mantener version.txt en 0 bytes
     if res.returncode == 0:
         try:
-            with open(VERSION_FILE, "w", encoding="utf-8") as f:
-                f.write(VERSION_ACTUAL + "\n")
+            open(VERSION_FILE, "w").close()
             with open(INSTALADO_MARKER, "w", encoding="utf-8") as f:
                 f.write(VERSION_ACTUAL + "\n")
         except Exception:
@@ -1825,6 +1962,9 @@ def main():
 
     # Preinstalar e integrar GameRanger portable listo en opción 1
     desplegar_gameranger_portable()
+
+    # Comprobar y asegurar acceso directo de Vessel en el Escritorio
+    verificar_acceso_directo_vessel()
 
     # Selección en 2 columnas: 1 a 6
     # 1: Iniciar, 2: Configurar
