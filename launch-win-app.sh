@@ -261,6 +261,14 @@ else
         fi
     fi
 
+    # Salvaguarda DX12 para GPUs sin Ray Tracing por hardware (evita fallo D3D12CreateDevice):
+    if [ "$es_dx12" = true ]; then
+        if [ "$IS_LOW_SPEC_GPU" = true ] || [ "$GPU_IS_ENTRY_LEVEL" = true ] || ! echo "$DETECTED_GPU" | grep -qiE 'RTX|Radeon RX [6-9][0-9]{3}'; then
+            [ -z "$VKD3D_CONFIG" ] && export VKD3D_CONFIG="nodxr"
+            [ -z "$VKD3D_FEATURE_LEVEL" ] && export VKD3D_FEATURE_LEVEL="12_0"
+        fi
+    fi
+
     # Para GameRanger forzar siempre win7 (evita incompatibilidad de CEF y modo Win10)
     if [[ "$TARGET" =~ [Gg]ame[Rr]anger ]]; then
         GAME_WINVER="win7"
@@ -1004,6 +1012,47 @@ EOF_DLC
             "$WINE_CMD" reg add "HKEY_CURRENT_USER\Software\Wine\AppDefaults\\${TARGET_FILE}" /v "Version" /t REG_SZ /d "win10" /f >/dev/null 2>&1 || true
             GAME_WINVER="win10"
             limpiar_zombies_juego "re4\.exe|re2\.exe|re3\.exe|re7\.exe|re8\.exe|dmc5\.exe"
+
+            # 1. Auto-vincular o copiar DLLs de VKD3D-Proton (DirectX 12) a la raíz si están en subcarpetas
+            for sub_vkd3d in "${TARGET_DIR}/dxvk" "${TARGET_DIR}/vkd3d" "${TARGET_DIR}/_CommonRedist"; do
+                if [ -d "$sub_vkd3d" ]; then
+                    if [ -f "${sub_vkd3d}/d3d12.dll" ]; then
+                        if [ ! -f "${TARGET_DIR}/d3d12.dll" ] || [ ! -s "${TARGET_DIR}/d3d12.dll" ]; then
+                            cp -f "${sub_vkd3d}/d3d12.dll" "${TARGET_DIR}/" 2>/dev/null || true
+                        fi
+                        if [ -f "${sub_vkd3d}/d3d12core.dll" ] && { [ ! -f "${TARGET_DIR}/d3d12core.dll" ] || [ ! -s "${TARGET_DIR}/d3d12core.dll" ]; }; then
+                            cp -f "${sub_vkd3d}/d3d12core.dll" "${TARGET_DIR}/" 2>/dev/null || true
+                        fi
+                        if [ -d "${TARGET_DIR}/D3D12" ] && [ -f "${sub_vkd3d}/d3d12core.dll" ]; then
+                            cp -f "${sub_vkd3d}/d3d12core.dll" "${TARGET_DIR}/D3D12/D3D12Core.dll" 2>/dev/null || true
+                        fi
+                    fi
+                fi
+            done
+            # Reemplazar la DLL oficial de Microsoft Windows por la de Vulkan en D3D12/ si existe d3d12core.dll
+            if [ -d "${TARGET_DIR}/D3D12" ] && [ -f "${TARGET_DIR}/d3d12core.dll" ]; then
+                cp -f "${TARGET_DIR}/d3d12core.dll" "${TARGET_DIR}/D3D12/D3D12Core.dll" 2>/dev/null || true
+            fi
+
+            # 2. Desactivar Ray Tracing (DXR) para evitar fallo D3D12CreateDevice en GPUs sin RT (Maxwell/Pascal/Intel)
+            export VKD3D_CONFIG="nodxr"
+            export VKD3D_FEATURE_LEVEL="12_0"
+
+            # 3. Copiar configuración limpia si existe en opti/local_config.ini
+            if [ -f "${TARGET_DIR}/opti/local_config.ini" ] && [ ! -f "${TARGET_DIR}/local_config.ini" ]; then
+                cp -p "${TARGET_DIR}/opti/local_config.ini" "${TARGET_DIR}/local_config.ini" 2>/dev/null || true
+            fi
+
+            # 4. Limpiar adaptadores gráficos ajenos hardcodeados en local_config.ini / *config*.ini
+            find "$TARGET_DIR" -maxdepth 3 -iname "*config*.ini" 2>/dev/null | while read -r c_ini; do
+                if grep -qi "\[Render/Adapter\]" "$c_ini" 2>/dev/null || grep -qi "VendorId=" "$c_ini" 2>/dev/null; then
+                    crear_respaldo_seguro "$c_ini"
+                    sed -i '/\[Render\/Adapter\]/,/^\[/ { /^\[Render\/Adapter\]/d; /^Description=/d; /^VendorId=/d; /^DeviceId=/d; }' "$c_ini" 2>/dev/null || true
+                    sed -i '/^Description=.*Graphics/d; /^VendorId=[0-9]*/d; /^DeviceId=[0-9]*/d' "$c_ini" 2>/dev/null || true
+                fi
+            done
+
+            # 5. Configurar visualización óptima en configs de RE Engine
             find "$TARGET_DIR" -maxdepth 3 -name "*config*.ini" 2>/dev/null | while read -r re_ini; do
                 if grep -q "\[AppRender\]" "$re_ini" 2>/dev/null || grep -q "\[RenderConfig\]" "$re_ini" 2>/dev/null; then
                     crear_respaldo_seguro "$re_ini"
@@ -1023,7 +1072,7 @@ EOF_DLC
                     fi
                 fi
             done
-            export WINEDLLOVERRIDES="dxgi=n,b;d3d12=n,b;d3d11=n,b;d3dcompiler_47=n,b;xinput1_3=n,b;xinput1_4=n,b;${WINEDLLOVERRIDES}"
+            export WINEDLLOVERRIDES="d3d12=n,b;d3d12core=n,b;dxgi=n,b;d3d11=n,b;d3dcompiler_47=n,b;xinput1_3=n,b;xinput1_4=n,b;${WINEDLLOVERRIDES}"
             ;;
 
         capcom_mt_framework)
