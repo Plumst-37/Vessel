@@ -16,6 +16,11 @@ import termios
 import tty
 import time
 
+try:
+    from analizador_pe import analizar_juego
+except ImportError:
+    analizar_juego = None
+
 # Rutas principales
 DIR = os.path.dirname(os.path.abspath(__file__))
 DB_FILE = os.path.join(DIR, "programas.db")
@@ -800,6 +805,12 @@ def menu_iniciar_programa(hw, cfg):
             "ultra": "Ultra (+90% FPS)"
         }
 
+        # Análisis de cabezal PE para mostrar arquitectura y API recomendada
+        pe_info = analizar_juego(ruta) if (analizar_juego and os.path.exists(ruta)) else None
+        pe_tag = ""
+        if pe_info and pe_info.get("is_pe"):
+            pe_tag = f" [{pe_info['bits']}-bit | {pe_info['api'].upper()}]"
+
         # Menú de acción para el juego seleccionado (Mejora 1: WinVer, Mejora 4: FSR)
         opts_juego = [
             ("1", f"🚀 Iniciar {nombre} (Máximo Rendimiento Nativo en Hardware)"),
@@ -807,7 +818,7 @@ def menu_iniciar_programa(hw, cfg):
             ("3", f"📂 Abrir Carpeta del Juego (para Mods / Parches / Saves)"),
             ("4", f"🖥️  Crear Acceso Directo en el Escritorio (1-Clic)"),
             ("5", f"🛡️  Modo de Prefijo Wine: [{'Aislado (Sandbox Propio)' if prefijo == 'aislado' else 'Compartido (Global)'}]"),
-            ("6", f"🪟 Versión de Windows: [{winver_labels.get(winver, 'Windows 10')}]"),
+            ("6", f"🪟 Versión de Windows: [{winver_labels.get(winver, 'Windows 10')}]{pe_tag}"),
             ("7", f"⚡ Reescalado AMD FSR: [{fsr_labels.get(fsr, 'Desactivado')}]"),
             ("8", f"❌ Eliminar este Juego de la Lista"),
             ("0", f"↩️  Volver a la Lista de Juegos")
@@ -884,6 +895,13 @@ def menu_iniciar_programa(hw, cfg):
             if w_sel == "1": n_win = "win10"
             elif w_sel == "2": n_win = "win7"
             elif w_sel == "3": n_win = "winxp"
+
+            if n_win == "winxp" and pe_info and (pe_info.get("is_64") or pe_info.get("has_d3d12")):
+                print(f"\n{RED}❌ Incompatible: Este juego es nativo de 64 bits o utiliza DirectX 12.{RESET}")
+                print(f"{YELLOW}   Windows XP no admite ejecutables de 64-bit ni D3D12CreateDevice en Wine.{RESET}")
+                print(f"{CYAN}   Se mantendrá en Windows 10 para garantizar máxima estabilidad gráfica.{RESET}")
+                n_win = "win10"
+                pausar()
 
             if n_win != winver:
                 programas[idx] = (nombre, ruta, prefijo, n_win, fsr)

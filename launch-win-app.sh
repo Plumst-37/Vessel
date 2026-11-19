@@ -196,13 +196,36 @@ else
         fi
     done
 
+    # 4.3 Análisis Inteligente de Cabezales Binarios PE (Arquitectura, Versión de Windows, APIs y Motor)
+    PE_WINVER=""
+    PE_BITS=""
+    PE_API=""
+    PE_ENGINE=""
+    PE_SUBSYS=""
+    PE_IS_64="0"
+    PE_IS_PE="0"
+    PE_HAS_DX12="0"
+    PE_HAS_DX11="0"
+    PE_HAS_DDRAW="0"
+
+    if [ -f "${DIR}/analizador_pe.py" ] && [ -f "$TARGET" ]; then
+        pe_eval=$(python3 "${DIR}/analizador_pe.py" --bash "$TARGET" 2>/dev/null || true)
+        if [ -n "$pe_eval" ]; then
+            eval "$pe_eval"
+            # Si se resolvió un binario .exe real desde un script .bat/.lnk, actualizar TARGET si aún no lo estaba
+            if [ -n "$PE_TARGET" ] && [ -f "$PE_TARGET" ] && [ "$TARGET" != "$PE_TARGET" ]; then
+                TARGET="$PE_TARGET"
+            fi
+        fi
+    fi
+
     # Detección inteligente de arquitectura (32-bit vs 64-bit) y APIs modernas (DirectX 12 / RE Engine)
     local es_64bit=false
-    if file -b "$TARGET" 2>/dev/null | grep -qiE 'x86-64|PE32\+'; then
+    if [ "$PE_IS_64" = "1" ] || file -b "$TARGET" 2>/dev/null | grep -qiE 'x86-64|PE32\+'; then
         es_64bit=true
     fi
     local es_dx12=false
-    if [ -f "$(dirname "$TARGET")/d3d12.dll" ] || [ -f "$(dirname "$TARGET")/d3d12core.dll" ] || \
+    if [ "$PE_HAS_DX12" = "1" ] || [ -f "$(dirname "$TARGET")/d3d12.dll" ] || [ -f "$(dirname "$TARGET")/d3d12core.dll" ] || \
        find "$(dirname "$TARGET")" -maxdepth 2 -iname "d3d12*.dll" 2>/dev/null | grep -q . || \
        find "$(dirname "$TARGET")" -maxdepth 3 -iname "*re_chunk_000*.pak" 2>/dev/null | grep -q .; then
         es_dx12=true
@@ -210,17 +233,21 @@ else
 
     # Auto-detección de versión de Windows óptima si no está especificada en la BD (Mejora 1)
     if [ -z "$GAME_WINVER" ]; then
-        t_base=$(basename "$TARGET" | tr '[:upper:]' '[:lower:]')
-        if [[ "$t_base" =~ ^(gameranger)\.exe$ ]]; then
-            GAME_WINVER="win7"
-        elif [ "$es_64bit" = true ] || [ "$es_dx12" = true ]; then
-            # Los juegos de 64 bits y DirectX 12 NUNCA deben ejecutarse en Windows XP
-            GAME_WINVER="win10"
-        elif [[ "$t_base" =~ ^(speed|speed2|nfs|swat4|swat4x|empires2|age2_x1|starcraft|ra2|diablo|biohazard4)\.exe$ ]]; then
-            # Solo clásicos retro de 32 bits van a Windows XP (se removió re4 para evitar choques con RE4 Remake)
-            GAME_WINVER="winxp"
+        if [ -n "$PE_WINVER" ]; then
+            GAME_WINVER="$PE_WINVER"
         else
-            GAME_WINVER="win10"
+            t_base=$(basename "$TARGET" | tr '[:upper:]' '[:lower:]')
+            if [[ "$t_base" =~ ^(gameranger)\.exe$ ]]; then
+                GAME_WINVER="win7"
+            elif [ "$es_64bit" = true ] || [ "$es_dx12" = true ]; then
+                # Los juegos de 64 bits y DirectX 12 NUNCA deben ejecutarse en Windows XP
+                GAME_WINVER="win10"
+            elif [[ "$t_base" =~ ^(speed|speed2|nfs|swat4|swat4x|empires2|age2_x1|starcraft|ra2|diablo|biohazard4)\.exe$ ]]; then
+                # Solo clásicos retro de 32 bits van a Windows XP (se removió re4 para evitar choques con RE4 Remake)
+                GAME_WINVER="winxp"
+            else
+                GAME_WINVER="win10"
+            fi
         fi
     fi
 
@@ -798,7 +825,9 @@ limpiar_zombies_juego() {
 aplicar_perfil_aislado_juego() {
     local perfil_id="generico"
 
-    if [[ "$TARGET_FILE" =~ (GTA5|PlayGTAV|gta5) ]] || [[ "$TARGET_DIR" =~ (GTA\ V|Grand\ Theft\ Auto\ V|gta_data) ]]; then
+    if [ -n "$PE_ENGINE" ] && [ "$PE_ENGINE" != "generico" ]; then
+        perfil_id="$PE_ENGINE"
+    elif [[ "$TARGET_FILE" =~ (GTA5|PlayGTAV|gta5) ]] || [[ "$TARGET_DIR" =~ (GTA\ V|Grand\ Theft\ Auto\ V|gta_data) ]]; then
         perfil_id="rockstar_gta5"
     elif [[ "$TARGET_FILE" =~ (gta_sa|gta-sa|gtasa) ]] || [[ "$TARGET_DIR" =~ (GTA\ San\ Andreas|Grand\ Theft\ Auto\ San\ Andreas) ]]; then
         perfil_id="rockstar_gtasa"
@@ -1178,6 +1207,9 @@ if [ "$ACTIVAR_FSR_FINAL" -eq 1 ]; then
 fi
 echo "    - AMD FSR Upscaling: ${fsr_banner}"
 echo "    - Versión de Windows: ${GAME_WINVER^^}"
+if [ -n "$PE_BITS" ] && [ "$PE_BITS" != "0" ]; then
+    echo "    - Arquitectura / Binario: ${PE_BITS}-bit (Subsystem ${PE_SUBSYS:-N/A}) | API: ${PE_API^^}"
+fi
 if [[ "$TARGET_FILE" =~ [Gg]ame[Rr]anger ]]; then
     echo "    - GameMode: Desactivado (Aplicación de Escritorio / Lobby)"
     echo "    - Modo Pantalla: Ventana de Escritorio (No Pantalla Completa)"
