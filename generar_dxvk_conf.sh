@@ -59,8 +59,8 @@ d3d9.maxFrameRate = ${FPS_VAL}
 dxvk.enableAsync = true
 dxvk.gpl = True
 
-# Modo Pantalla Completa Exclusiva Nativa
-dxvk.allowFse = True
+# Modo Pantalla Completa: False para compatibilidad universal (evita fallos de EDID/swapchains en Wayland/PRIME)
+dxvk.allowFse = False
 
 # Precisión geométrica universal: elimina deformaciones, estiramientos y z-fighting en modelos 3D
 d3d9.invariantPosition = True
@@ -99,7 +99,7 @@ d3d11.constantBufferRangeCheck = True
 d3d11.invariantPosition = True
 dxvk.enableAsync = true
 dxvk.gpl = True
-dxvk.allowFse = True
+dxvk.allowFse = False
 dxgi.syncInterval = 0
 
 [PlayGTAV.exe]
@@ -109,7 +109,7 @@ d3d11.constantBufferRangeCheck = True
 d3d11.invariantPosition = True
 dxvk.enableAsync = true
 dxvk.gpl = True
-dxvk.allowFse = True
+dxvk.allowFse = False
 dxgi.syncInterval = 0
 
 [speed.exe]
@@ -118,7 +118,7 @@ d3d9.longMad = True
 d3d9.floatEmulation = Auto
 d3d9.clampNegativeLodBias = True
 d3d9.samplerAnisotropy = 16
-dxvk.allowFse = True
+dxvk.allowFse = False
 
 [BH6.exe]
 d3d9.invariantPosition = True
@@ -127,21 +127,63 @@ d3d9.floatEmulation = Auto
 d3d9.clampNegativeLodBias = True
 d3d9.samplerAnisotropy = 16
 d3d9.lenientClear = True
-dxvk.allowFse = True
+dxvk.allowFse = False
 
 [re4.exe]
+dxgi.hideNvidiaGpu = False
 dxgi.syncInterval = 0
 dxgi.maxFrameLatency = 1
 d3d11.constantBufferRangeCheck = True
-dxvk.allowFse = True
+dxvk.allowFse = False
 dxvk.enableAsync = true
 dxvk.gpl = True
 
 [re4_original.exe]
+dxgi.hideNvidiaGpu = False
 dxgi.syncInterval = 0
 dxgi.maxFrameLatency = 1
 d3d11.constantBufferRangeCheck = True
-dxvk.allowFse = True
+dxvk.allowFse = False
+dxvk.enableAsync = true
+dxvk.gpl = True
+
+[re2.exe]
+dxgi.hideNvidiaGpu = False
+dxgi.syncInterval = 0
+dxgi.maxFrameLatency = 1
+dxvk.allowFse = False
+dxvk.enableAsync = true
+dxvk.gpl = True
+
+[re3.exe]
+dxgi.hideNvidiaGpu = False
+dxgi.syncInterval = 0
+dxgi.maxFrameLatency = 1
+dxvk.allowFse = False
+dxvk.enableAsync = true
+dxvk.gpl = True
+
+[re7.exe]
+dxgi.hideNvidiaGpu = False
+dxgi.syncInterval = 0
+dxgi.maxFrameLatency = 1
+dxvk.allowFse = False
+dxvk.enableAsync = true
+dxvk.gpl = True
+
+[re8.exe]
+dxgi.hideNvidiaGpu = False
+dxgi.syncInterval = 0
+dxgi.maxFrameLatency = 1
+dxvk.allowFse = False
+dxvk.enableAsync = true
+dxvk.gpl = True
+
+[dmc5.exe]
+dxgi.hideNvidiaGpu = False
+dxgi.syncInterval = 0
+dxgi.maxFrameLatency = 1
+dxvk.allowFse = False
 dxvk.enableAsync = true
 dxvk.gpl = True
 
@@ -151,7 +193,7 @@ d3d9.longMad = True
 d3d9.floatEmulation = Auto
 d3d9.clampNegativeLodBias = True
 d3d9.samplerAnisotropy = 16
-dxvk.allowFse = True
+dxvk.allowFse = False
 
 [Swat4.exe]
 d3d9.invariantPosition = True
@@ -159,7 +201,7 @@ d3d9.longMad = True
 d3d9.floatEmulation = Strict
 d3d9.clampNegativeLodBias = True
 d3d9.samplerAnisotropy = 16
-dxvk.allowFse = True
+dxvk.allowFse = False
 
 # GameRanger: cliente de lobby 2D / chat con Chromium CEF y ANGLE
 # Evita fallos de swapchains Vulkan (VK_ERROR_OUT_OF_HOST_MEMORY) en subventanas de CEF

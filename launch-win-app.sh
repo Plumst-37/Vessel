@@ -850,9 +850,9 @@ aplicar_perfil_aislado_juego() {
         perfil_id="rockstar_gtasa"
     elif [[ "$TARGET_FILE" =~ (speed|speed2|nfs) ]] || [[ "$TARGET_DIR" =~ (Need\ for\ Speed|NFS) ]]; then
         perfil_id="ea_nfs"
-    elif [[ "$TARGET_FILE" =~ (re4|re2|re3|re7|re8|dmc5) ]] && find "$TARGET_DIR" -maxdepth 3 -name "*config*.ini" 2>/dev/null | grep -q .; then
+    elif [[ "$TARGET_FILE" =~ (re4|re2|re3|re7|re8|dmc5) ]] && { [ "$PE_ARCH" = "64-bit" ] || [ "$PE_API" = "DX12" ] || grep -qri "\[AppRender\]\|Capability=DirectX12" "$TARGET_DIR"/*config*.ini 2>/dev/null; }; then
         perfil_id="capcom_re_engine"
-    elif [[ "$TARGET_FILE" =~ (BH6|biohazard4|re6|RE6|re5|RE5|dmc4) ]] || [[ "$TARGET_DIR" =~ (Resident\ Evil|BH6|re6|RE6|Capcom) ]]; then
+    elif [[ "$TARGET_FILE" =~ (BH6|biohazard4|re4|re6|RE6|re5|RE5|dmc4) ]] || [[ "$TARGET_DIR" =~ (Resident\ Evil|BH6|re6|RE6|Capcom) ]]; then
         perfil_id="capcom_mt_framework"
     elif [[ "$TARGET_FILE" =~ (Swat4|Swat4X|Bioshock|DeusEx) ]] || [ -d "${TARGET_DIR}/System" ] || [ -d "${TARGET_DIR}/Content/System" ]; then
         perfil_id="unreal_engine"
@@ -1047,23 +1047,26 @@ EOF_DLC
             find "$TARGET_DIR" -maxdepth 3 -iname "*config*.ini" 2>/dev/null | while read -r c_ini; do
                 if grep -qi "\[Render/Adapter\]" "$c_ini" 2>/dev/null || grep -qi "VendorId=" "$c_ini" 2>/dev/null; then
                     crear_respaldo_seguro "$c_ini"
-                    sed -i '/\[Render\/Adapter\]/,/^\[/ { /^\[Render\/Adapter\]/d; /^Description=/d; /^VendorId=/d; /^DeviceId=/d; }' "$c_ini" 2>/dev/null || true
-                    sed -i '/^Description=.*Graphics/d; /^VendorId=[0-9]*/d; /^DeviceId=[0-9]*/d' "$c_ini" 2>/dev/null || true
+                    sed -i '/\[Render\/Adapter\]/,/^\[/ { /^\[Render\/Adapter\]/d; /^Description=/d; /^VendorId=/d; /^DeviceId=/d; /^SubSysId=/d; /^Revision=/d; }' "$c_ini" 2>/dev/null || true
+                    sed -i '/^Description=.*Graphics/d; /^VendorId=[0-9]*/d; /^DeviceId=[0-9]*/d; /^SubSysId=[0-9]*/d; /^Revision=[0-9]*/d' "$c_ini" 2>/dev/null || true
                 fi
             done
 
-            # 5. Configurar visualización óptima en configs de RE Engine
+            # 5. Configurar visualización óptima en configs de RE Engine (Modo Ventana Sin Bordes / Borderless)
             find "$TARGET_DIR" -maxdepth 3 -name "*config*.ini" 2>/dev/null | while read -r re_ini; do
                 if grep -q "\[AppRender\]" "$re_ini" 2>/dev/null || grep -q "\[RenderConfig\]" "$re_ini" 2>/dev/null; then
                     crear_respaldo_seguro "$re_ini"
-                    sed -i 's/^FullScreenMode=.*/FullScreenMode=true/' "$re_ini" 2>/dev/null || true
-                    sed -i 's/^WindowMode=.*/WindowMode=FullScreen/' "$re_ini" 2>/dev/null || true
-                    sed -i 's/^AppWindowMode=.*/AppWindowMode=0/' "$re_ini" 2>/dev/null || true
+                    sed -i 's/^FullScreenMode=.*/FullScreenMode=false/' "$re_ini" 2>/dev/null || true
+                    sed -i 's/^WindowMode=.*/WindowMode=Borderless/' "$re_ini" 2>/dev/null || true
+                    sed -i 's/^AppWindowMode=.*/AppWindowMode=1/' "$re_ini" 2>/dev/null || true
                     sed -i 's/^AppRenderingMethod=.*/AppRenderingMethod=1/' "$re_ini" 2>/dev/null || true
                     sed -i 's/^AppLensDistorsion=.*/AppLensDistorsion=0/' "$re_ini" 2>/dev/null || true
                     sed -i 's/^AppMotionBlur=.*/AppMotionBlur=0/' "$re_ini" 2>/dev/null || true
                     sed -i 's/^AppFilmGrainNoise=.*/AppFilmGrainNoise=0/' "$re_ini" 2>/dev/null || true
                     sed -i 's/^AppVsync=.*/AppVsync=0/' "$re_ini" 2>/dev/null || true
+                    if grep -q "^NormalWindowResolution=" "$re_ini" 2>/dev/null; then
+                        sed -i "s/^NormalWindowResolution=.*/NormalWindowResolution=(${best_w}.000000,${best_h}.000000)/" "$re_ini" 2>/dev/null || true
+                    fi
                     local dm_idx
                     dm_idx=$(grep -B 1 "DisplayMode[0-9]*_Height=${best_h}" "$re_ini" 2>/dev/null | grep -E "DisplayMode[0-9]*_Width=${best_w}" | head -n 1 | grep -oE "DisplayMode[0-9]+" | tr -d 'DisplayMode')
                     if [ -n "$dm_idx" ]; then
@@ -1072,7 +1075,7 @@ EOF_DLC
                     fi
                 fi
             done
-            export WINEDLLOVERRIDES="d3d12=n,b;d3d12core=n,b;dxgi=n,b;d3d11=n,b;d3dcompiler_47=n,b;xinput1_3=n,b;xinput1_4=n,b;${WINEDLLOVERRIDES}"
+            export WINEDLLOVERRIDES="d3d12=n,b;d3d12core=n,b;dxgi=n,b;d3d11=n,b;d3dcompiler_47=n,b;dinput8=n,b;version=n,b;xinput1_3=n,b;xinput1_4=n,b;${WINEDLLOVERRIDES}"
             ;;
 
         capcom_mt_framework)
