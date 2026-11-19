@@ -191,7 +191,6 @@ else
 
     # Auto-detección de versión de Windows óptima si no está especificada en la BD (Mejora 1)
     if [ -z "$GAME_WINVER" ]; then
-        local t_base
         t_base=$(basename "$TARGET" | tr '[:upper:]' '[:lower:]')
         if [[ "$t_base" =~ ^(speed|speed2|nfs|swat4|swat4x|empires2|age2_x1|starcraft|ra2|diablo|re4|biohazard4)\.exe$ ]]; then
             GAME_WINVER="winxp"
