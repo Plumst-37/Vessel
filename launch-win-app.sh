@@ -274,6 +274,10 @@ if [[ "$TARGET" =~ [Gg]ame[Rr]anger ]] || [ ! -f "$TARGET" ]; then
 fi
 
 
+# 4.3 Obtener directorio y nombre base del archivo objetivo de ejecución
+TARGET_DIR="$(cd "$(dirname "$TARGET")" 2>/dev/null && pwd || dirname "$TARGET")"
+TARGET_FILE="$(basename "$TARGET")"
+
 # 5. Detección de entorno gráfico: Wayland vs X11
 IS_WAYLAND=0
 if [ "${XDG_SESSION_TYPE:-}" = "wayland" ] || [ -n "${WAYLAND_DISPLAY:-}" ]; then
@@ -531,12 +535,11 @@ export WINEDLLOVERRIDES="winemenubuilder.exe=d;dxgi=n,b;d3d11=n,b;d3d10core=n,b;
 # 11.1 Configuración específica para el cliente de lobby GameRanger
 EXTRA_APP_ARGS=""
 if [[ "$TARGET_FILE" =~ [Gg]ame[Rr]anger ]]; then
-    # GameRanger es una aplicación de escritorio/chat con interfaz Chromium CEF / ANGLE embebida.
-    # Sus subventanas web no son superficies 3D exclusivas y fallan con swapchains Vulkan (VK_ERROR_OUT_OF_HOST_MEMORY).
-    # Desactivamos DXVK para GameRanger y usamos WineD3D nativo, eliminando cualquier cuelgue de UI.
-    export RENDERER_IN_USE="WineD3D (Lobby Compatibilidad)"
-    export PROTON_USE_WINED3D=1
-    export WINEDLLOVERRIDES="dxgi,d3d11,d3d10core,d3d9,d3d8=b;winemenubuilder.exe=d;dnsapi,ws2_32,wininet,iphlpapi,secur32,winhttp=b;dplayx,dpnet,dpwsockx=n,b;riched20,riched32=n,b"
+    # GameRanger es una aplicación de escritorio/chat con interfaz Win32 GDI y CEF ligero.
+    # Usamos GDI nativo sin wrappers artificiales de Direct3D ni contenedor de escritorio virtual.
+    export RENDERER_IN_USE="GDI / Nativo (Modo Ventana)"
+    unset PROTON_USE_WINED3D
+    export WINEDLLOVERRIDES="dxgi,d3d11,d3d10core,d3d9,d3d8=b;winemenubuilder.exe=d;dplayx,dpnet,dpwsockx=n,b;riched20,riched32=n,b"
     unset DXVK_CONFIG_FILE
     unset DXVK_STATE_CACHE_PATH
     unset DXVK_ASYNC
@@ -545,10 +548,18 @@ if [[ "$TARGET_FILE" =~ [Gg]ame[Rr]anger ]]; then
     # Desactivar gamemode para evitar mensajes en consola (GameRanger es una app de chat 2D)
     GAMEMODE=""
 
-    # Registro de GameRanger: garantizar MODO VENTANA nativa (decoraciones completas, sin captura fullscreen)
-    if [ ! -f "${WINEPREFIX}/.gameranger_reg_v3" ]; then
+    # Registro de GameRanger: garantizar MODO VENTANA nativa (decoraciones completas, sin captura fullscreen ni escritorio virtual)
+    if [ ! -f "${WINEPREFIX}/.gameranger_reg_v4" ]; then
         "$WINE_CMD" reg add "HKEY_CURRENT_USER\Software\Wine\AppDefaults\GameRanger.exe" /v "Version" /t REG_SZ /d "win7" /f >/dev/null 2>&1 || true
-        "$WINE_CMD" reg add "HKEY_CURRENT_USER\Software\Wine\AppDefaults\GameRanger.exe\Direct3D" /v "renderer" /t REG_SZ /d "gl" /f >/dev/null 2>&1 || true
+        # Eliminar cualquier contenedor virtual o renderer GL forzado que cause ventana negra de fondo
+        "$WINE_CMD" reg delete "HKEY_CURRENT_USER\Software\Wine\AppDefaults\GameRanger.exe\X11 Driver" /v "Desktop" /f >/dev/null 2>&1 || true
+        "$WINE_CMD" reg delete "HKEY_CURRENT_USER\Software\Wine\AppDefaults\GameRanger.exe\Direct3D" /f >/dev/null 2>&1 || true
+        # Limpiar overrides que interfieren con la red Winsock nativa de Wine
+        "$WINE_CMD" reg delete "HKEY_CURRENT_USER\Software\Wine\AppDefaults\GameRanger.exe\DllOverrides" /v "dnsapi" /f >/dev/null 2>&1 || true
+        "$WINE_CMD" reg delete "HKEY_CURRENT_USER\Software\Wine\AppDefaults\GameRanger.exe\DllOverrides" /v "iphlpapi" /f >/dev/null 2>&1 || true
+        "$WINE_CMD" reg delete "HKEY_CURRENT_USER\Software\Wine\AppDefaults\GameRanger.exe\DllOverrides" /v "ws2_32" /f >/dev/null 2>&1 || true
+        "$WINE_CMD" reg delete "HKEY_CURRENT_USER\Software\Wine\AppDefaults\GameRanger.exe\DllOverrides" /v "wininet" /f >/dev/null 2>&1 || true
+        "$WINE_CMD" reg delete "HKEY_CURRENT_USER\Software\Wine\AppDefaults\GameRanger.exe\DllOverrides" /v "secur32" /f >/dev/null 2>&1 || true
         "$WINE_CMD" reg add "HKEY_CURRENT_USER\Software\Wine\AppDefaults\GameRanger.exe\DllOverrides" /v "dxgi" /t REG_SZ /d "builtin" /f >/dev/null 2>&1 || true
         "$WINE_CMD" reg add "HKEY_CURRENT_USER\Software\Wine\AppDefaults\GameRanger.exe\DllOverrides" /v "d3d11" /t REG_SZ /d "builtin" /f >/dev/null 2>&1 || true
         "$WINE_CMD" reg add "HKEY_CURRENT_USER\Software\Wine\AppDefaults\GameRanger.exe\DllOverrides" /v "d3d9" /t REG_SZ /d "builtin" /f >/dev/null 2>&1 || true
@@ -556,7 +567,11 @@ if [[ "$TARGET_FILE" =~ [Gg]ame[Rr]anger ]]; then
         "$WINE_CMD" reg add "HKEY_CURRENT_USER\Software\Wine\AppDefaults\GameRanger.exe\X11 Driver" /v "Decorated" /t REG_SZ /d "Y" /f >/dev/null 2>&1 || true
         "$WINE_CMD" reg add "HKEY_CURRENT_USER\Software\Wine\AppDefaults\GameRanger.exe\X11 Driver" /v "Managed" /t REG_SZ /d "Y" /f >/dev/null 2>&1 || true
         "$WINE_CMD" reg add "HKEY_CURRENT_USER\Software\Wine\AppDefaults\GameRanger.exe\X11 Driver" /v "GrabFullscreen" /t REG_SZ /d "N" /f >/dev/null 2>&1 || true
-        touch "${WINEPREFIX}/.gameranger_reg_v3" 2>/dev/null || true
+        # Optimización de red e Internet para máxima compatibilidad con servidores antiguos de GameRanger y certificados TLS
+        "$WINE_CMD" reg add "HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Internet Settings" /v "CertificateRevocation" /t REG_DWORD /d 0 /f >/dev/null 2>&1 || true
+        "$WINE_CMD" reg add "HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Internet Settings" /v "WarnonBadCertRecving" /t REG_DWORD /d 0 /f >/dev/null 2>&1 || true
+        "$WINE_CMD" reg add "HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Internet Settings" /v "SecureProtocols" /t REG_DWORD /d 2720 /f >/dev/null 2>&1 || true
+        touch "${WINEPREFIX}/.gameranger_reg_v4" 2>/dev/null || true
     fi
 
     # GameRanger es un programa/lobby de escritorio, debe ejecutarse en MODO VENTANA (NUNCA en pantalla completa)
@@ -1126,28 +1141,25 @@ if [ "$IS_WAYLAND" -eq 0 ] && [ -n "${DISPLAY:-}" ] && [[ ! "$TARGET_FILE" =~ ([
     WATCHDOG_PID=$!
 fi
 
-# Guardián inteligente en segundo plano para GameRanger (modo ventana normal en X11 y Wayland)
+# Guardián inteligente en segundo plano para GameRanger (modo ventana normal, sin parpadeo ni forzar mapeo)
 GR_WATCHDOG_PID=""
 if [[ "$TARGET_FILE" =~ [Gg]ame[Rr]anger ]]; then
     (
-        for i in $(seq 1 45); do
-            sleep 1
-            if [ -n "${DISPLAY:-}" ]; then
+        gr_configured=0
+        for i in $(seq 1 60); do
+            sleep 2
+            if [ -n "${DISPLAY:-}" ] && [ "$gr_configured" -eq 0 ]; then
                 if command -v wmctrl &>/dev/null; then
-                    # Asegurar que GameRanger nunca se ponga en pantalla completa ni maximizado
-                    wmctrl -r "GameRanger" -b remove,fullscreen,maximized_vert,maximized_horz 2>/dev/null || true
-                    # Si la ventana se abre fuera de pantalla (coordenadas negativas), moverla al monitor activo
-                    wmctrl -l -G 2>/dev/null | grep -i "GameRanger" | while read -r wid d x y w h rest; do
+                    while read -r wid d x y w h rest; do
+                        [ -z "$wid" ] && continue
+                        # Quitar fullscreen o maximizado una sola vez cuando la ventana es visible (evita parpadeo)
+                        wmctrl -i -r "$wid" -b remove,fullscreen,maximized_vert,maximized_horz 2>/dev/null || true
+                        # Si la ventana se abre fuera de pantalla (coordenadas negativas), moverla al monitor activo
                         if [ "$x" -lt "$ACTIVE_MON_X" ] || [ "$x" -ge "$((ACTIVE_MON_X + ACTIVE_MON_W))" ] || [ "$y" -lt "$ACTIVE_MON_Y" ]; then
                             wmctrl -i -r "$wid" -e "0,$((ACTIVE_MON_X + 150)),$((ACTIVE_MON_Y + 100)),-1,-1" 2>/dev/null || true
                         fi
-                    done
-                fi
-                if command -v xdotool &>/dev/null; then
-                    for gr_w in $(xdotool search --name "GameRanger" 2>/dev/null); do
-                        xdotool windowmap "$gr_w" 2>/dev/null || true
-                        xdotool windowraise "$gr_w" 2>/dev/null || true
-                    done
+                        gr_configured=1
+                    done < <(wmctrl -l -G 2>/dev/null | grep -iE 'GameRanger|Account Assistant')
                 fi
             fi
 
