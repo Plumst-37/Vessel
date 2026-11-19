@@ -106,12 +106,16 @@ cd ~/Vessel && ./menu-win.sh
 - **Soporte Retro DirectDraw y DirectPlay:** Carga automáticamente envoltorios nativos (`ddraw.dll`, `cnc-ddraw`, `d3d8to9`) eliminando pantallas negras y corrupción de texturas de 8 bits (P8) en juegos clásicos como Age of Empires II o StarCraft.
 - **Decodificación de Cinemáticas y Videos:** Soporte multiarch completo para decodificadores de video (H.264, MPEG-4, WMV3, Bink, Media Foundation y DirectShow vía GStreamer 32/64 bits), solucionando el problema donde se escuchaba el audio pero la pantalla quedaba negra.
 - **🖥️ Modo Escritorio Virtual Configurable:** Soluciona pantallas negras al cambiar de resolución (juegos retro a 4:3 o 800x600) y en configuraciones con múltiples monitores.
-- **AMD FSR (FidelityFX Super Resolution):** Reescalado inteligente que duplica los FPS en tarjetas de gama media/baja o integradas con ajuste de nitidez.
+- **AMD FSR (FidelityFX Super Resolution):** Reescalado inteligente integrado con modos configurables por juego (*Calidad*, *Equilibrado*, *Rendimiento*) y nivel de nitidez adaptable que duplica los FPS en GPUs de gama media, baja o integradas.
+- **🪟 Selector de Versión de Windows por Juego (AppDefaults):** Permite configurar independientemente para cada juego si debe ejecutarse bajo Windows 10, Windows 7 o Windows XP SP3 vía registro Wine nativo, con auto-detección heurística para clásicos retro.
+- **🎬 Aceleración de Video Hardware VA-API:** Decodificación acelerada por hardware para cinemáticas y videos introductorios en GPUs Intel (`iHD`) y AMD Radeon (`radeonsi`).
+- **🔍 Diagnóstico Profundo de Drivers Gaming:** Analizador integral accesible desde el menú de herramientas o vía `bash hardware_detect.sh --check-drivers` para comprobar drivers propietarios, librerías 32-bit (NVIDIA / AMD) y sincronización Fsync.
 - **HUD en Pantalla:** Contador de FPS y uso de recursos opcional.
 
 ### 📂 4. Gestión Cómoda de Juegos Portables e Instaladores
 - **➕ Añadir programa portable:** Para juegos o programas ya listos en carpetas (repacks, portables, discos externos). Admite ejecutables directos (`.exe`, `.bat`, `.cmd`) y **accesos directos de Windows (`.lnk` y `.ink`)**, resolviendo automáticamente el ejecutable real dentro de la carpeta o prefijo.
-- **➕ Añadir programa instalable:** Ejecuta instaladores (`Setup.exe`, `Installer.exe`, `.msi`), los instala en Wine y **auto-detecta el ejecutable principal recién creado** leyendo accesos `.lnk` o inodos, registrándolo automáticamente.
+- **⚡ Auto-Detección Inteligente tras `Setup.exe`:** Al terminar la instalación con cualquier instalador, Vessel compara automáticamente el sistema de archivos e identifica los nuevos accesos directos `.lnk` y binarios `.exe` generados, ofreciendo agregarlos al menú principal con 1 clic, seleccionar prefijo compartido o aislado y crear el acceso directo en Linux.
+- **🛡️ Sandboxes Aislados con Inyección de Runtimes:** Cada juego puede aislarse en su propio prefijo independiente para evitar conflictos entre librerías, con copia automática silenciosa de dependencias base (DirectX 9, Visual C++ 2015-2022, MFC42).
 - **📂 Acceso Directo a Archivos del Juego:** Opción dedicada en el menú para abrir en 1 clic la carpeta de cualquier juego en tu gestor de archivos (Dolphin / Nautilus).
 - **🖱️ Selector Gráfico con Ratón:** Puedes buscar tus ejecutables navegando con carpetas y ratón (**KDialog / Zenity**) o por terminal.
 - **🖥️ Accesos Directos al Escritorio (1-Clic):** Crea accesos directos validados en tu Escritorio con acción de clic derecho integrada: **"📂 Abrir carpeta del juego (Instalar Mods / Archivos)"**.
