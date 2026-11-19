@@ -822,7 +822,7 @@ aplicar_perfil_aislado_juego() {
                     sed -i 's/<VSync value="[0-9]*"/<VSync value="0"/' "$sxml" 2>/dev/null || true
                     sed -i 's/<ShadowQuality value="[0-9]*"/<ShadowQuality value="0"/' "$sxml" 2>/dev/null || true
                     sed -i 's/<GrassQuality value="[0-9]*"/<GrassQuality value="0"/' "$sxml" 2>/dev/null || true
-                    sed -i 's/<ShaderQuality value="[0-9]*"/<ShaderQuality value="0"/' "$sxml" 2>/dev/null || true
+                    sed -i 's/<ShaderQuality value="[0-9]*"/<ShaderQuality value="1"/' "$sxml" 2>/dev/null || true
                     sed -i 's/<ReflectionQuality value="[0-9]*"/<ReflectionQuality value="0"/' "$sxml" 2>/dev/null || true
                     sed -i 's/<PauseOnFocusLoss value="[0-9]*"/<PauseOnFocusLoss value="0"/' "$sxml" 2>/dev/null || true
                     sed -i 's/<AspectRatio value="[0-9]*"/<AspectRatio value="0"/' "$sxml" 2>/dev/null || true
@@ -835,7 +835,7 @@ aplicar_perfil_aislado_juego() {
                 fi
             done
 
-            # 3. Optimización en commandline.txt (priorizando -scOfflineOnly y baja latencia de fotogramas)
+            # 3. Optimización en commandline.txt (priorizando -scOfflineOnly y máxima estabilidad geométrica 3D)
             local gta_cmdline="${TARGET_DIR}/commandline.txt"
             cat <<EOF > "$gta_cmdline"
 -width ${gta_w}
@@ -843,26 +843,16 @@ aplicar_perfil_aislado_juego() {
 -fullscreen
 -novsync
 -scOfflineOnly
--FrameQueueLimit 0
--hdr
--disablespecular
--reflectionBlur 0
--reflection_MipBlur 0
--noInGameDOF
 -ignoreDifferentVideoCard
 -ShadowQuality 0
 -ReflectionQuality 0
--ShaderQuality 0
 -GrassQuality 0
 -WaterQuality 0
--TextureQuality 0
 -ParticleQuality 0
 -Tessellation 0
--pedLodBias 0.2
--vehicleLodBias 0.2
 -shadowSoftness 0
 EOF
-            echo "[+] GTA V optimizado: Pantalla completa nativa, modo offline forzado y configuración 60 FPS aplicada."
+            echo "[+] GTA V optimizado: Pantalla completa nativa, shaders estables y geometría 3D calibrada (sin deformación de mallas)."
 
             # Garantizar steam_settings completo para emulador Goldberg (evita bloqueos de red e inicialización de perfil)
             if [ ! -d "${TARGET_DIR}/steam_settings" ]; then
