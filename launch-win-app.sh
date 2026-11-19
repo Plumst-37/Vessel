@@ -254,6 +254,29 @@ if [[ "$TARGET" =~ [Gg]ame[Rr]anger ]] || [ ! -f "$TARGET" ]; then
             done
         fi
 
+        # Sanitizar coordenadas de ventana en Settings para evitar que GameRanger se abra fuera de pantalla o en modo oculto (SW_HIDE)
+        python3 -c "
+import struct, glob
+for sf in glob.glob('${WINEPREFIX}/drive_c/users/*/AppData/Roaming/GameRanger/GameRanger Prefs/Settings'):
+    try:
+        with open(sf, 'rb') as f:
+            data = bytearray(f.read())
+        mod = False
+        for tag, dl, dt, dw, dh in [(b'WBndMain', 100, 80, 804, 553), (b'WBndBudd', 920, 80, 220, 553)]:
+            idx = data.find(tag)
+            if idx != -1:
+                wp = idx + 16
+                l, f, s, mx, my, mx2, my2, left, top, right, bottom = struct.unpack('<IIIiiiiiiii', data[wp:wp+44])
+                if left < 0 or top < 0 or s != 1 or right <= left or bottom <= top:
+                    data[wp:wp+44] = struct.pack('<IIIiiiiiiii', 44, 0, 1, -1, -1, -1, -1, dl, dt, dl+dw, dt+dh)
+                    mod = True
+        if mod:
+            with open(sf, 'wb') as f:
+                f.write(data)
+    except Exception:
+        pass
+" 2>/dev/null || true
+
         if [ -n "$FOUND_GR" ] && [ -f "$FOUND_GR" ]; then
             TARGET="$FOUND_GR"
         elif [ -f "${DIR}/GameRangerSetup.exe" ]; then
@@ -539,6 +562,7 @@ if [[ "$TARGET_FILE" =~ [Gg]ame[Rr]anger ]]; then
     # Usamos GDI nativo sin wrappers artificiales de Direct3D ni contenedor de escritorio virtual.
     export RENDERER_IN_USE="GDI / Nativo (Modo Ventana)"
     unset PROTON_USE_WINED3D
+    export LIBGL_ALWAYS_SOFTWARE=1
     export WINEDLLOVERRIDES="dxgi,d3d11,d3d10core,d3d9,d3d8=b;winemenubuilder.exe=d;dplayx,dpnet,dpwsockx=n,b;riched20,riched32=n,b"
     unset DXVK_CONFIG_FILE
     unset DXVK_STATE_CACHE_PATH
@@ -576,7 +600,7 @@ if [[ "$TARGET_FILE" =~ [Gg]ame[Rr]anger ]]; then
 
     # GameRanger es un programa/lobby de escritorio, debe ejecutarse en MODO VENTANA (NUNCA en pantalla completa)
     ESCRITORIO_VIRTUAL="0"
-    EXTRA_APP_ARGS=""
+    EXTRA_APP_ARGS="--disable-gpu --disable-gpu-compositing"
 fi
 
 # Moverse al directorio donde reside el juego (vital para rutas relativas y DLLs)
@@ -1141,38 +1165,48 @@ if [ "$IS_WAYLAND" -eq 0 ] && [ -n "${DISPLAY:-}" ] && [[ ! "$TARGET_FILE" =~ ([
     WATCHDOG_PID=$!
 fi
 
-# Guardián inteligente en segundo plano para GameRanger (modo ventana normal, sin parpadeo ni forzar mapeo)
+# Guardián inteligente en segundo plano para GameRanger (modo ventana normal, multimonitor y sin parpadeo)
 GR_WATCHDOG_PID=""
 if [[ "$TARGET_FILE" =~ [Gg]ame[Rr]anger ]]; then
     (
-        gr_configured=0
-        for i in $(seq 1 60); do
-            sleep 2
-            if [ -n "${DISPLAY:-}" ] && [ "$gr_configured" -eq 0 ]; then
+        seen_wids=""
+        for i in $(seq 1 120); do
+            sleep 1
+            if [ -n "${DISPLAY:-}" ]; then
                 if command -v wmctrl &>/dev/null; then
                     while read -r wid d x y w h rest; do
                         [ -z "$wid" ] && continue
-                        # Quitar fullscreen o maximizado una sola vez cuando la ventana es visible (evita parpadeo)
-                        wmctrl -i -r "$wid" -b remove,fullscreen,maximized_vert,maximized_horz 2>/dev/null || true
-                        # Si la ventana se abre fuera de pantalla (coordenadas negativas), moverla al monitor activo
-                        if [ "$x" -lt "$ACTIVE_MON_X" ] || [ "$x" -ge "$((ACTIVE_MON_X + ACTIVE_MON_W))" ] || [ "$y" -lt "$ACTIVE_MON_Y" ]; then
-                            wmctrl -i -r "$wid" -e "0,$((ACTIVE_MON_X + 150)),$((ACTIVE_MON_Y + 100)),-1,-1" 2>/dev/null || true
+                        # Si detectamos una ventana nueva de GameRanger (Asistente, Ventana Principal o Lista de Amigos)
+                        if [[ ! "$seen_wids" =~ "$wid" ]]; then
+                            # Quitar fullscreen o maximizado una sola vez cuando la ventana es creada
+                            wmctrl -i -r "$wid" -b remove,fullscreen,maximized_vert,maximized_horz 2>/dev/null || true
+                            # Si la ventana se abre fuera del monitor activo del usuario o con coordenadas negativas, moverla al monitor actual
+                            if [ "$x" -lt "$ACTIVE_MON_X" ] || [ "$x" -ge "$((ACTIVE_MON_X + ACTIVE_MON_W - 100))" ] || [ "$y" -lt "$ACTIVE_MON_Y" ]; then
+                                wmctrl -i -r "$wid" -e "0,$((ACTIVE_MON_X + 120)),$((ACTIVE_MON_Y + 80)),-1,-1" 2>/dev/null || true
+                            fi
+                            # Activar y enfocar la ventana en el monitor del usuario
+                            wmctrl -i -a "$wid" 2>/dev/null || true
+                            if command -v xdotool &>/dev/null; then
+                                xdotool windowactivate "$wid" 2>/dev/null || true
+                            fi
+                            seen_wids="$seen_wids $wid"
                         fi
-                        gr_configured=1
                     done < <(wmctrl -l -G 2>/dev/null | grep -iE 'GameRanger|Account Assistant')
                 fi
             fi
 
-            # Auto-respaldo dinámico y ultraligero de la sesión (solo archivo Settings de 15KB)
-            for u_dir in "${WINEPREFIX}/drive_c/users"/*; do
-                if [ -d "$u_dir" ] && [ "$(basename "$u_dir")" != "Public" ]; then
-                    u_s="${u_dir}/AppData/Roaming/GameRanger/GameRanger Prefs/Settings"
-                    if [ -s "$u_s" ] && grep -q "SessMail" "$u_s" 2>/dev/null; then
-                        mkdir -p "${DIR}/.gameranger_prefs_backup"
-                        cp -p "$u_s" "${DIR}/.gameranger_prefs_backup/Settings" 2>/dev/null || true
+            # Auto-respaldo dinámico y ultraligero de la sesión cada 5 segundos
+            if [ $((i % 5)) -eq 0 ]; then
+                for u_dir in "${WINEPREFIX}/drive_c/users"/*; do
+                    if [ -d "$u_dir" ] && [ "$(basename "$u_dir")" != "Public" ]; then
+                        u_s="${u_dir}/AppData/Roaming/GameRanger/GameRanger Prefs/Settings"
+                        if [ -s "$u_s" ] && grep -q "SessMail" "$u_s" 2>/dev/null; then
+                            mkdir -p "${DIR}/.gameranger_prefs_backup"
+                            cp -p "$u_s" "${DIR}/.gameranger_prefs_backup/Settings" 2>/dev/null || true
+                        fi
                     fi
-                fi
-            done
+                done
+            fi
         done
     ) &
     GR_WATCHDOG_PID=$!
