@@ -132,6 +132,7 @@ if [ -f "${DIR}/herramientas/gamecontrollerdb.txt" ]; then
     export SDL_GAMECONTROLLERCONFIG_FILE="${DIR}/herramientas/gamecontrollerdb.txt"
 fi
 
+ORIGINAL_TARGET="$TARGET"
 if [[ "$TARGET" =~ \.([bB][aA][tT]|[cC][mM][dD])$ ]] && [ -f "$TARGET" ]; then
     echo "[*] Script por lotes (.bat/.cmd) detectado: $(basename "$TARGET")."
     if [ -f "${DIR}/resolver_bat.py" ]; then
@@ -176,7 +177,9 @@ else
     for db in "${DIR}/programas_usuario.db" "${DIR}/programas.db"; do
         if [ -f "$db" ]; then
             matched_line=$(grep -F "$TARGET" "$db" 2>/dev/null | head -n 1)
+            [ -z "$matched_line" ] && [ -n "$ORIGINAL_TARGET" ] && matched_line=$(grep -F "$ORIGINAL_TARGET" "$db" 2>/dev/null | head -n 1)
             [ -z "$matched_line" ] && matched_line=$(grep -F "$(basename "$TARGET")" "$db" 2>/dev/null | head -n 1)
+            [ -z "$matched_line" ] && [ -n "$ORIGINAL_TARGET" ] && matched_line=$(grep -F "$(basename "$ORIGINAL_TARGET")" "$db" 2>/dev/null | head -n 1)
             if [ -n "$matched_line" ]; then
                 db_ptype=$(echo "$matched_line" | cut -d'|' -f3 | tr -d '\r\n ')
                 [ -n "$db_ptype" ] && PREF_TYPE="$db_ptype"
@@ -193,17 +196,44 @@ else
         fi
     done
 
+    # Detección inteligente de arquitectura (32-bit vs 64-bit) y APIs modernas (DirectX 12 / RE Engine)
+    local es_64bit=false
+    if file -b "$TARGET" 2>/dev/null | grep -qiE 'x86-64|PE32\+'; then
+        es_64bit=true
+    fi
+    local es_dx12=false
+    if [ -f "$(dirname "$TARGET")/d3d12.dll" ] || [ -f "$(dirname "$TARGET")/d3d12core.dll" ] || \
+       find "$(dirname "$TARGET")" -maxdepth 2 -iname "d3d12*.dll" 2>/dev/null | grep -q . || \
+       find "$(dirname "$TARGET")" -maxdepth 3 -iname "*re_chunk_000*.pak" 2>/dev/null | grep -q .; then
+        es_dx12=true
+    fi
+
     # Auto-detección de versión de Windows óptima si no está especificada en la BD (Mejora 1)
     if [ -z "$GAME_WINVER" ]; then
         t_base=$(basename "$TARGET" | tr '[:upper:]' '[:lower:]')
         if [[ "$t_base" =~ ^(gameranger)\.exe$ ]]; then
             GAME_WINVER="win7"
-        elif [[ "$t_base" =~ ^(speed|speed2|nfs|swat4|swat4x|empires2|age2_x1|starcraft|ra2|diablo|re4|biohazard4)\.exe$ ]]; then
+        elif [ "$es_64bit" = true ] || [ "$es_dx12" = true ]; then
+            # Los juegos de 64 bits y DirectX 12 NUNCA deben ejecutarse en Windows XP
+            GAME_WINVER="win10"
+        elif [[ "$t_base" =~ ^(speed|speed2|nfs|swat4|swat4x|empires2|age2_x1|starcraft|ra2|diablo|biohazard4)\.exe$ ]]; then
+            # Solo clásicos retro de 32 bits van a Windows XP (se removió re4 para evitar choques con RE4 Remake)
             GAME_WINVER="winxp"
         else
             GAME_WINVER="win10"
         fi
     fi
+
+    # Salvaguarda obligatoria universal: Si el binario es nativo de 64 bits o DirectX 12,
+    # es técnicamente imposible que ejecute en Windows XP (D3D12CreateDevice no existe en XP).
+    # Corregir automáticamente a Windows 10 para garantizar inicialización gráfica perfecta:
+    if [ "$es_64bit" = true ] || [ "$es_dx12" = true ]; then
+        if [ "$GAME_WINVER" = "winxp" ]; then
+            echo "[!] Corrección de compatibilidad: Binario moderno de 64 bits / DirectX 12 detectado. Ajustando versión de Windows a Windows 10."
+            GAME_WINVER="win10"
+        fi
+    fi
+
     # Para GameRanger forzar siempre win7 (evita incompatibilidad de CEF y modo Win10)
     if [[ "$TARGET" =~ [Gg]ame[Rr]anger ]]; then
         GAME_WINVER="win7"
@@ -927,6 +957,9 @@ EOF_DLC
 
         capcom_re_engine)
             echo "[+] Perfil Activo: Capcom RE Engine [Aislado]"
+            # RE Engine es un motor moderno (DirectX 12 / 64-bit), asegurar modo Windows 10 en Wine
+            "$WINE_CMD" reg add "HKEY_CURRENT_USER\Software\Wine\AppDefaults\\${TARGET_FILE}" /v "Version" /t REG_SZ /d "win10" /f >/dev/null 2>&1 || true
+            GAME_WINVER="win10"
             limpiar_zombies_juego "re4\.exe|re2\.exe|re3\.exe|re7\.exe|re8\.exe|dmc5\.exe"
             find "$TARGET_DIR" -maxdepth 3 -name "*config*.ini" 2>/dev/null | while read -r re_ini; do
                 if grep -q "\[AppRender\]" "$re_ini" 2>/dev/null || grep -q "\[RenderConfig\]" "$re_ini" 2>/dev/null; then
