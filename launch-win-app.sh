@@ -898,13 +898,13 @@ aplicar_perfil_aislado_juego() {
             limpiar_zombies_juego "GTA5\.exe|PlayGTAV\.exe"
             sleep 0.2
 
-            # Determinar resolución óptima según GPU (720p para GPUs de entrada/móviles como MX130 / Intel, nativa para gama alta)
+            # Determinar resolución óptima según GPU (nativa para pantallas <= 1080p, adaptativa si supera 1080p en GPU básica)
             local gta_w="$best_w"
             local gta_h="$best_h"
-            if [ "$IS_LOW_SPEC_GPU" = true ]; then
-                gta_w="1280"
-                gta_h="720"
-                echo "    - Modo GPU de Entrada detectado: Ajustando resolución de renderizado a 1280x720 para 60 FPS estables."
+            if [ "$IS_LOW_SPEC_GPU" = true ] && [ "$best_w" -gt 1920 ]; then
+                gta_w="1920"
+                gta_h="1080"
+                echo "    - Pantalla de ultra-alta resolución detectada: Ajustando renderizado a 1080p para 60 FPS estables."
             fi
 
             # 2. Configuración en Rockstar Games / GTA V / settings.xml
@@ -918,18 +918,21 @@ aplicar_perfil_aislado_juego() {
                     sed -i "s/<ScreenHeight value=\"[0-9]*\"/<ScreenHeight value=\"${gta_h}\"/" "$sxml" 2>/dev/null || true
                     sed -i 's/<Windowed value="[0-9]*"/<Windowed value="0"/' "$sxml" 2>/dev/null || true
                     sed -i 's/<VSync value="[0-9]*"/<VSync value="1"/' "$sxml" 2>/dev/null || true
-                    sed -i 's/<ShadowQuality value="[0-9]*"/<ShadowQuality value="0"/' "$sxml" 2>/dev/null || true
-                    sed -i 's/<GrassQuality value="[0-9]*"/<GrassQuality value="0"/' "$sxml" 2>/dev/null || true
+                    sed -i 's/<ShadowQuality value="[0-9]*"/<ShadowQuality value="1"/' "$sxml" 2>/dev/null || true
+                    sed -i 's/<GrassQuality value="[0-9]*"/<GrassQuality value="1"/' "$sxml" 2>/dev/null || true
                     sed -i 's/<ShaderQuality value="[0-9]*"/<ShaderQuality value="1"/' "$sxml" 2>/dev/null || true
-                    sed -i 's/<ReflectionQuality value="[0-9]*"/<ReflectionQuality value="0"/' "$sxml" 2>/dev/null || true
+                    sed -i 's/<ReflectionQuality value="[0-9]*"/<ReflectionQuality value="1"/' "$sxml" 2>/dev/null || true
+                    sed -i 's/<WaterQuality value="[0-9]*"/<WaterQuality value="1"/' "$sxml" 2>/dev/null || true
+                    sed -i 's/<Tessellation value="[0-9]*"/<Tessellation value="1"/' "$sxml" 2>/dev/null || true
+                    sed -i 's/<Shadow_SoftShadows value="[0-9]*"/<Shadow_SoftShadows value="1"/' "$sxml" 2>/dev/null || true
                     sed -i 's/<PauseOnFocusLoss value="[0-9]*"/<PauseOnFocusLoss value="0"/' "$sxml" 2>/dev/null || true
                     sed -i 's/<AspectRatio value="[0-9]*"/<AspectRatio value="0"/' "$sxml" 2>/dev/null || true
                     sed -i 's/<FXAA_Enabled value="false"/<FXAA_Enabled value="true"/' "$sxml" 2>/dev/null || true
                     local ped_variety="0.800000"
                     local veh_variety="0.800000"
                     if [ "$IS_LOW_SPEC_GPU" = true ]; then
-                        ped_variety="0.200000"
-                        veh_variety="0.200000"
+                        ped_variety="0.300000"
+                        veh_variety="0.300000"
                     fi
                     sed -i "s/<PedVarietyMultiplier value=\"[0-9\.]*\"/<PedVarietyMultiplier value=\"${ped_variety}\"/" "$sxml" 2>/dev/null || true
                     sed -i "s/<VehicleVarietyMultiplier value=\"[0-9\.]*\"/<VehicleVarietyMultiplier value=\"${veh_variety}\"/" "$sxml" 2>/dev/null || true
@@ -949,13 +952,6 @@ aplicar_perfil_aislado_juego() {
 -mouseRawInput
 -scOfflineOnly
 -ignoreDifferentVideoCard
--ShadowQuality 0
--ReflectionQuality 0
--GrassQuality 0
--WaterQuality 0
--ParticleQuality 0
--Tessellation 0
--shadowSoftness 0
 EOF
             echo "[+] GTA V optimizado: Pantalla completa nativa, shaders estables y geometría 3D calibrada (sin deformación de mallas)."
 
@@ -1098,11 +1094,13 @@ EOF_DLC
                     sed -i 's/^AppMotionBlur=.*/AppMotionBlur=0/' "$re_ini" 2>/dev/null || true
                     sed -i 's/^AppFilmGrainNoise=.*/AppFilmGrainNoise=0/' "$re_ini" 2>/dev/null || true
                     sed -i 's/^AppVsync=.*/AppVsync=1/' "$re_ini" 2>/dev/null || true
-                    # Calibrar texturas a nivel mínimo en GPUs con 4GB o menos para evitar agotamiento de VRAM (c0000005)
+                    # Calibrar texturas a nivel óptimo nítido con FSR2 Quality en GPUs de entrada
                     if [ "$IS_LOW_SPEC_GPU" = "true" ]; then
-                        sed -i 's/^AppTextureQuality=.*/AppTextureQuality=5/' "$re_ini" 2>/dev/null || true
-                        sed -i 's/^AppImageQuality=.*/AppImageQuality=0/' "$re_ini" 2>/dev/null || true
-                        sed -i 's/^AppUpScalingTypeFSR2=.*/AppUpScalingTypeFSR2=4/' "$re_ini" 2>/dev/null || true
+                        sed -i 's/^AppTextureQuality=.*/AppTextureQuality=3/' "$re_ini" 2>/dev/null || true
+                        sed -i 's/^AppImageQuality=.*/AppImageQuality=1/' "$re_ini" 2>/dev/null || true
+                        sed -i 's/^AppUpScalingTypeFSR2=.*/AppUpScalingTypeFSR2=1/' "$re_ini" 2>/dev/null || true
+                        sed -i 's/^AppAntiAliasing=.*/AppAntiAliasing=1/' "$re_ini" 2>/dev/null || true
+                        sed -i 's/^AppMeshQuality=.*/AppMeshQuality=1/' "$re_ini" 2>/dev/null || true
                     fi
                     sed -i 's/^AppRayTraceOnOff=.*/AppRayTraceOnOff=0/' "$re_ini" 2>/dev/null || true
                     if grep -q "^NormalWindowResolution=" "$re_ini" 2>/dev/null; then
@@ -1143,20 +1141,13 @@ EOF_DLC
                             sed -i 's/^AntiAlias=.*/AntiAlias=NONE/' "$cini" 2>/dev/null || true
                             sed -i 's/^AltAntiAlias=.*/AltAntiAlias=FXAA3HQ/' "$cini" 2>/dev/null || true
                             sed -i 's/^ShadowsDisable=ON/ShadowsDisable=OFF/' "$cini" 2>/dev/null || true
-                            sed -i 's/^ShadowsQuality=HIGH/ShadowsQuality=MEDIUM/' "$cini" 2>/dev/null || true
-                            sed -i 's/^ShadowsQuality=MIDDLE/ShadowsQuality=MEDIUM/' "$cini" 2>/dev/null || true
+                            sed -i 's/^ShadowsQuality=.*/ShadowsQuality=HIGH/' "$cini" 2>/dev/null || true
                             local job_threads=$(( CPU_CORES > 1 ? CPU_CORES - 1 : 1 ))
                             sed -i "s/^JobThread=.*/JobThread=${job_threads}/" "$cini" 2>/dev/null || true
                             sed -i 's/^RenderingThread=OFF/RenderingThread=ON/' "$cini" 2>/dev/null || true
-                            if [ "$IS_LOW_SPEC_GPU" = "true" ]; then
-                                sed -i 's/^TextureDetail=HIGH/TextureDetail=MEDIUM/' "$cini" 2>/dev/null || true
-                                sed -i 's/^ScreenQuality=HIGH/ScreenQuality=DEFAULT/' "$cini" 2>/dev/null || true
-                                sed -i 's/^TextureMipLimite=.*/TextureMipLimite=1/' "$cini" 2>/dev/null || true
-                            else
-                                sed -i 's/^TextureDetail=LOWEST/TextureDetail=HIGH/' "$cini" 2>/dev/null || true
-                                sed -i 's/^ScreenQuality=LOW/ScreenQuality=HIGH/' "$cini" 2>/dev/null || true
-                                sed -i 's/^TextureMipLimite=.*/TextureMipLimite=0/' "$cini" 2>/dev/null || true
-                            fi
+                            sed -i 's/^TextureDetail=.*/TextureDetail=HIGH/' "$cini" 2>/dev/null || true
+                            sed -i 's/^ScreenQuality=.*/ScreenQuality=HIGH/' "$cini" 2>/dev/null || true
+                            sed -i 's/^TextureMipLimite=.*/TextureMipLimite=0/' "$cini" 2>/dev/null || true
                             sed -i 's/^MouseBaseSpeed=.*/MouseBaseSpeed=1.500000/' "$cini" 2>/dev/null || true
                             sed -i 's/^MainX=.*/MainX=0/' "$cini" 2>/dev/null || true
                             sed -i 's/^MainY=.*/MainY=0/' "$cini" 2>/dev/null || true
@@ -1197,7 +1188,7 @@ EOF_DLC
                     sed -i "s/^WindowedViewportY=[0-9]*/WindowedViewportY=${best_h}/" "$ueini" 2>/dev/null || true
                 fi
                 if grep -q "\[D3DDrv.D3DRenderDevice\]" "$ueini" 2>/dev/null; then
-                    sed -i 's/^UseVSync=True/UseVSync=False/' "$ueini" 2>/dev/null || true
+                    sed -i 's/^UseVSync=False/UseVSync=True/' "$ueini" 2>/dev/null || true
                     sed -i 's/^LevelOfAnisotropy=[0-9]*/LevelOfAnisotropy=16/' "$ueini" 2>/dev/null || true
                     sed -i 's/^Use16bit=True/Use16bit=False/' "$ueini" 2>/dev/null || true
                     sed -i 's/^Use16bitTextures=True/Use16bitTextures=False/' "$ueini" 2>/dev/null || true
