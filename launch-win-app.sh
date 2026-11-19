@@ -128,6 +128,10 @@ if [[ "$TARGET" =~ \.([lL][nN][kK]|[iI][nN][kK])$ ]] && [ -f "$TARGET" ]; then
 fi
 
 # 4.2 Resolver scripts por lotes (.bat o .cmd) para omitir bucles infinitos de CPU
+if [ -f "${DIR}/herramientas/gamecontrollerdb.txt" ]; then
+    export SDL_GAMECONTROLLERCONFIG_FILE="${DIR}/herramientas/gamecontrollerdb.txt"
+fi
+
 if [[ "$TARGET" =~ \.([bB][aA][tT]|[cC][mM][dD])$ ]] && [ -f "$TARGET" ]; then
     echo "[*] Script por lotes (.bat/.cmd) detectado: $(basename "$TARGET")."
     if [ -f "${DIR}/resolver_bat.py" ]; then
@@ -532,7 +536,7 @@ if [[ "$TARGET_FILE" =~ [Gg]ame[Rr]anger ]]; then
     # Desactivamos DXVK para GameRanger y usamos WineD3D nativo, eliminando cualquier cuelgue de UI.
     export RENDERER_IN_USE="WineD3D (Lobby Compatibilidad)"
     export PROTON_USE_WINED3D=1
-    export WINEDLLOVERRIDES="winemenubuilder.exe=d;dxgi=b;d3d11=b;d3d10core=b;d3d9=b;dnsapi=b;dplayx=n,b;dpnet=n,b;dpwsockx=n,b;riched20=n,b;riched32=n,b;ws2_32=b;wininet=b;iphlpapi=b;secur32=b;winhttp=b;${WINEDLLOVERRIDES}"
+    export WINEDLLOVERRIDES="dxgi,d3d11,d3d10core,d3d9,d3d8=b;winemenubuilder.exe=d;dnsapi,ws2_32,wininet,iphlpapi,secur32,winhttp=b;dplayx,dpnet,dpwsockx=n,b;riched20,riched32=n,b"
     unset DXVK_CONFIG_FILE
     unset DXVK_STATE_CACHE_PATH
     unset DXVK_ASYNC
@@ -541,16 +545,22 @@ if [[ "$TARGET_FILE" =~ [Gg]ame[Rr]anger ]]; then
     # Desactivar gamemode para evitar mensajes en consola (GameRanger es una app de chat 2D)
     GAMEMODE=""
 
-    # Registro de GameRanger (solo una vez por prefijo para no retrasar el inicio)
-    if [ ! -f "${WINEPREFIX}/.gameranger_reg_v2" ]; then
+    # Registro de GameRanger: garantizar MODO VENTANA nativa (decoraciones completas, sin captura fullscreen)
+    if [ ! -f "${WINEPREFIX}/.gameranger_reg_v3" ]; then
         "$WINE_CMD" reg add "HKEY_CURRENT_USER\Software\Wine\AppDefaults\GameRanger.exe" /v "Version" /t REG_SZ /d "win7" /f >/dev/null 2>&1 || true
         "$WINE_CMD" reg add "HKEY_CURRENT_USER\Software\Wine\AppDefaults\GameRanger.exe\Direct3D" /v "renderer" /t REG_SZ /d "gl" /f >/dev/null 2>&1 || true
-        touch "${WINEPREFIX}/.gameranger_reg_v2" 2>/dev/null || true
+        "$WINE_CMD" reg add "HKEY_CURRENT_USER\Software\Wine\AppDefaults\GameRanger.exe\DllOverrides" /v "dxgi" /t REG_SZ /d "builtin" /f >/dev/null 2>&1 || true
+        "$WINE_CMD" reg add "HKEY_CURRENT_USER\Software\Wine\AppDefaults\GameRanger.exe\DllOverrides" /v "d3d11" /t REG_SZ /d "builtin" /f >/dev/null 2>&1 || true
+        "$WINE_CMD" reg add "HKEY_CURRENT_USER\Software\Wine\AppDefaults\GameRanger.exe\DllOverrides" /v "d3d9" /t REG_SZ /d "builtin" /f >/dev/null 2>&1 || true
+        "$WINE_CMD" reg add "HKEY_CURRENT_USER\Software\Wine\AppDefaults\GameRanger.exe\DllOverrides" /v "d3d10core" /t REG_SZ /d "builtin" /f >/dev/null 2>&1 || true
+        "$WINE_CMD" reg add "HKEY_CURRENT_USER\Software\Wine\AppDefaults\GameRanger.exe\X11 Driver" /v "Decorated" /t REG_SZ /d "Y" /f >/dev/null 2>&1 || true
+        "$WINE_CMD" reg add "HKEY_CURRENT_USER\Software\Wine\AppDefaults\GameRanger.exe\X11 Driver" /v "Managed" /t REG_SZ /d "Y" /f >/dev/null 2>&1 || true
+        "$WINE_CMD" reg add "HKEY_CURRENT_USER\Software\Wine\AppDefaults\GameRanger.exe\X11 Driver" /v "GrabFullscreen" /t REG_SZ /d "N" /f >/dev/null 2>&1 || true
+        touch "${WINEPREFIX}/.gameranger_reg_v3" 2>/dev/null || true
     fi
 
-    # Forzar contenedor de Escritorio Virtual para GameRanger (1024x720)
-    ESCRITORIO_VIRTUAL="1"
-    DESKTOP_RES="1024x720"
+    # GameRanger es un programa/lobby de escritorio, debe ejecutarse en MODO VENTANA (NUNCA en pantalla completa)
+    ESCRITORIO_VIRTUAL="0"
     EXTRA_APP_ARGS=""
 fi
 
@@ -972,6 +982,14 @@ EOF_DLC
             unset DXVK_CONFIG_FILE
             export DXVK_HUD=0
 
+            # 2.1 Auto-inyección de cnc-ddraw si está disponible en caché local y no en el juego
+            if [ ! -f "${TARGET_DIR}/ddraw.dll" ] && [ -f "${DIR}/librerias_cache/cnc-ddraw/ddraw.dll" ]; then
+                echo "[+] Inyectando cnc-ddraw desde caché de Vessel para compatibilidad DirectX 1-7 perfecta..."
+                cp -p "${DIR}/librerias_cache/cnc-ddraw/ddraw.dll" "${TARGET_DIR}/ddraw.dll" 2>/dev/null || true
+                [ -d "${DIR}/librerias_cache/cnc-ddraw/shaders" ] && cp -rn "${DIR}/librerias_cache/cnc-ddraw/shaders" "${TARGET_DIR}/" 2>/dev/null || true
+                [ -f "${DIR}/librerias_cache/cnc-ddraw/ddraw.ini" ] && cp -n "${DIR}/librerias_cache/cnc-ddraw/ddraw.ini" "${TARGET_DIR}/ddraw.ini" 2>/dev/null || true
+            fi
+
             # 3. Optimización automática de cnc-ddraw en OpenGL
             find "$TARGET_DIR" -maxdepth 2 -iname "ddraw.ini" 2>/dev/null | while read -r ddini; do
                 sed -i 's/^renderer=.*/renderer=opengl/' "$ddini" 2>/dev/null || true
@@ -1057,13 +1075,14 @@ echo "    - AMD FSR Upscaling: ${fsr_banner}"
 echo "    - Versión de Windows: ${GAME_WINVER^^}"
 if [[ "$TARGET_FILE" =~ [Gg]ame[Rr]anger ]]; then
     echo "    - GameMode: Desactivado (Aplicación de Escritorio / Lobby)"
-    echo "    - Modo Pantalla: Ventana de Escritorio (Lobby / Multijugador)"
+    echo "    - Modo Pantalla: Ventana de Escritorio (No Pantalla Completa)"
     echo "    - Red / Multijugador: Puertos 16000 UDP y DirectPlay Abiertos (100% Conectado)"
 else
     echo "    - GameMode: $([ -n "$GAMEMODE" ] && echo "Activo" || echo "Inactivo")"
     echo "    - Modo Pantalla: Pantalla Completa Nativa Directa (Hardware)"
     echo "    - Caché de Shaders: NVMe SSD (~/.cache/dxvk)"
 fi
+[ -f "${DIR}/herramientas/gamecontrollerdb.txt" ] && echo "    - Mapeo de Mandos: SDL2 GameControllerDB Activo (+2.300 mandos)"
 echo "    - Runner Wine: ${RUNNER_LABEL}"
 echo "    - Prefijo Wine: ${WINEPREFIX}"
 if [ ${#MODS_ACTIVADOS[@]} -gt 0 ] || [ "$CANT_ASI" -gt 0 ]; then
@@ -1106,23 +1125,27 @@ if [ "$IS_WAYLAND" -eq 0 ] && [ -n "${DISPLAY:-}" ] && [[ ! "$TARGET_FILE" =~ ([
     WATCHDOG_PID=$!
 fi
 
-# Guardián inteligente en segundo plano para GameRanger (soporta X11 y Wayland vía Xwayland)
+# Guardián inteligente en segundo plano para GameRanger (modo ventana normal en X11 y Wayland)
 GR_WATCHDOG_PID=""
 if [[ "$TARGET_FILE" =~ [Gg]ame[Rr]anger ]]; then
     (
         for i in $(seq 1 45); do
             sleep 1
             if [ -n "${DISPLAY:-}" ]; then
+                if command -v wmctrl &>/dev/null; then
+                    # Asegurar que GameRanger nunca se ponga en pantalla completa ni maximizado
+                    wmctrl -r "GameRanger" -b remove,fullscreen,maximized_vert,maximized_horz 2>/dev/null || true
+                    # Si la ventana se abre fuera de pantalla (coordenadas negativas), moverla al monitor activo
+                    wmctrl -l -G 2>/dev/null | grep -i "GameRanger" | while read -r wid d x y w h rest; do
+                        if [ "$x" -lt "$ACTIVE_MON_X" ] || [ "$x" -ge "$((ACTIVE_MON_X + ACTIVE_MON_W))" ] || [ "$y" -lt "$ACTIVE_MON_Y" ]; then
+                            wmctrl -i -r "$wid" -e "0,$((ACTIVE_MON_X + 150)),$((ACTIVE_MON_Y + 100)),-1,-1" 2>/dev/null || true
+                        fi
+                    done
+                fi
                 if command -v xdotool &>/dev/null; then
                     for gr_w in $(xdotool search --name "GameRanger" 2>/dev/null); do
                         xdotool windowmap "$gr_w" 2>/dev/null || true
                         xdotool windowraise "$gr_w" 2>/dev/null || true
-                    done
-                fi
-                if command -v wmctrl &>/dev/null; then
-                    wmctrl -l 2>/dev/null | grep -iE 'GameRanger|Friends|Assistant' | while read -r wid dtop host wtitle; do
-                        wmctrl -i -r "$wid" -b remove,hidden,remove,shaded 2>/dev/null || true
-                        wmctrl -i -a "$wid" 2>/dev/null || true
                     done
                 fi
             fi
@@ -1183,10 +1206,9 @@ elif [[ "$TARGET_FILE" =~ \.([bB][aA][tT]|[cC][mM][dD])$ ]]; then
         $GAMEMODE "$WINE_CMD" cmd /c "$TARGET_FILE" "$@"
     fi
 elif [[ "$TARGET_FILE" =~ [Gg]ame[Rr]anger ]]; then
-    # GameRanger: se ejecuta obligatoriamente en Contenedor de Escritorio Virtual (1024x720)
-    # Contiene todas las ventanas hijas flotantes (Lobby, Amigos, Asistente) para evitar que
-    # aparezcan fuera de pantalla (Y=-19) o se dibujen negras por fallo de swapchain de CEF
-    "$WINE_CMD" explorer /desktop=GameRanger,${DESKTOP_RES:-1024x720} "$TARGET_FILE" "$@" 2>"${WINEPREFIX}/gameranger_cef.log"
+    # GameRanger: Se ejecuta en MODO VENTANA NATIVA de escritorio (NUNCA en pantalla completa)
+    # sin contenedor virtual para que flote en el escritorio como cualquier aplicación estándar
+    "$WINE_CMD" "$TARGET_FILE" "$@" $EXTRA_APP_ARGS 2>"${WINEPREFIX}/gameranger_cef.log"
 else
     if [ -n "$RUN_PREFIX" ]; then
         $GAMEMODE "$WINE_CMD" $RUN_PREFIX "$TARGET_FILE" "$@" $EXTRA_APP_ARGS

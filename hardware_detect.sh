@@ -177,6 +177,12 @@ aplicar_entorno_hardware() {
     export WINE_FULLSCREEN_INTEGER_SCALING=0
     export GST_PLUGIN_FEATURE_RANK="libav:MAX,ugly:MAX,bad:MAX"
     export KWIN_DRM_NO_DIRECT_SCANOUT=1
+
+    # 11. Mapeo Universal de Mandos (SDL2 GameControllerDB: +2.300 mandos compatibles)
+    local db_gamepad="${DIR}/herramientas/gamecontrollerdb.txt"
+    if [ -f "$db_gamepad" ]; then
+        export SDL_GAMECONTROLLERCONFIG_FILE="$db_gamepad"
+    fi
 }
 
 # ==============================================================================
@@ -256,6 +262,11 @@ diagnostico_controladores_gaming() {
 
     # 4. Soporte DLSS / NVAPI
     echo -e "  • Soporte DLSS / NVAPI  : \033[32m✔ Habilitado (PROTON_ENABLE_NVAPI=1)\033[0m"
+
+    # 5. Mapeo Universal de Mandos
+    if [ -f "${DIR}/herramientas/gamecontrollerdb.txt" ]; then
+        echo -e "  • Mapeo Mandos Universal: \033[32m✔ SDL2 GameControllerDB Activo (+2.300 mandos)\033[0m"
+    fi
     echo "══════════════════════════════════════════════════════════════════════"
     return $warning_count
 }

@@ -1395,6 +1395,7 @@ def menu_herramientas(hw, cfg):
             ("7", "🛡️ Comprobador de Compatibilidad Anti-Cheat (EAC / BattlEye)"),
             ("8", "💾 Respaldar / Restaurar Prefijo Wine (Backup wineprefix)"),
             ("9", "🔍 Diagnóstico de Controladores Gráficos y 32-bit (NVIDIA / AMD / Intel)"),
+            ("10", "🎮 Gestor de Librerías y Mandos (SDL2 Gamepad, cnc-ddraw, DSOAL 3D, vkBasalt)"),
             ("0", "↩️  Volver al Menú Principal")
         ]
         sel = submenu_interactivo("🔧  Herramientas de Windows y Reparación", opciones, hw, cfg)
@@ -1468,6 +1469,14 @@ def menu_herramientas(hw, cfg):
         elif sel == "9":
             os.system("clear")
             subprocess.run(["bash", os.path.join(DIR, "hardware_detect.sh"), "--check-drivers"])
+            pausar()
+        elif sel == "10":
+            os.system("clear")
+            script_lib = os.path.join(DIR, "herramientas", "gestor_librerias.sh")
+            if os.path.exists(script_lib):
+                subprocess.run(["bash", script_lib, "menu"])
+            else:
+                print(f"{RED}No se encontró el gestor de librerías en: {script_lib}{RESET}")
             pausar()
 
 # ==============================================================================
