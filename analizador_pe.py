@@ -214,23 +214,23 @@ def analizar_juego(exe_path):
     res["has_vulkan"] = has_vulkan
 
     # 4. Determinación Infalible de Versión de Windows
-    # REGLA 1: GameRanger es cliente de escritorio Win32 CEF -> Windows 7
+    # REGLA 1: GameRanger es cliente de escritorio Win32 CEF -> Windows 7 (máxima estabilidad para lobby)
     if "gameranger" in file_name:
         winver = "win7"
-    # REGLA 2: Juegos de 64 bits o DirectX 12 -> SIEMPRE Windows 10 (Imposible en WinXP)
-    elif is_64 or has_d3d12 or engine in ("capcom_re_engine", "rockstar_gta5"):
+    # REGLA 2: Juegos de 64 bits, DirectX 12, DirectX 11 o Vulkan -> SIEMPRE Windows 10 (Imposible en WinXP)
+    elif is_64 or has_d3d12 or has_vulkan or has_d3d11 or engine in ("capcom_re_engine", "rockstar_gta5"):
         winver = "win10"
-    # REGLA 3: Juegos con DirectX 11 o Subsystem >= 6.2 (Win 8/10) -> Windows 10
-    elif has_d3d11 or sub_maj >= 10 or (sub_maj == 6 and sub_min >= 2):
-        winver = "win10"
-    # REGLA 4: Subsystem 6.0 / 6.1 (Windows Vista / 7) sin DirectX 12
-    elif sub_maj == 6:
-        winver = "win10" if is_64 else "win7"
-    # REGLA 5: Juegos DirectDraw clásicos -> Windows XP (evita fallo de paleta 8-bit en Win10)
-    elif engine == "classic_directdraw" or has_ddraw:
+    # REGLA 3: Juegos DirectDraw clásicos (2D / paleta 8 bits) -> Windows XP (evita pantalla negra en Wine)
+    elif engine == "classic_directdraw" or (has_ddraw and not has_d3d9 and not has_d3d11):
         winver = "winxp"
-    # REGLA 6: Binarios 32-bit retro con Subsystem <= 5.x sin APIs modernas -> Windows XP
-    elif sub_maj <= 5 and not is_64 and not has_d3d11 and not has_d3d12 and not has_vulkan:
+    # REGLA 4: Motores 3D modernos (Capcom MT Framework / RE6 / RE5, Unreal, Unity, Source, RAGE, RenderWare) -> Windows 10
+    elif engine in ("capcom_mt_framework", "unreal_engine", "unity_engine", "source_engine", "ea_nfs", "rockstar_gtasa"):
+        winver = "win10"
+    # REGLA 5: Juegos DirectX 9 y Subsystem moderno -> Windows 10 (DXVK 2.x, mandos XInput 1.4 y audio WASAPI)
+    elif has_d3d9 or sub_maj >= 5:
+        winver = "win10"
+    # REGLA 6: Binarios retro sin aceleración 3D moderna (Subsystem <= 4.0) -> Windows XP
+    elif sub_maj <= 4 and not is_64 and not has_d3d11 and not has_d3d12:
         winver = "winxp"
     else:
         winver = "win10"

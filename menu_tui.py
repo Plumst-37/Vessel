@@ -906,7 +906,7 @@ def menu_iniciar_programa(hw, cfg):
             if n_win != winver:
                 programas[idx] = (nombre, ruta, prefijo, n_win, fsr)
                 guardar_lista_programas(programas)
-                target_exe = os.path.basename(ruta)
+                target_exe = os.path.basename(pe_info["resolved_exe"]) if pe_info and pe_info.get("resolved_exe") else os.path.basename(ruta)
                 for pfx in [WINEPREFIX, os.path.join(DIR, "wineprefixes", nombre)]:
                     if os.path.isdir(pfx):
                         cmd_reg = f'WINEPREFIX="{pfx}" wine reg add "HKEY_CURRENT_USER\\Software\\Wine\\AppDefaults\\{target_exe}" /v Version /t REG_SZ /d "{n_win}" /f'

@@ -220,11 +220,11 @@ else
     fi
 
     # Detección inteligente de arquitectura (32-bit vs 64-bit) y APIs modernas (DirectX 12 / RE Engine)
-    local es_64bit=false
+    es_64bit=false
     if [ "$PE_IS_64" = "1" ] || file -b "$TARGET" 2>/dev/null | grep -qiE 'x86-64|PE32\+'; then
         es_64bit=true
     fi
-    local es_dx12=false
+    es_dx12=false
     if [ "$PE_HAS_DX12" = "1" ] || [ -f "$(dirname "$TARGET")/d3d12.dll" ] || [ -f "$(dirname "$TARGET")/d3d12core.dll" ] || \
        find "$(dirname "$TARGET")" -maxdepth 2 -iname "d3d12*.dll" 2>/dev/null | grep -q . || \
        find "$(dirname "$TARGET")" -maxdepth 3 -iname "*re_chunk_000*.pak" 2>/dev/null | grep -q .; then
@@ -242,8 +242,8 @@ else
             elif [ "$es_64bit" = true ] || [ "$es_dx12" = true ]; then
                 # Los juegos de 64 bits y DirectX 12 NUNCA deben ejecutarse en Windows XP
                 GAME_WINVER="win10"
-            elif [[ "$t_base" =~ ^(speed|speed2|nfs|swat4|swat4x|empires2|age2_x1|starcraft|ra2|diablo|biohazard4)\.exe$ ]]; then
-                # Solo clásicos retro de 32 bits van a Windows XP (se removió re4 para evitar choques con RE4 Remake)
+            elif [[ "$t_base" =~ ^(empires2|age2_x1|starcraft|ra2|diablo|fallout|carmageddon)\.exe$ ]]; then
+                # Solo clásicos 2D DirectDraw retro van a Windows XP para preservar paleta de 8 bits
                 GAME_WINVER="winxp"
             else
                 GAME_WINVER="win10"
