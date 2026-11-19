@@ -732,10 +732,11 @@ EOF
     echo -e "${C_GREEN}✔ Acceso directo creado y validado en tu Escritorio: 'Menu Win (PC)'${C_RESET}"
 fi
 
-echo "3.0.0" > "${DIR}/version.txt" 2>/dev/null || true
-chown "$TARGET_USER:$TARGET_USER" "${DIR}/version.txt" 2>/dev/null || true
-echo "3.0.0" > "${DIR}/.instalado" 2>/dev/null || true
+echo "1.0" > "${DIR}/.instalado" 2>/dev/null || true
 chown "$TARGET_USER:$TARGET_USER" "${DIR}/.instalado" 2>/dev/null || true
+# version.txt se mantiene limpio (0 bytes) para sincronización con git
+> "${DIR}/version.txt" 2>/dev/null || true
+chown "$TARGET_USER:$TARGET_USER" "${DIR}/version.txt" 2>/dev/null || true
 
 echo ""
 echo -e "${C_BOLD}${C_GREEN}🎉 ¡INSTALACIÓN COMPLETADA CON ÉXITO! 🎉${C_RESET}"

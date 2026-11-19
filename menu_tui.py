@@ -27,7 +27,7 @@ CONFIG_USER = os.path.join(DIR, "config_rendimiento.cfg")
 WINEPREFIX = os.path.join(DIR, "wineprefix")
 VERSION_FILE = os.path.join(DIR, "version.txt")
 INSTALADO_MARKER = os.path.join(DIR, ".instalado")
-VERSION_ACTUAL = "3.0.0"
+VERSION_ACTUAL = "1.0"
 
 # Paleta de colores Neón Púrpura y Windows 11
 PURPLE = "\033[38;2;224;86;253m"
@@ -257,8 +257,8 @@ def render_banner(hw, cfg):
     right_w = visual_width(f"  ██  ██  ") # 10
     mid_w = total_w - 4 - left_w - right_w
 
-    mid_title = f"{WHITE}{BOLD}Menu {PURPLE}Win{RESET}"
-    mid_sub = f"{TEXT_DIM}Gestor y Optimizador Universal de Juegos y Programas de {WHITE}{BOLD}Windows{RESET}"
+    mid_title = f"{WHITE}{BOLD}Menu {PURPLE}Win{RESET}  {CYAN}{BOLD}[v{VERSION_ACTUAL}]{RESET}"
+    mid_sub = f"{TEXT_DIM}Gestor y Optimizador Universal de Juegos y Programas de {WHITE}{BOLD}Windows{RESET} {GRAY}• {PURPLE}{BOLD}v{VERSION_ACTUAL}{RESET}"
 
     pad_t = mid_w - visual_width(mid_title)
     pad_s = mid_w - visual_width(mid_sub)
@@ -290,7 +290,6 @@ def render_banner(hw, cfg):
     fsr_st = f"Activo (x{cfg.get('FSR_STRENGTH', '2')})" if cfg.get("ACTIVAR_FSR") == "1" else "Apagado"
     hud_st = "Activo" if cfg.get("MOSTRAR_HUD_FPS") == "1" else "Apagado"
     vk_st = "Disponible" if hw["vulkan"] else "No compatible"
-    dx_st = "Disponible"
     perf_st = cfg.get("PERFIL_RENDIMIENTO", "maximo").upper()
 
     rows_l = [
@@ -304,10 +303,10 @@ def render_banner(hw, cfg):
 
     rows_r = [
         "",
+        f"  🏷️   {PURPLE}Versión Vessel{RESET}:  {CYAN}{BOLD}v{VERSION_ACTUAL} (Estable){RESET}",
         f"  {PURPLE}✔{RESET}   {PURPLE}FSR Reescalado{RESET} :  {WHITE}{fsr_st}{RESET}",
         f"  {PURPLE}✔{RESET}   {PURPLE}HUD FPS / OSD{RESET}  :  {WHITE}{hud_st}{RESET}",
         f"  {PURPLE}✔{RESET}   {PURPLE}Vulkan Driver{RESET}  :  {WHITE}{vk_st}{RESET}",
-        f"  {PURPLE}✔{RESET}   {PURPLE}DXVK / D3D{RESET}     :  {WHITE}{dx_st}{RESET}",
         f"  {PURPLE}✔{RESET}   {PURPLE}Perfil Activo{RESET}  :  {GREEN}{perf_st}{RESET}"
     ]
 
@@ -1659,7 +1658,7 @@ def verificar_actualizacion_automatica_github(mostrar_notif=True, cfg=None):
 
     # Notificación visible de búsqueda de actualizaciones
     print(f"\n{PURPLE}╭{'─' * inner_w}╮{RESET}")
-    title = "🔄  VESSEL - BUSCANDO ACTUALIZACIONES EN GITHUB..."
+    title = f"🔄  VESSEL v{VERSION_ACTUAL} - BUSCANDO ACTUALIZACIONES EN GITHUB..."
     pad = max((inner_w - visual_width(title)) // 2, 0)
     print(f"{PURPLE}│{RESET}{' ' * pad}{CYAN}{BOLD}{title}{RESET}{' ' * max(inner_w - pad - visual_width(title), 0)}{PURPLE}│{RESET}")
     print(f"{PURPLE}╰{'─' * inner_w}╯{RESET}")
@@ -1792,7 +1791,7 @@ def verificar_actualizacion_automatica_github(mostrar_notif=True, cfg=None):
             subprocess.run(f"chmod +x '{DIR}'/*.sh '{DIR}'/*.py 2>/dev/null", shell=True)
             desplegar_gameranger_portable()
 
-            print(f"\n  {GREEN}{BOLD}✔ ¡Vessel se ha actualizado con éxito a la última versión!{RESET}")
+            print(f"\n  {GREEN}{BOLD}✔ ¡Vessel se ha actualizado con éxito a la versión {VERSION_ACTUAL}!{RESET}")
             print(f"  {CYAN}Reiniciando la aplicación con los nuevos cambios...{RESET}\n")
             time.sleep(1.2)
 
@@ -1801,7 +1800,7 @@ def verificar_actualizacion_automatica_github(mostrar_notif=True, cfg=None):
             return True
         else:
             if mostrar_notif:
-                print(f"  {GREEN}{BOLD}✔ Ya tienes la versión más reciente de Vessel.{RESET}")
+                print(f"  {GREEN}{BOLD}✔ Ya tienes la versión más reciente de Vessel (v{VERSION_ACTUAL}).{RESET}")
                 print(f"  {GRAY}Todos los parches de compatibilidad y rendimiento están al día.{RESET}\n")
                 time.sleep(0.8)
             return False

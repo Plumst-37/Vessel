@@ -23,7 +23,7 @@ LAUNCHER="${DIR}/launch-win-app.sh"
 DXVK_CONF="${DIR}/dxvk.conf"
 CONFIG_USER="${DIR}/config_rendimiento.cfg"
 VERSION_FILE="${DIR}/version.txt"
-VERSION_ACTUAL="3.0.0"
+VERSION_ACTUAL="1.0"
 
 # Asegurar que version.txt exista
 [ ! -f "$VERSION_FILE" ] && touch "$VERSION_FILE" 2>/dev/null || true

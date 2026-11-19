@@ -1,5 +1,6 @@
-# 🚀 Vessel (Menu Win - Universal Edition)
+# 🚀 Vessel (Menu Win - Universal Edition) - v1.0
 
+> **Versión 1.0 Oficial (Producción y Gaming)**  
 > **El gestor y optimizador definitivo de juegos y aplicaciones de Windows para cualquier distribución de Linux.**  
 > *Máximo rendimiento, cero consumo en segundo plano, instalación en 1 clic y compatibilidad universal.*
 

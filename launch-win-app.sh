@@ -1061,9 +1061,10 @@ if [ "$ESCRITORIO_VIRTUAL" = "1" ]; then
 fi
 
 echo ""
-echo "[+] Ejecutando con Perfil [${PERFIL_RENDIMIENTO:-maximo}]..."
+echo "[+] Ejecutando con Perfil [${PERFIL_RENDIMIENTO:-maximo}] (Vessel v1.0)..."
 echo "    - CPU: ${CPU_MODEL} (${CPU_CORES} Hilos)"
 echo "    - GPU: ${DETECTED_GPU}"
+echo "    - Versión de Vessel: v1.0 (Producción)"
 echo "    - Renderizador: ${RENDERER_IN_USE:-DXVK (Vulkan)}"
 echo "    - Fsync/Esync: $([ "$WINEFSYNC" = "1" ] && echo "Fsync Activo" || echo "Esync Activo")"
 echo "    - Límite de FPS: ${LIMITE_FPS:-60} FPS"
