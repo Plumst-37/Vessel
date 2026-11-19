@@ -145,6 +145,12 @@ if [[ "$TARGET" =~ \.([bB][aA][tT]|[cC][mM][dD])$ ]]; then
     done
 fi
 
+# Redirección inteligente de ejecutables subordinados a sus launchers requeridos (ej. GTA5.exe -> PlayGTAV.exe)
+if [[ "$(basename "$TARGET")" =~ ^(GTA5\.exe|gta5\.exe)$ ]] && [ -f "$(dirname "$TARGET")/PlayGTAV.exe" ]; then
+    echo "[+] Launcher nativo detectado: PlayGTAV.exe (requerido para túnel IPC/pipe de GTA V, priorizado sobre GTA5.exe)"
+    TARGET="$(dirname "$TARGET")/PlayGTAV.exe"
+fi
+
 # 4. Definir la ruta del WINEPREFIX (Soporte Dual: Prefijo Compartido o Prefijo Aislado por Juego)
 if [ -n "$CUSTOM_PREFIX" ]; then
     export WINEPREFIX="$CUSTOM_PREFIX"
@@ -667,14 +673,16 @@ aplicar_perfil_aislado_juego() {
                 fi
             done
 
-            # 3. Optimización en commandline.txt
+            # 3. Optimización en commandline.txt (priorizando -scOfflineOnly y baja latencia de fotogramas)
             local gta_cmdline="${TARGET_DIR}/commandline.txt"
             cat <<EOF > "$gta_cmdline"
 -width ${gta_w}
 -height ${gta_h}
 -fullscreen
 -novsync
--FrameQueueLimit 1
+-scOfflineOnly
+-FrameQueueLimit 0
+-hdr
 -disablespecular
 -reflectionBlur 0
 -reflection_MipBlur 0
@@ -692,7 +700,43 @@ aplicar_perfil_aislado_juego() {
 -vehicleLodBias 0.2
 -shadowSoftness 0
 EOF
-            echo "[+] GTA V optimizado: Pantalla completa nativa, sin VSync artificial y configuración 60 FPS aplicada."
+            echo "[+] GTA V optimizado: Pantalla completa nativa, modo offline forzado y configuración 60 FPS aplicada."
+
+            # Garantizar steam_settings completo para emulador Goldberg (evita bloqueos de red e inicialización de perfil)
+            if [ ! -d "${TARGET_DIR}/steam_settings" ]; then
+                mkdir -p "${TARGET_DIR}/steam_settings"
+                cat <<'EOF_DEPOTS' > "${TARGET_DIR}/steam_settings/depots.txt"
+228984 	
+228990 	
+271591 			
+271592 	
+271593 			
+271594 			
+271595
+EOF_DEPOTS
+                cat <<'EOF_DLC' > "${TARGET_DIR}/steam_settings/DLC.txt"
+771300 = Grand Theft Auto V - Criminal Enterprise Starter Pack
+413180 = Grand Theft Auto V – Bonus $500,000
+362003 = Grand Theft Auto V
+362002 = Grand Theft Auto V – Bonus $1,350,000
+362001 = Grand Theft Auto V – Bonus $1,500,000
+362000 = Grand Theft Auto V – Bonus $1,500,000 + GTA: San Andreas 
+EOF_DLC
+                echo "Player" > "${TARGET_DIR}/steam_settings/force_account_name.txt"
+                [ ! -f "${TARGET_DIR}/steam_appid.txt" ] && echo "271590" > "${TARGET_DIR}/steam_appid.txt"
+            fi
+
+            # Auto-vincular partida guardada base si el prefijo no tiene partidas para evitar bucles de carga en prólogo
+            local gta_save_dir="${WINEPREFIX}/drive_c/users/${USER}/AppData/Roaming/Goldberg SocialClub Emu Saves/GTA V/0F74F4C4"
+            mkdir -p "$gta_save_dir"
+            if ! ls "$gta_save_dir"/SGTA* >/dev/null 2>&1; then
+                local cand_save
+                cand_save=$(find "${TARGET_DIR}/.." -maxdepth 4 -iname "SGTA50015" 2>/dev/null | head -n 1)
+                if [ -n "$cand_save" ] && [ -f "$cand_save" ]; then
+                    echo "[+] Partida guardada base detectada e instalada para carga inmediata sin bucle de prólogo."
+                    cp -n "$(dirname "$cand_save")"/SGTA* "$gta_save_dir/" 2>/dev/null || true
+                fi
+            fi
 
             # Overrides específicos de DirectX 11, Bink Video, Social Club y ASI Loader
             export WINEDLLOVERRIDES="bink2w64=n,b;asiloader=n,b;dinput8=n,b;d3dcompiler_46=n,b;d3dcompiler_43=n,b;d3dcsx_46=n,b;socialclub=n,b;steam_api64=n,b;dxgi=n,b;d3d11=n,b;d3d9=n,b;${WINEDLLOVERRIDES}"
