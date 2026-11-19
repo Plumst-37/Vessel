@@ -822,6 +822,14 @@ limpiar_zombies_juego() {
     done
 }
 
+# Candado 3: Respaldo atómico seguro antes de modificar cualquier archivo de configuración de juego
+crear_respaldo_seguro() {
+    local arch="$1"
+    if [ -f "$arch" ] && [ ! -f "${arch}.vessel_bak" ]; then
+        cp -p "$arch" "${arch}.vessel_bak" 2>/dev/null || true
+    fi
+}
+
 aplicar_perfil_aislado_juego() {
     local perfil_id="generico"
 
@@ -875,6 +883,7 @@ aplicar_perfil_aislado_juego() {
             mkdir -p "$rsg_doc"
             for sxml in "$rsg_doc/settings.xml" "${TARGET_DIR}/settings.xml" "${WINEPREFIX}/drive_c/users/${USER}/Documents/Rockstar Games/GTA V/settings.xml"; do
                 if [ -f "$sxml" ]; then
+                    crear_respaldo_seguro "$sxml"
                     sed -i "s/<ScreenWidth value=\"[0-9]*\"/<ScreenWidth value=\"${gta_w}\"/" "$sxml" 2>/dev/null || true
                     sed -i "s/<ScreenHeight value=\"[0-9]*\"/<ScreenHeight value=\"${gta_h}\"/" "$sxml" 2>/dev/null || true
                     sed -i 's/<Windowed value="[0-9]*"/<Windowed value="0"/' "$sxml" 2>/dev/null || true
@@ -896,6 +905,7 @@ aplicar_perfil_aislado_juego() {
 
             # 3. Optimización en commandline.txt (priorizando -scOfflineOnly y máxima estabilidad geométrica 3D)
             local gta_cmdline="${TARGET_DIR}/commandline.txt"
+            [ -f "$gta_cmdline" ] && crear_respaldo_seguro "$gta_cmdline"
             cat <<EOF > "$gta_cmdline"
 -width ${gta_w}
 -height ${gta_h}
@@ -958,6 +968,7 @@ EOF_DLC
             limpiar_zombies_juego "gta_sa\.exe"
             # Desactivar ventana forzada de mods para garantizar pantalla completa nativa
             find "$TARGET_DIR" -iname "III.VC.SA.WindowedMode.ini" 2>/dev/null | while read -r wm_ini; do
+                crear_respaldo_seguro "$wm_ini"
                 sed -i "s/^ShowBorder = .*/ShowBorder = 0/" "$wm_ini" 2>/dev/null || true
             done
             find "$TARGET_DIR" -iname "III.VC.SA.WindowedMode.asi" 2>/dev/null | while read -r wm_asi; do
@@ -965,6 +976,7 @@ EOF_DLC
             done
             # Configurar Widescreen Fix
             find "$TARGET_DIR" -maxdepth 3 -iname "*widescreen*.ini" 2>/dev/null | while read -r wf_ini; do
+                crear_respaldo_seguro "$wf_ini"
                 sed -i "s/^ResX = .*/ResX = ${best_w}/" "$wf_ini" 2>/dev/null || true
                 sed -i "s/^ResY = .*/ResY = ${best_h}/" "$wf_ini" 2>/dev/null || true
                 sed -i "s/^ForceAspectRatio = .*/ForceAspectRatio = auto/" "$wf_ini" 2>/dev/null || true
@@ -977,6 +989,7 @@ EOF_DLC
         ea_nfs)
             echo "[+] Perfil Activo: EA Games (Need For Speed) [Aislado]"
             find "$TARGET_DIR" -maxdepth 3 -iname "*widescreen*.ini" 2>/dev/null | while read -r wf_ini; do
+                crear_respaldo_seguro "$wf_ini"
                 sed -i "s/^ResX = .*/ResX = ${best_w}/" "$wf_ini" 2>/dev/null || true
                 sed -i "s/^ResY = .*/ResY = ${best_h}/" "$wf_ini" 2>/dev/null || true
                 sed -i "s/^ForceAspectRatio = .*/ForceAspectRatio = auto/" "$wf_ini" 2>/dev/null || true
@@ -992,6 +1005,7 @@ EOF_DLC
             limpiar_zombies_juego "re4\.exe|re2\.exe|re3\.exe|re7\.exe|re8\.exe|dmc5\.exe"
             find "$TARGET_DIR" -maxdepth 3 -name "*config*.ini" 2>/dev/null | while read -r re_ini; do
                 if grep -q "\[AppRender\]" "$re_ini" 2>/dev/null || grep -q "\[RenderConfig\]" "$re_ini" 2>/dev/null; then
+                    crear_respaldo_seguro "$re_ini"
                     sed -i 's/^FullScreenMode=.*/FullScreenMode=true/' "$re_ini" 2>/dev/null || true
                     sed -i 's/^WindowMode=.*/WindowMode=FullScreen/' "$re_ini" 2>/dev/null || true
                     sed -i 's/^AppWindowMode=.*/AppWindowMode=0/' "$re_ini" 2>/dev/null || true
@@ -1024,6 +1038,7 @@ EOF_DLC
                 if [ -d "$dir_c" ]; then
                     find "$dir_c" -maxdepth 3 -name "config.ini" 2>/dev/null | while read -r cini; do
                         if grep -q "\[GRAPHICS\]" "$cini" 2>/dev/null || grep -q "\[DISPLAY\]" "$cini" 2>/dev/null; then
+                            crear_respaldo_seguro "$cini"
                             sed -i 's/^FullScreen=OFF/FullScreen=ON/' "$cini" 2>/dev/null || true
                             sed -i 's/^VSYNC=ON/VSYNC=OFF/' "$cini" 2>/dev/null || true
                             sed -i 's/^MotionBlurEnabled=ON/MotionBlurEnabled=OFF/' "$cini" 2>/dev/null || true
@@ -1069,6 +1084,9 @@ EOF_DLC
             fi
 
             find "$target_system_dir" -maxdepth 2 -name "*.ini" 2>/dev/null | while read -r ueini; do
+                if grep -q "\[WinDrv.WindowsClient\]\|\[D3DDrv.D3DRenderDevice\]\|\[/Script/Engine.GameUserSettings\]" "$ueini" 2>/dev/null; then
+                    crear_respaldo_seguro "$ueini"
+                fi
                 if grep -q "\[WinDrv.WindowsClient\]" "$ueini" 2>/dev/null; then
                     sed -i 's/^StartupFullscreen=False/StartupFullscreen=True/' "$ueini" 2>/dev/null || true
                     sed -i "s/^FullscreenViewportX=[0-9]*/FullscreenViewportX=${best_w}/" "$ueini" 2>/dev/null || true
@@ -1125,6 +1143,7 @@ EOF_DLC
 
             # 3. Optimización automática de cnc-ddraw en OpenGL
             find "$TARGET_DIR" -maxdepth 2 -iname "ddraw.ini" 2>/dev/null | while read -r ddini; do
+                crear_respaldo_seguro "$ddini"
                 sed -i 's/^renderer=.*/renderer=opengl/' "$ddini" 2>/dev/null || true
                 sed -i 's/^fullscreen=.*/fullscreen=true/' "$ddini" 2>/dev/null || true
                 sed -i 's/^windowed=.*/windowed=false/' "$ddini" 2>/dev/null || true
@@ -1193,8 +1212,23 @@ if [ "$ESCRITORIO_VIRTUAL" = "1" ]; then
     RUN_PREFIX="explorer /desktop=${DESKTOP_NAME:-GameRanger},${DESKTOP_RES:-1024x720}"
 fi
 
+GAMESCOPE_PREFIX=""
+if [ "$PERFIL_RENDIMIENTO" = "extremo" ] && [[ ! "$TARGET_FILE" =~ [Gg]ame[Rr]anger ]]; then
+    if command -v gamescope &>/dev/null; then
+        GAMESCOPE_PREFIX="gamescope -W ${best_w:-1280} -H ${best_h:-720} -r 60 -F fsr --"
+    fi
+fi
+
+perf_label="${PERFIL_RENDIMIENTO:-inteligente}"
+case "$perf_label" in
+    inteligente|maximo) perf_label="Inteligente (Autocalibrado)" ;;
+    estandar) perf_label="Estándar / Compatibilidad" ;;
+    extremo) perf_label="Portátil Extremo (FSR Boost)" ;;
+    ahorro) perf_label="Ahorro de Energía" ;;
+esac
+
 echo ""
-echo "[+] Ejecutando con Perfil [${PERFIL_RENDIMIENTO:-maximo}] (Vessel v1.0)..."
+echo "[+] Ejecutando con Perfil [${perf_label}] (Vessel v1.0)..."
 echo "    - CPU: ${CPU_MODEL} (${CPU_CORES} Hilos)"
 echo "    - GPU: ${DETECTED_GPU}"
 echo "    - Versión de Vessel: v1.0 (Producción)"
@@ -1404,9 +1438,9 @@ elif [[ "$TARGET_FILE" =~ [Gg]ame[Rr]anger ]]; then
     "$WINE_CMD" "$TARGET_FILE" "$@" $EXTRA_APP_ARGS 2>"${WINEPREFIX}/gameranger_cef.log"
 else
     if [ -n "$RUN_PREFIX" ]; then
-        $GAMEMODE "$WINE_CMD" $RUN_PREFIX "$TARGET_FILE" "$@" $EXTRA_APP_ARGS
+        $GAMESCOPE_PREFIX $GAMEMODE "$WINE_CMD" $RUN_PREFIX "$TARGET_FILE" "$@" $EXTRA_APP_ARGS
     else
-        $GAMEMODE "$WINE_CMD" "$TARGET_FILE" "$@" $EXTRA_APP_ARGS
+        $GAMESCOPE_PREFIX $GAMEMODE "$WINE_CMD" "$TARGET_FILE" "$@" $EXTRA_APP_ARGS
     fi
 fi
 EXIT_STATUS=$?

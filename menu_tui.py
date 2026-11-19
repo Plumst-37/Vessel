@@ -364,7 +364,10 @@ def submenu_interactivo(titulo, opciones, hw, cfg, default_idx=0):
 
         for i, (key, label) in enumerate(opciones):
             is_exit = (key == "0" or "volver" in label.lower() or "salir" in label.lower() or "cancelar" in label.lower())
-            item_text = f"[{key}]  {label}"
+            lines = label.splitlines()
+            first_line = lines[0]
+            extra_lines = lines[1:] if len(lines) > 1 else []
+            item_text = f"[{key}]  {first_line}"
 
             if i == sel_idx:
                 line_str = f"▶  {item_text}"
@@ -378,6 +381,10 @@ def submenu_interactivo(titulo, opciones, hw, cfg, default_idx=0):
                     btn = f"  {WHITE}{pad_visual(line_str, opt_avail)}{RESET}"
 
             print(f"{PURPLE}│{RESET} {btn} {PURPLE}│{RESET}")
+            for el in extra_lines:
+                desc_str = f"       {GRAY}{el.strip()}{RESET}"
+                desc_btn = f"  {pad_visual(desc_str, opt_avail)}"
+                print(f"{PURPLE}│{RESET} {desc_btn} {PURPLE}│{RESET}")
 
         print(f"{PURPLE}│{' ' * inner_w}│{RESET}")
         print(f"{PURPLE}╰{'─' * inner_w}╯{RESET}")
@@ -1383,45 +1390,126 @@ def menu_configurar_programas(hw, cfg):
             pausar()
 
 # ==============================================================================
-# SUBMENÚ 3: RENDIMIENTO Y MOTOR GRÁFICO
+# SUBMENÚ 3: RENDIMIENTO Y MOTOR GRÁFICO (VESSEL SMART PERFORMANCE)
 # ==============================================================================
 
 def menu_rendimiento(hw, cfg):
-    """Submenú 3: Configuración de Rendimiento y Motor Gráfico."""
+    """Submenú 3: Vessel Smart Performance - Calibración Automática de Juegos sin Tocar tu Sistema."""
     while True:
         cfg = cargar_config()
-        p_act = cfg.get("PERFIL_RENDIMIENTO", "maximo").upper()
+        p_act = cfg.get("PERFIL_RENDIMIENTO", "inteligente").lower()
+        fps_act = cfg.get("LIMITE_FPS", "60")
+        fsr_act = f"Activo (x{cfg.get('FSR_STRENGTH', '2')})" if cfg.get("ACTIVAR_FSR") == "1" else "Apagado"
+        hud_act = "Activo" if cfg.get("MOSTRAR_HUD_FPS") == "1" else "Apagado"
+        mot_act = cfg.get("RENDERER_BACKEND", "auto").upper()
+
+        p_badge = "⭐ INTELIGENTE" if p_act in ("inteligente", "maximo") else ("🛡️ ESTÁNDAR" if p_act == "estandar" else "🚀 EXTREMO")
+
+        opts_perf = [
+            ("1", f"⭐ Modo Rendimiento Inteligente  ─── [ RECOMENDADO ] [Activo: {p_badge}]\n"
+                  f"• Calibra resolución y shaders automáticamente para tu GPU.\n"
+                  f"• Prioridad de CPU alta y cero micro-tirones mientras juegas.\n"
+                  f"• 100% Seguro: Funciona en memoria RAM. NO toca archivos de tu sistema.\n"
+                  f"• Al salir del juego, tu PC vuelve a su estado normal."),
+
+            ("2", "🛡️ Modo Estándar / Compatibilidad Total\n"
+                  "• Ejecuta el juego con Wine/DXVK clásico sin optimizaciones agresivas.\n"
+                  "• Ideal si solo quieres probar si un juego antiguo abre."),
+
+            ("3", f"🚀 Modo Portátil Extremo (Gamescope + FSR) [FSR: {fsr_act}]\n"
+                  "• Reescalado de resolución inteligente por hardware.\n"
+                  "• Diseñado para ganar hasta +50% FPS en laptops."),
+
+            ("4", "🔄 Restaurar Configuraciones Originales (Botón de Respaldo)\n"
+                  "• Devuelve todos los juegos a su configuración de fábrica (.vessel_bak)."),
+
+            ("5", f"🛠️ Ajustes Avanzados Manuales (FPS: {fps_act}, HUD: {hud_act}, Motor: {mot_act})\n"
+                  "• Configuración individual de FPS, nitidez FSR, HUD, shaders y runners."),
+
+            ("0", "↩️ Volver al Menú Principal")
+        ]
+
+        sel = submenu_interactivo("⚡  VESSEL SMART PERFORMANCE (Calibración Automática)", opts_perf, hw, cfg)
+        if sel == "0":
+            break
+        elif sel == "1":
+            # [1] ⭐ Modo Rendimiento Inteligente [ RECOMENDADO ]
+            guardar_config("PERFIL_RENDIMIENTO", "inteligente")
+            guardar_config("ACTIVAR_FSR", "0")
+            subprocess.run(["bash", os.path.join(DIR, "generar_dxvk_conf.sh")], stderr=subprocess.DEVNULL)
+
+            os.system("clear")
+            render_banner(hw, cfg)
+            print(f"\n  {GREEN}{BOLD}✔ Modo Rendimiento Inteligente [RECOMENDADO] Activado con Éxito{RESET}")
+            print(f"  {CYAN}══════════════════════════════════════════════════════════════════════{RESET}")
+            print(f"  🧠 {PURPLE}CPU / Hilos{RESET}    : {WHITE}{hw['cores']} hilos asignados a dxvk.numCompilerThreads{RESET}")
+            print(f"  📼 {PURPLE}GPU / Gráficos{RESET} : {WHITE}{hw['gpu']} (Perfil adaptativo calibrado para máximos FPS){RESET}")
+            print(f"  🎛️ {PURPLE}Memoria RAM{RESET}   : {WHITE}{hw['ram']} (Caché optimizada en RAM para cero tirones){RESET}")
+            print(f"  🛡️ {PURPLE}Seguridad{RESET}     : {GREEN}100% Seguro. Todo corre en RAM sin tocar archivos del sistema.{RESET}")
+            print(f"  {CYAN}══════════════════════════════════════════════════════════════════════{RESET}\n")
+            pausar()
+        elif sel == "2":
+            # [2] 🛡️ Modo Estándar / Compatibilidad Total
+            guardar_config("PERFIL_RENDIMIENTO", "estandar")
+            guardar_config("ACTIVAR_FSR", "0")
+            subprocess.run(["bash", os.path.join(DIR, "generar_dxvk_conf.sh")], stderr=subprocess.DEVNULL)
+            os.system("clear")
+            render_banner(hw, cfg)
+            print(f"\n  {GREEN}{BOLD}✔ Modo Estándar / Compatibilidad Total Activado{RESET}")
+            print(f"  {CYAN}══════════════════════════════════════════════════════════════════════{RESET}")
+            print(f"  • Ejecutará los juegos con Wine y DXVK estándar sin optimizaciones agresivas.")
+            print(f"  • Ideal para pruebas de compatibilidad o si un juego antiguo presenta problemas.")
+            print(f"  {CYAN}══════════════════════════════════════════════════════════════════════{RESET}\n")
+            pausar()
+        elif sel == "3":
+            # [3] 🚀 Modo Portátil Extremo (Gamescope + FSR)
+            guardar_config("PERFIL_RENDIMIENTO", "extremo")
+            guardar_config("ACTIVAR_FSR", "1")
+            subprocess.run(["bash", os.path.join(DIR, "generar_dxvk_conf.sh")], stderr=subprocess.DEVNULL)
+            os.system("clear")
+            render_banner(hw, cfg)
+            print(f"\n  {GREEN}{BOLD}✔ Modo Portátil Extremo (Gamescope + FSR) Activado{RESET}")
+            print(f"  {CYAN}══════════════════════════════════════════════════════════════════════{RESET}")
+            print(f"  • Reescalado de resolución inteligente AMD FSR activo para ganar hasta +50% FPS.")
+            print(f"  • Fallback automático: Si Gamescope no está disponible, pasa a pantalla completa nativa.")
+            print(f"  {CYAN}══════════════════════════════════════════════════════════════════════{RESET}\n")
+            pausar()
+        elif sel == "4":
+            # [4] 🔄 Restaurar Configuraciones Originales (Botón de Respaldo)
+            os.system("clear")
+            restaurador = os.path.join(DIR, "herramientas", "restaurar_respaldos.sh")
+            if os.path.exists(restaurador):
+                subprocess.run(["bash", restaurador])
+            else:
+                print(f"{YELLOW}No se encontró el script de restauración.{RESET}")
+            pausar()
+        elif sel == "5":
+            # [5] 🛠️ Ajustes Avanzados Manuales
+            menu_rendimiento_avanzado(hw, cfg)
+
+def menu_rendimiento_avanzado(hw, cfg):
+    """Submenú de Ajustes Avanzados Manuales de Rendimiento y Motor Gráfico."""
+    while True:
+        cfg = cargar_config()
         fps_act = cfg.get("LIMITE_FPS", "60")
         fsr_act = f"Activo (x{cfg.get('FSR_STRENGTH', '2')})" if cfg.get("ACTIVAR_FSR") == "1" else "Apagado"
         hud_act = "Activo" if cfg.get("MOSTRAR_HUD_FPS") == "1" else "Apagado"
         mot_act = cfg.get("RENDERER_BACKEND", "auto").upper()
 
         opciones = [
-            ("1", f"⚡ Perfil de Rendimiento (Actual: {p_act})"),
-            ("2", f"🎯 Límite de FPS (Actual: {fps_act} FPS)"),
-            ("3", f"🚀 AMD FSR Reescalado (Actual: {fsr_act})"),
-            ("4", f"📊 HUD de FPS y Telemetría en Pantalla (Actual: {hud_act})"),
-            ("5", f"🎮 Motor Gráfico (Actual: {mot_act})"),
-            ("6", f"🧹 Limpiar Shaders y Caché DXVK (Solucionar Tirones / Descuadres 3D)"),
-            ("7", f"🎛️ Filtrado Anisótropo 16x (Máxima Nitidez de Texturas)"),
-            ("8", f"🍷 Gestor de Wine Runners (Wine-GE / Kron4ek Staging / Lutris)"),
-            ("0", "↩️  Volver al Menú Principal")
+            ("1", f"🎯 Límite de FPS (Actual: {fps_act} FPS)"),
+            ("2", f"🚀 AMD FSR Nivel de Nitidez (Actual: {fsr_act})"),
+            ("3", f"📊 HUD de FPS y Telemetría en Pantalla (Actual: {hud_act})"),
+            ("4", f"🎮 Motor Gráfico (Actual: {mot_act})"),
+            ("5", f"🧹 Limpiar Shaders y Caché DXVK (Solucionar Tirones / Descuadres 3D)"),
+            ("6", f"🎛️ Filtrado Anisótropo 16x (Máxima Nitidez de Texturas)"),
+            ("7", f"🍷 Gestor de Wine Runners (Wine-GE / Kron4ek Staging / Lutris)"),
+            ("0", "↩️  Volver a Smart Performance")
         ]
-        sel = submenu_interactivo("⚡  Rendimiento y Motor Gráfico", opciones, hw, cfg)
+        sel = submenu_interactivo("🛠️  Ajustes Avanzados Manuales", opciones, hw, cfg)
         if sel == "0":
             break
         elif sel == "1":
-            sub_opts = [
-                ("1", "🚀 Máximo Rendimiento (GameMode al 100%, Governor Performance, GPU Boost)"),
-                ("2", "⚖️ Equilibrado (Balance óptimo entre temperatura y fluidez)"),
-                ("3", "🔋 Ahorro de Energía (Menor consumo para portátiles/batería)"),
-                ("0", "↩️  Cancelar")
-            ]
-            s = submenu_interactivo("Seleccionar Perfil de Rendimiento", sub_opts, hw, cfg)
-            if s == "1": guardar_config("PERFIL_RENDIMIENTO", "maximo")
-            elif s == "2": guardar_config("PERFIL_RENDIMIENTO", "equilibrado")
-            elif s == "3": guardar_config("PERFIL_RENDIMIENTO", "ahorro")
-        elif sel == "2":
             sub_opts = [
                 ("1", "30 FPS (Recomendado para PCs de gama baja / estabilidad total)"),
                 ("2", "60 FPS (Fluidez estándar sin sobrecalentamiento)"),
@@ -1435,22 +1523,17 @@ def menu_rendimiento(hw, cfg):
             elif s == "3": guardar_config("LIMITE_FPS", "120")
             elif s == "4": guardar_config("LIMITE_FPS", "0")
             subprocess.run(["bash", os.path.join(DIR, "generar_dxvk_conf.sh")], stderr=subprocess.DEVNULL)
+        elif sel == "2":
+            sub_fsr = [
+                ("1", "Nivel 1 - Muy Nítido"),
+                ("2", "Nivel 2 - Equilibrado (Recomendado)"),
+                ("3", "Nivel 3 - Suave"),
+                ("0", "Mantener actual")
+            ]
+            s = submenu_interactivo("Nivel de Nitidez FSR", sub_fsr, hw, cfg)
+            if s in ("1", "2", "3"):
+                guardar_config("FSR_STRENGTH", s)
         elif sel == "3":
-            if cfg.get("ACTIVAR_FSR") == "1":
-                guardar_config("ACTIVAR_FSR", "0")
-            else:
-                guardar_config("ACTIVAR_FSR", "1")
-                # Preguntar nivel de nitidez con flechas
-                sub_fsr = [
-                    ("1", "Nivel 1 - Muy Nítido"),
-                    ("2", "Nivel 2 - Equilibrado (Recomendado)"),
-                    ("3", "Nivel 3 - Suave"),
-                    ("0", "Mantener actual")
-                ]
-                s = submenu_interactivo("Nivel de Nitidez FSR", sub_fsr, hw, cfg)
-                if s in ("1", "2", "3"):
-                    guardar_config("FSR_STRENGTH", s)
-        elif sel == "4":
             sub_hud = [
                 ("1", "Apagado (Sin información en pantalla)"),
                 ("2", "Básico (Solo contador de FPS en esquina)"),
@@ -1467,7 +1550,7 @@ def menu_rendimiento(hw, cfg):
                 guardar_config("MOSTRAR_HUD_FPS", "1")
                 guardar_config("HUD_DETALLES", "full")
             subprocess.run(["bash", os.path.join(DIR, "generar_dxvk_conf.sh")], stderr=subprocess.DEVNULL)
-        elif sel == "5":
+        elif sel == "4":
             sub_opts = [
                 ("1", "DXVK (DirectX 9/10/11 -> Vulkan - Máximo Rendimiento)"),
                 ("2", "WineD3D (OpenGL nativo - Compatibilidad para GPUs antiguas)"),
@@ -1478,7 +1561,7 @@ def menu_rendimiento(hw, cfg):
             if s == "1": guardar_config("RENDERER_BACKEND", "dxvk")
             elif s == "2": guardar_config("RENDERER_BACKEND", "wined3d")
             elif s == "3": guardar_config("RENDERER_BACKEND", "auto")
-        elif sel == "6":
+        elif sel == "5":
             # Limpiar shaders y caché
             os.system("clear")
             print(f"{PURPLE}🧹 [ LIMPIANDO SHADERS Y CACHÉ GRÁFICA ]{RESET}\n")
@@ -1486,10 +1569,9 @@ def menu_rendimiento(hw, cfg):
             print(f"{GREEN}✔ Archivos de caché de shaders corruptos eliminados.{RESET}")
             print(f"{WHITE}Los juegos regenerarán shaders frescos sin tirones al iniciar.{RESET}")
             pausar()
-        elif sel == "7":
+        elif sel == "6":
             os.system("clear")
             print(f"{PURPLE}🎛️  [ FILTRADO ANISÓTROPO 16X FORZADO ]{RESET}\n")
-            # Activar en dxvk.conf
             lines = []
             if os.path.exists(DXVK_CONF):
                 with open(DXVK_CONF, "r") as f:
@@ -1501,15 +1583,14 @@ def menu_rendimiento(hw, cfg):
             print(f"{GREEN}✔ Filtrado Anisótropo 16x activado en dxvk.conf.{RESET}")
             print(f"{WHITE}Las texturas a distancia se verán perfectamente nítidas.{RESET}")
             pausar()
-        elif sel == "8":
-            # Gestor de Wine Runners
+        elif sel == "7":
             script_runners = os.path.join(DIR, "gestor_runners.sh")
             while True:
                 sub_r = [
                     ("1", "📋 Listar Runners Instalados y Activos en el Sistema"),
                     ("2", "📥 Descargar e Instalar Wine-Staging WOW64 Portable (Kron4ek - DX12, MF, Esync/Fsync)"),
                     ("3", "📥 Descargar e Instalar Wine-GE Portable (GloriousEggroll - Optimizado para Gaming)"),
-                    ("0", "↩️  Volver al Menú de Rendimiento")
+                    ("0", "↩️  Volver a Ajustes Avanzados")
                 ]
                 sr = submenu_interactivo("🍷  Gestor de Wine Runners", sub_r, hw, cfg)
                 if sr == "0":

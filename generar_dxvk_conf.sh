@@ -30,6 +30,16 @@ case "$LIMITE_FPS" in
     *) FPS_VAL="0" ;;
 esac
 
+# Calibración de memoria según RAM (Ahorro <= 4GB, Equilibrado 8GB-12GB, Extremo 16GB+)
+D3D9_MEM="2048"
+if [ -n "$RAM_TOTAL_MB" ]; then
+    if [ "$RAM_TOTAL_MB" -le 4608 ]; then
+        D3D9_MEM="1024"
+    elif [ "$RAM_TOTAL_MB" -gt 13312 ]; then
+        D3D9_MEM="4096"
+    fi
+fi
+
 # Generar archivo dxvk.conf universal
 cat <<EOF > "$CONF_FILE"
 # ==============================================================================
@@ -64,7 +74,7 @@ d3d9.samplerAnisotropy = 16
 d3d11.samplerAnisotropy = 16
 d3d11.constantBufferRangeCheck = True
 d3d9.lenientClear = True
-d3d9.maxAvailableMemory = 2048
+d3d9.maxAvailableMemory = ${D3D9_MEM}
 
 # Modo Mailbox Present (Triple Buffering Tear-Free de Ultra-Baja Latencia)
 # Elimina desgarro de pantalla (tearing) SIN caídas bruscas a 30 FPS ni tirones de cámara
