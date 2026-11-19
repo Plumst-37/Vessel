@@ -825,8 +825,9 @@ limpiar_zombies_juego() {
 # Candado 3: Respaldo atómico seguro antes de modificar cualquier archivo de configuración de juego
 crear_respaldo_seguro() {
     local arch="$1"
-    if [ -f "$arch" ] && [ ! -f "${arch}.vessel_bak" ]; then
-        cp -p "$arch" "${arch}.vessel_bak" 2>/dev/null || true
+    if [ -f "$arch" ]; then
+        [ ! -f "${arch}.vessel_orig" ] && cp -p "$arch" "${arch}.vessel_orig" 2>/dev/null || true
+        [ ! -f "${arch}.vessel_bak" ] && cp -p "$arch" "${arch}.vessel_bak" 2>/dev/null || true
     fi
 }
 

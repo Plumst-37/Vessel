@@ -18,5 +18,9 @@ Subir Github/
 *.log
 *.tmp
 *.bak
+*.vessel_bak
+*.vessel_orig
+perfil_hardware.cfg
+.smart_perf_listo
 __pycache__/
 *.pyc

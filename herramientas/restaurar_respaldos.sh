@@ -2,6 +2,7 @@
 # ==============================================================================
 # VESSEL - RESTAURADOR DE RESPALDOS ORIGINALES (BOTÓN DE PÁNICO)
 # Restaura cualquier archivo modificado por Vessel a su estado original de fábrica
+# Soporta copias atómicas .vessel_orig y .vessel_bak
 # ==============================================================================
 
 # Autoprotección multi-shell
@@ -21,7 +22,7 @@ RESET="\033[0m"
 
 echo -e "${CYAN}══════════════════════════════════════════════════════════════════════${RESET}"
 echo -e "  ${BOLD}🔄 VESSEL - RESTAURADOR DE CONFIGURACIONES ORIGINALES${RESET}"
-echo -e "  Restaura archivos modificados (.vessel_bak) a su estado de fábrica"
+echo -e "  Restaura archivos modificados (.vessel_orig / .vessel_bak) a estado de fábrica"
 echo -e "${CYAN}══════════════════════════════════════════════════════════════════════${RESET}\n"
 
 RUTAS_A_BUSCAR=()
@@ -58,19 +59,23 @@ for search_dir in "${RUTAS_A_BUSCAR[@]}"; do
     [ ! -d "$search_dir" ] && continue
     while IFS= read -r bak_file; do
         [ -z "$bak_file" ] && continue
-        orig_file="${bak_file%.vessel_bak}"
-        if [ -f "$orig_file" ]; then
+        if [[ "$bak_file" == *.vessel_orig ]]; then
+            orig_file="${bak_file%.vessel_orig}"
+        else
+            orig_file="${bak_file%.vessel_bak}"
+        fi
+        if [ -f "$bak_file" ]; then
             cp -f "$bak_file" "$orig_file" 2>/dev/null || true
             echo -e "  ${GREEN}✔ Restaurado:${RESET} $(basename "$orig_file") en ${CYAN}$(dirname "$orig_file")${RESET}"
             TOTAL_RESTAURADOS=$((TOTAL_RESTAURADOS + 1))
         fi
-    done < <(find "$search_dir" -maxdepth 5 -type f -name "*.vessel_bak" 2>/dev/null || true)
+    done < <(find "$search_dir" -maxdepth 5 -type f \( -name "*.vessel_orig" -o -name "*.vessel_bak" \) 2>/dev/null || true)
 done
 
 echo ""
 if [ "$TOTAL_RESTAURADOS" -gt 0 ]; then
     echo -e "${GREEN}✔ Se restauraron ${TOTAL_RESTAURADOS} archivo(s) a su configuración original de fábrica.${RESET}"
 else
-    echo -e "${YELLOW}ℹ No se encontraron respaldos pendientes (.vessel_bak). Tus juegos ya están en estado limpio.${RESET}"
+    echo -e "${YELLOW}ℹ No se encontraron respaldos pendientes (.vessel_orig / .vessel_bak). Tus juegos ya están en estado limpio.${RESET}"
 fi
 echo -e "${CYAN}══════════════════════════════════════════════════════════════════════${RESET}"

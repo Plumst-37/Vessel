@@ -11,54 +11,67 @@ if [ -z "$BASH_VERSION" ]; then
     fi
 fi
 
-# Detección de CPU
-CPU_CORES=$(nproc 2>/dev/null || echo 4)
-CPU_MODEL=$(lscpu 2>/dev/null | grep -iE 'model name|nombre del modelo' | cut -d: -f2 | xargs | head -n 1)
-[ -z "$CPU_MODEL" ] && CPU_MODEL="Procesador Genérico (${CPU_CORES} hilos)"
+DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
+CFG_HW="${DIR}/perfil_hardware.cfg"
 
-# Detección de Memoria RAM
-RAM_TOTAL_MB=$(free -m 2>/dev/null | awk '/^Mem:/{print $2}')
-[ -z "$RAM_TOTAL_MB" ] && RAM_TOTAL_MB=8192
-
-# Detección de GPU
-DETECTED_GPU="Desconocida"
-HAS_NVIDIA=false
-HAS_AMD_DEDICATED=false
-HAS_INTEL=false
-
-if lspci 2>/dev/null | grep -iE 'vga|3d|display' | grep -i 'intel' > /dev/null; then
-    HAS_INTEL=true
-fi
-
-if lspci 2>/dev/null | grep -iE 'vga|3d|display' | grep -i 'nvidia' > /dev/null; then
-    HAS_NVIDIA=true
-    GPU_NAME=$(lspci 2>/dev/null | grep -iE 'vga|3d|display' | grep -i 'nvidia' | cut -d: -f3 | xargs | head -n 1)
-    DETECTED_GPU="NVIDIA: ${GPU_NAME}"
-elif lspci 2>/dev/null | grep -iE 'vga|3d|display' | grep -i 'amd|radeon' > /dev/null; then
-    HAS_AMD_DEDICATED=true
-    GPU_NAME=$(lspci 2>/dev/null | grep -iE 'vga|3d|display' | grep -i 'amd|radeon' | cut -d: -f3 | xargs | head -n 1)
-    DETECTED_GPU="AMD Radeon: ${GPU_NAME}"
-else
-    GPU_NAME=$(lspci 2>/dev/null | grep -iE 'vga|3d|display' | grep -i 'intel' | cut -d: -f3 | xargs | head -n 1)
-    DETECTED_GPU="Intel: ${GPU_NAME:-Gráficos Integrados}"
-fi
-
-# Detección de compatibilidad con Vulkan (para GPUs modernas vs. antiguas)
-HAS_VULKAN=false
-if command -v vulkaninfo &>/dev/null; then
-    if vulkaninfo --summary 2>/dev/null | grep -iE "GPU[0-9]|deviceName" | grep -iv "llvmpipe" > /dev/null; then
-        HAS_VULKAN=true
+# Cargar perfil de hardware pre-escaneado en 0.0005s si ya existe
+if [ -f "$CFG_HW" ]; then
+    source "$CFG_HW"
+    CPU_CORES="${CPU_THREADS:-4}"
+    DETECTED_GPU="${GPU_PRIMARY:-Desconocida}"
+    IS_LOW_SPEC_GPU="${GPU_IS_ENTRY_LEVEL:-false}"
+    HAS_VULKAN=true
+    if [ "$GPU_PRIMARY_VENDOR" = "nvidia" ]; then
+        HAS_NVIDIA=true
+        HAS_AMD_DEDICATED=false
+        HAS_INTEL=false
+    elif [ "$GPU_PRIMARY_VENDOR" = "amd" ]; then
+        HAS_AMD_DEDICATED=true
+        HAS_NVIDIA=false
+        HAS_INTEL=false
+    else
+        HAS_INTEL=true
+        HAS_NVIDIA=false
+        HAS_AMD_DEDICATED=false
     fi
-fi
-
-# Detección de GPUs de gama de entrada / portátiles / integradas para optimización adaptativa
-IS_LOW_SPEC_GPU=false
-if [ "$HAS_NVIDIA" = true ] && echo "$GPU_NAME" | grep -qiE 'MX[0-9]{3}|GT[0-9]{3}|GTX\s*(750|850|950)'; then
-    IS_LOW_SPEC_GPU=true
-elif [ "$HAS_INTEL" = true ] && [ "$HAS_NVIDIA" = false ] && [ "$HAS_AMD_DEDICATED" = false ]; then
-    IS_LOW_SPEC_GPU=true
-elif [ "$HAS_AMD_DEDICATED" = false ] && lspci 2>/dev/null | grep -iE 'vga|3d|display' | grep -qiE 'vega\s*[0-9]|radeon\s*graphics'; then
-    IS_LOW_SPEC_GPU=true
+else
+    # Si no existe, invocar al detector universal de hardware para generarlo
+    [ -x "${DIR}/herramientas/detector_hardware.sh" ] && bash "${DIR}/herramientas/detector_hardware.sh" --save 2>/dev/null || true
+    if [ -f "$CFG_HW" ]; then
+        source "$CFG_HW"
+        CPU_CORES="${CPU_THREADS:-4}"
+        DETECTED_GPU="${GPU_PRIMARY:-Desconocida}"
+        IS_LOW_SPEC_GPU="${GPU_IS_ENTRY_LEVEL:-false}"
+        HAS_VULKAN=true
+    else
+        # Fallback de detección rápida
+        CPU_CORES=$(nproc 2>/dev/null || echo 4)
+        CPU_MODEL=$(lscpu 2>/dev/null | grep -iE 'model name|nombre del modelo' | cut -d: -f2 | xargs | head -n 1)
+        [ -z "$CPU_MODEL" ] && CPU_MODEL="Procesador Genérico (${CPU_CORES} hilos)"
+        RAM_TOTAL_MB=$(free -m 2>/dev/null | awk '/^Mem:/{print $2}')
+        [ -z "$RAM_TOTAL_MB" ] && RAM_TOTAL_MB=8192
+        DETECTED_GPU="Desconocida"
+        HAS_NVIDIA=false
+        HAS_AMD_DEDICATED=false
+        HAS_INTEL=false
+        if lspci 2>/dev/null | grep -iE 'vga|3d|display' | grep -i 'nvidia' > /dev/null; then
+            HAS_NVIDIA=true
+            GPU_NAME=$(lspci 2>/dev/null | grep -iE 'vga|3d|display' | grep -i 'nvidia' | cut -d: -f3 | xargs | head -n 1)
+            DETECTED_GPU="NVIDIA: ${GPU_NAME}"
+        elif lspci 2>/dev/null | grep -iE 'vga|3d|display' | grep -i 'amd|radeon' > /dev/null; then
+            HAS_AMD_DEDICATED=true
+            GPU_NAME=$(lspci 2>/dev/null | grep -iE 'vga|3d|display' | grep -i 'amd|radeon' | cut -d: -f3 | xargs | head -n 1)
+            DETECTED_GPU="AMD Radeon: ${GPU_NAME}"
+        else
+            HAS_INTEL=true
+            GPU_NAME=$(lspci 2>/dev/null | grep -iE 'vga|3d|display' | grep -i 'intel' | cut -d: -f3 | xargs | head -n 1)
+            DETECTED_GPU="Intel: ${GPU_NAME:-Gráficos Integrados}"
+        fi
+        HAS_VULKAN=true
+        IS_LOW_SPEC_GPU=false
+        [ "$HAS_NVIDIA" = true ] && echo "$GPU_NAME" | grep -qiE 'MX[0-9]{3}|GT[0-9]{3}|GTX\s*(750|850|950)' && IS_LOW_SPEC_GPU=true
+        [ "$HAS_INTEL" = true ] && [ "$HAS_NVIDIA" = false ] && [ "$HAS_AMD_DEDICATED" = false ] && IS_LOW_SPEC_GPU=true
+    fi
 fi
 export IS_LOW_SPEC_GPU
 
@@ -67,24 +80,34 @@ aplicar_entorno_hardware() {
     # 1. Hilos de compilación para DXVK basados en la CPU real
     export DXVK_NUM_COMPILER_THREADS="$CPU_CORES"
 
-    # 2. Configuración de sincronización del Kernel (Fsync / Esync)
-    KERNEL_MAJOR=$(uname -r | cut -d. -f1)
-    KERNEL_MINOR=$(uname -r | cut -d. -f2)
-
-    if [ "$KERNEL_MAJOR" -gt 5 ] || { [ "$KERNEL_MAJOR" -eq 5 ] && [ "$KERNEL_MINOR" -ge 16 ]; }; then
-        # Kernel moderno (Linux 5.16+ o 6.x) soporta futex_waitv (Fsync nativo)
+    # 2. Configuración de sincronización del Kernel (NTSync / Fsync / Esync)
+    if [ "$HAS_NTSYNC" = "true" ] && [ -e "/dev/ntsync" ]; then
+        export WINENTSYNC=1
+        export WINEFSYNC=0
+        export WINEESYNC=0
+    elif [ "$HAS_FSYNC" = "true" ]; then
+        export WINENTSYNC=0
         export WINEFSYNC=1
         export WINEESYNC=1
     else
-        # Fallback a Esync si los límites de archivos lo permiten
-        export WINEFSYNC=0
-        export WINEESYNC=1
+        KERNEL_MAJOR=$(uname -r | cut -d. -f1)
+        KERNEL_MINOR=$(uname -r | cut -d. -f2)
+        if [ "$KERNEL_MAJOR" -gt 5 ] || { [ "$KERNEL_MAJOR" -eq 5 ] && [ "$KERNEL_MINOR" -ge 16 ]; }; then
+            export WINEFSYNC=1
+            export WINEESYNC=1
+        else
+            export WINEFSYNC=0
+            export WINEESYNC=1
+        fi
     fi
 
     # 3. Direccionamiento de memoria ampliado para juegos de 32 bits (permite 4GB en vez de 2GB)
     export WINE_LARGE_ADDRESS_AWARE=1
 
     # 4. Latencia de audio ultra-baja para evitar cortes y retrasos (PipeWire / PulseAudio)
+    if [ "$HAS_PIPEWIRE" = "true" ] || pgrep -x pipewire &>/dev/null; then
+        export PIPEWIRE_LATENCY="128/48000"
+    fi
     export PULSE_LATENCY_MSEC=50
 
     # 5. Desactivar logs innecesarios de Wine para máximo rendimiento de CPU

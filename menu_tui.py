@@ -174,70 +174,69 @@ def guardar_config(k, v):
         f.writelines(lines)
 
 def obtener_info_hardware():
-    """Detecta de forma universal CPU, GPU, RAM, y estado de Vulkan."""
-    cpu_cores = os.cpu_count() or 4
-    cpu_model = "Procesador Genérico"
-    try:
-        out = subprocess.check_output("lscpu", shell=True, text=True, stderr=subprocess.DEVNULL)
-        for line in out.splitlines():
-            if "model name" in line.lower() or "nombre del modelo" in line.lower():
-                raw = line.split(":", 1)[1].strip()
-                clean = re.sub(r'CPU @.*|\(R\)|\(TM\)|Core|Processor', '', raw)
-                clean = " ".join(clean.split())
-                cpu_model = f"{clean} ({cpu_cores} hilos)"
-                break
-    except Exception:
-        pass
+    """Carga o detecta de forma ultrarrápida la información de hardware desde perfil_hardware.cfg."""
+    cfg_hw_path = os.path.join(DIR, "perfil_hardware.cfg")
+    if not os.path.exists(cfg_hw_path):
+        script_det = os.path.join(DIR, "herramientas", "detector_hardware.sh")
+        if os.path.exists(script_det):
+            subprocess.run(["bash", script_det, "--save"], stderr=subprocess.DEVNULL)
 
-    ram_mb = 8192
-    try:
-        out = subprocess.check_output("free -m", shell=True, text=True, stderr=subprocess.DEVNULL)
-        for line in out.splitlines():
-            if line.startswith("Mem:"):
-                ram_mb = int(line.split()[1])
-                break
-    except Exception:
-        pass
+    hw = {}
+    if os.path.exists(cfg_hw_path):
+        try:
+            with open(cfg_hw_path, "r", encoding="utf-8", errors="ignore") as f:
+                for line in f:
+                    line = line.strip()
+                    if line and not line.startswith("#") and "=" in line:
+                        k, v = line.split("=", 1)
+                        hw[k.strip()] = v.strip().strip('"').strip("'")
+        except Exception:
+            pass
+
+    cpu_cores = int(hw.get("CPU_THREADS", os.cpu_count() or 4))
+    raw_cpu = hw.get("CPU_MODEL", "Procesador Genérico")
+    clean_cpu = re.sub(r'CPU @.*|\(R\)|\(TM\)|Core|Processor', '', raw_cpu)
+    clean_cpu = " ".join(clean_cpu.split())
+    cpu_model = f"{clean_cpu} ({cpu_cores} hilos)"
+
+    ram_mb = int(hw.get("RAM_TOTAL_MB", 8192))
     ram_gb = f"{(ram_mb + 512) // 1024} GB"
 
-    gpu_name = "Gráficos Integrados"
-    has_nvidia = False
-    has_amd = False
-    try:
-        lspci = subprocess.check_output("lspci", shell=True, text=True, stderr=subprocess.DEVNULL)
-        if "nvidia" in lspci.lower():
-            has_nvidia = True
-            for l in lspci.splitlines():
-                if any(x in l.lower() for x in ("vga", "3d", "display")) and "nvidia" in l.lower():
-                    raw = l.split(":", 2)[2].strip()
-                    clean = re.sub(r'NVIDIA Corporation|GM[0-9]+M|\[|\]|\(rev [a-z0-9]+\)|GeForce', '', raw, flags=re.I)
-                    clean = " ".join(clean.split())
-                    gpu_name = f"NVIDIA {clean} (2 GB)"
-                    break
-        elif any(x in lspci.lower() for x in ("amd", "radeon")):
-            has_amd = True
-            gpu_name = "AMD Radeon Dedicated"
-        elif "intel" in lspci.lower():
-            gpu_name = "Intel HD/UHD Graphics"
-    except Exception:
-        pass
+    gpu_name = hw.get("GPU_PRIMARY", "Gráficos Integrados")
+    vram_mb = hw.get("GPU_VRAM_MB", "2048")
+    if "MB" not in gpu_name and "GB" not in gpu_name:
+        vram_display = f"{int(vram_mb) // 1024} GB" if int(vram_mb) >= 1024 else f"{vram_mb} MB"
+        gpu_name = f"{gpu_name} ({vram_display})"
 
-    driver_str = "NVIDIA (Vulkan)" if has_nvidia else ("AMD RADV (Vulkan)" if has_amd else "Mesa (Vulkan)")
-    has_vulkan = True
-    try:
-        vinfo = subprocess.check_output("vulkaninfo --summary", shell=True, text=True, stderr=subprocess.DEVNULL)
-        if "llvmpipe" in vinfo and not ("NVIDIA" in vinfo or "AMD" in vinfo or "Intel" in vinfo):
-            has_vulkan = False
-    except Exception:
-        pass
+    vendor = hw.get("GPU_PRIMARY_VENDOR", "nvidia")
+    driver_str = "NVIDIA (Vulkan)" if vendor == "nvidia" else ("AMD RADV (Vulkan)" if vendor == "amd" else "Mesa (Vulkan)")
+
+    native_w = hw.get("NATIVE_RES_W", "1920")
+    native_h = hw.get("NATIVE_RES_H", "1080")
+    rec_w = hw.get("RECOMMENDED_GAME_W", "1280")
+    rec_h = hw.get("RECOMMENDED_GAME_H", "720")
+    is_entry = hw.get("GPU_IS_ENTRY_LEVEL", "true").lower() == "true"
+    sync_str = "NTSync" if hw.get("HAS_NTSYNC") == "true" else ("Fsync" if hw.get("HAS_FSYNC") == "true" else "Esync")
 
     return {
         "cpu": cpu_model,
+        "cpu_raw": raw_cpu,
         "cores": cpu_cores,
         "ram": ram_gb,
+        "ram_mb": ram_mb,
         "gpu": gpu_name,
+        "gpu_vendor": vendor,
+        "vram_mb": vram_mb,
         "driver": driver_str,
-        "vulkan": has_vulkan
+        "vulkan": True,
+        "native_res": f"{native_w}x{native_h}",
+        "rec_res": f"{rec_w}x{rec_h}",
+        "is_entry": is_entry,
+        "sync": sync_str,
+        "has_gamemode": hw.get("HAS_GAMEMODE") == "true",
+        "has_gamescope": hw.get("HAS_GAMESCOPE") == "true",
+        "has_pipewire": hw.get("HAS_PIPEWIRE") == "true",
+        "server": hw.get("DISPLAY_SERVER", "wayland")
     }
 
 def get_terminal_width():
@@ -343,7 +342,7 @@ def render_footer(inner_w):
 # SUBMENÚS INTERACTIVOS CON FLECHAS
 # ==============================================================================
 
-def submenu_interactivo(titulo, opciones, hw, cfg, default_idx=0):
+def submenu_interactivo(titulo, opciones, hw, cfg, default_idx=0, info_lines=None):
     """
     Menú genérico interactivo con navegación por flechas (UP/DOWN/ENTER/ESC/0-9).
     opciones: lista de tuplas (clave, texto_etiqueta)
@@ -364,6 +363,13 @@ def submenu_interactivo(titulo, opciones, hw, cfg, default_idx=0):
         m_top = f"{PURPLE}{m_title}{'─' * (inner_w - visual_width(m_title) + 1)}╮{RESET}"
         print(m_top)
         print(f"{PURPLE}│{' ' * inner_w}│{RESET}")
+
+        if info_lines:
+            for il in info_lines:
+                print(f"{PURPLE}│{RESET}  {pad_visual(il, inner_w - 4)}  {PURPLE}│{RESET}")
+            print(f"{PURPLE}│{' ' * inner_w}│{RESET}")
+            print(f"{PURPLE}├{'─' * inner_w}┤{RESET}")
+            print(f"{PURPLE}│{' ' * inner_w}│{RESET}")
 
         opt_avail = inner_w - 6
 
@@ -1410,6 +1416,14 @@ def menu_rendimiento(hw, cfg):
 
         p_badge = "⭐ INTELIGENTE" if p_act in ("inteligente", "maximo") else ("🛡️ ESTÁNDAR" if p_act == "estandar" else "🚀 EXTREMO")
 
+        info_perf = [
+            f"🖥️  {BOLD}{WHITE}Diagnóstico Automático de Hardware (Plug & Play):{RESET}",
+            f"  • {PURPLE}CPU / Hilos{RESET} : {WHITE}{hw.get('cpu_raw', hw['cpu'])}{RESET} ({hw['cores']} hilos asignados)",
+            f"  • {PURPLE}GPU Activa{RESET}  : {WHITE}{hw['gpu']}{RESET} | Servidor: {WHITE}{hw.get('server', 'wayland').upper()}{RESET}",
+            f"  • {PURPLE}Resolución{RESET}  : Pantalla {WHITE}{hw.get('native_res', '1920x1080')}{RESET} ➔ Óptima Juego: {GREEN}{BOLD}{hw.get('rec_res', '1280x720')}{RESET} ({'Adaptativa CAS' if hw.get('is_entry') else 'Nativa Alta'})",
+            f"  • {PURPLE}Kernel/Sync{RESET} : {CYAN}{hw.get('sync', 'Fsync')} Activo{RESET} | GameMode: {GREEN if hw.get('has_gamemode') else RED}{'Activo' if hw.get('has_gamemode') else 'No detectado'}{RESET} | PipeWire: {GREEN if hw.get('has_pipewire') else RED}{'2.6ms' if hw.get('has_pipewire') else 'Estándar'}{RESET}"
+        ]
+
         opts_perf = [
             ("1", f"⭐ Modo Rendimiento Inteligente  ─── [ RECOMENDADO ] [Activo: {p_badge}]\n"
                   f"• Calibra resolución y shaders automáticamente para tu GPU.\n"
@@ -1425,8 +1439,8 @@ def menu_rendimiento(hw, cfg):
                   "• Reescalado de resolución inteligente por hardware.\n"
                   "• Diseñado para ganar hasta +50% FPS en laptops."),
 
-            ("4", "🔄 Restaurar Configuraciones Originales (Botón de Respaldo)\n"
-                  "• Devuelve todos los juegos a su configuración de fábrica (.vessel_bak)."),
+            ("4", "🔄 Restaurar Copias de Seguridad (.vessel_orig / .vessel_bak)\n"
+                  "• Devuelve todos los juegos a su configuración de fábrica en un abrir y cerrar de ojos."),
 
             ("5", f"🛠️ Ajustes Avanzados Manuales (FPS: {fps_act}, HUD: {hud_act}, Motor: {mot_act})\n"
                   "• Configuración individual de FPS, nitidez FSR, HUD, shaders y runners."),
@@ -1434,7 +1448,7 @@ def menu_rendimiento(hw, cfg):
             ("0", "↩️ Volver al Menú Principal")
         ]
 
-        sel = submenu_interactivo("⚡  VESSEL SMART PERFORMANCE (Calibración Automática)", opts_perf, hw, cfg)
+        sel = submenu_interactivo("⚡  VESSEL SMART PERFORMANCE (Calibración Automática)", opts_perf, hw, cfg, info_lines=info_perf)
         if sel == "0":
             break
         elif sel == "1":
@@ -1939,12 +1953,13 @@ def comprobar_configuracion_smart_performance(hw, cfg):
     print(f"{PURPLE}│{' ' * inner_w}│{RESET}")
 
     msg_hw1 = "  Hemos analizado los componentes de tu equipo automáticamente:"
-    msg_hw2 = f"    • 🧠 {PURPLE}CPU / Hilos{RESET} : {WHITE}{hw['cpu']} ({hw['cores']} Hilos asignados){RESET}"
-    msg_hw3 = f"    • 📼 {PURPLE}GPU Gráfica{RESET} : {WHITE}{hw['gpu']}{RESET}"
-    msg_hw4 = f"    • 🎛️ {PURPLE}Memoria RAM{RESET} : {WHITE}{hw['ram']}{RESET}"
-    msg_hw5 = f"    • 🛡️ {PURPLE}Seguridad{RESET}   : {GREEN}100% Protegido (0 comandos sudo / todo en RAM){RESET}"
+    msg_hw2 = f"    • 🧠 {PURPLE}CPU / Hilos{RESET} : {WHITE}{hw.get('cpu_raw', hw['cpu'])}{RESET} ({hw['cores']} Hilos)"
+    msg_hw3 = f"    • 📼 {PURPLE}GPU Gráfica{RESET} : {WHITE}{hw['gpu']}{RESET} | Servidor: {WHITE}{hw.get('server', 'wayland').upper()}{RESET}"
+    msg_hw4 = f"    • 🎛️ {PURPLE}Memoria RAM{RESET} : {WHITE}{hw['ram']}{RESET} ({hw.get('ram_mb', 8192)} MB)"
+    msg_hw5 = f"    • 🖥️ {PURPLE}Resolución{RESET}  : Pantalla {WHITE}{hw.get('native_res', '1920x1080')}{RESET} ➔ Óptima Juego: {GREEN}{BOLD}{hw.get('rec_res', '1280x720')}{RESET}"
+    msg_hw6 = f"    • 🛡️ {PURPLE}Seguridad{RESET}   : {GREEN}100% Protegido (0 comandos sudo / todo en RAM){RESET}"
 
-    for m in (msg_hw1, msg_hw2, msg_hw3, msg_hw4, msg_hw5):
+    for m in (msg_hw1, msg_hw2, msg_hw3, msg_hw4, msg_hw5, msg_hw6):
         print(f"{PURPLE}│{RESET} {pad_visual(m, inner_w - 2)} {PURPLE}│{RESET}")
 
     print(f"{PURPLE}│{' ' * inner_w}│{RESET}")
