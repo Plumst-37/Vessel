@@ -678,7 +678,9 @@ aplicar_perfil_aislado_juego() {
         perfil_id="capcom_mt_framework"
     elif [[ "$TARGET_FILE" =~ (Swat4|Swat4X|Bioshock|DeusEx) ]] || [ -d "${TARGET_DIR}/System" ] || [ -d "${TARGET_DIR}/Content/System" ]; then
         perfil_id="unreal_engine"
-    elif [ -f "${TARGET_DIR}/ddraw.ini" ] || [[ "$TARGET_FILE" =~ (empires2|age2_x1|starcraft|ra2) ]]; then
+    elif [ -f "${TARGET_DIR}/ddraw.ini" ] || [ -f "${TARGET_DIR}/ddraw.dll" ] || \
+         [[ "$TARGET_FILE" =~ (empires2|age2_x1|starcraft|ra2|diablo|fallout|carmageddon|totalannihilation|warcraft|war3|heroes3|homm3|civ3|simcity4|caesar3|pharaoh|zeus|tiberiansun|nox|dune2000|redalert|commandos|desperados) ]] || \
+         { grep -qi -m 1 "ddraw\.dll" "$TARGET" 2>/dev/null && ! grep -qi -m 1 "d3d1[1-2]\.dll\|dxgi\.dll" "$TARGET" 2>/dev/null; }; then
         perfil_id="classic_directdraw"
     elif [ -d "${TARGET_DIR}/${TARGET_FILE%.*}_Data" ] || [ -f "${TARGET_DIR}/UnityPlayer.dll" ]; then
         perfil_id="unity_engine"
@@ -949,8 +951,19 @@ EOF_DLC
             ;;
 
         classic_directdraw)
-            echo "[+] Perfil Activo: Clásico DirectDraw (cnc-ddraw) [Aislado]"
+            echo "[+] Perfil Activo: Clásico DirectDraw Universal (OpenGL / Multi-GPU) [Aislado]"
+            # 1. Modo Windows XP automático en Wine AppDefaults para este juego (elimina incompatibilidad de paleta en Win10)
+            "$WINE_CMD" reg add "HKEY_CURRENT_USER\Software\Wine\AppDefaults\\${TARGET_FILE}" /v "Version" /t REG_SZ /d "winxp" /f >/dev/null 2>&1 || true
+
+            # 2. Conmutación universal a OpenGL (compatible al 100% en Intel, AMD y NVIDIA sin fallos de paleta 8-bit)
+            export PROTON_USE_WINED3D=1
+            export RENDERER_IN_USE="OpenGL Universal (DirectDraw Clásico)"
+            unset DXVK_CONFIG_FILE
+            export DXVK_HUD=0
+
+            # 3. Optimización automática de cnc-ddraw en OpenGL
             find "$TARGET_DIR" -maxdepth 2 -iname "ddraw.ini" 2>/dev/null | while read -r ddini; do
+                sed -i 's/^renderer=.*/renderer=opengl/' "$ddini" 2>/dev/null || true
                 sed -i 's/^fullscreen=.*/fullscreen=true/' "$ddini" 2>/dev/null || true
                 sed -i 's/^windowed=.*/windowed=false/' "$ddini" 2>/dev/null || true
                 sed -i "s/^width=.*/width=${best_w}/" "$ddini" 2>/dev/null || true
@@ -958,7 +971,13 @@ EOF_DLC
                 sed -i 's/^boxing=.*/boxing=false/' "$ddini" 2>/dev/null || true
                 sed -i 's/^maintas=.*/maintas=false/' "$ddini" 2>/dev/null || true
             done
-            export WINEDLLOVERRIDES="ddraw=n,b;dsound=n,b;${WINEDLLOVERRIDES}"
+
+            # 4. Configurar DirectDraw nativo en el registro de Wine (para juegos sin cnc-ddraw)
+            "$WINE_CMD" reg add "HKEY_CURRENT_USER\Software\Wine\Direct3D" /v "DirectDrawRenderer" /t REG_SZ /d "opengl" /f >/dev/null 2>&1 || true
+            "$WINE_CMD" reg add "HKEY_CURRENT_USER\Software\Wine\Direct3D" /v "OffscreenRenderingMode" /t REG_SZ /d "fbo" /f >/dev/null 2>&1 || true
+
+            # 5. Overrides seguros: ddraw y dsound nativos (para cnc-ddraw), y librerías 3D a builtin (WineD3D OpenGL)
+            export WINEDLLOVERRIDES="ddraw=n,b;dsound=n,b;d3d9=b;d3d11=b;dxgi=b;d3d8=b;${WINEDLLOVERRIDES}"
             ;;
 
         unity_engine)
