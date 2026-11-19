@@ -1012,7 +1012,7 @@ echo "    - GPU: ${DETECTED_GPU}"
 echo "    - Renderizador: ${RENDERER_IN_USE:-DXVK (Vulkan)}"
 echo "    - Fsync/Esync: $([ "$WINEFSYNC" = "1" ] && echo "Fsync Activo" || echo "Esync Activo")"
 echo "    - Límite de FPS: ${LIMITE_FPS:-60} FPS"
-local fsr_banner="Desactivado"
+fsr_banner="Desactivado"
 if [ "$ACTIVAR_FSR_FINAL" -eq 1 ]; then
     fsr_banner="Activo [Modo: ${MODO_FSR_FINAL}, Nitidez: ${FSR_STRENGTH:-2}]"
 fi
