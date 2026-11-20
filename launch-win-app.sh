@@ -1377,6 +1377,10 @@ EOF_DLC
 
         valve_goldsrc)
             echo "[+] Perfil Activo: Valve GoldSrc Engine (Half-Life / CS 1.6) [Aislado]"
+            # Limpiar instancias colgadas previas para evitar error 'The game could not be started because it is already running'
+            limpiar_zombies_juego "cstrike\.exe|hl\.exe|czero\.exe|hltv\.exe|crashpad_handler\.exe"
+            sleep 0.2
+
             # 1. Parche proactivo y universal para el hook WinHttpCloseHandle en NextClient / No-Steam
             # Evita crash por desreferenciación de puntero nulo en Wine (STATUS_ACCESS_VIOLATION 0xc0000005)
             patch_target="$TARGET"
@@ -1442,6 +1446,8 @@ except Exception:
 
         source_engine)
             echo "[+] Perfil Activo: Valve Source Engine [Aislado]"
+            limpiar_zombies_juego "hl2\.exe|csgo\.exe|left4dead.*\.exe|portal.*\.exe"
+            sleep 0.2
             EXTRA_APP_ARGS="${EXTRA_APP_ARGS} -fullscreen -w ${best_w} -h ${best_h}"
             ;;
 
@@ -1679,6 +1685,7 @@ limpiar_procesos_al_interrumpir() {
             fi
         done
     fi
+    [ -n "$TEMP_GAME_LOG" ] && rm -f "$TEMP_GAME_LOG" 2>/dev/null || true
     "$WINESERVER_CMD" -k 2>/dev/null || wineserver -k 2>/dev/null || true
 }
 trap limpiar_procesos_al_interrumpir INT TERM
@@ -1690,32 +1697,48 @@ renice -n -5 $$ 2>/dev/null || true
 # Desactivar 'set -e' antes de la ejecución para garantizar que salidas con código != 0 no interrumpan la limpieza
 set +e
 
+# Limpiar instancias colgadas previas del ejecutable objetivo para evitar bloqueos por mutex único de Windows
+if [ -n "$TARGET_FILE" ] && [[ ! "$TARGET_FILE" =~ [Gg]ame[Rr]anger ]]; then
+    limpiar_zombies_juego "$(basename "$TARGET_FILE" | sed 's/\./\\./g')"
+fi
+
+# Preparar archivo temporal para captura completa de consola y diagnóstico de fallos
+TEMP_GAME_LOG=$(mktemp "${TMPDIR:-/tmp}/vessel_run_XXXXXX.log" 2>/dev/null || echo "/tmp/vessel_run_$$.log")
+touch "$TEMP_GAME_LOG" 2>/dev/null || true
+
 if [[ "$TARGET_FILE" =~ \.(msi|MSI)$ ]]; then
-    $GAMEMODE "$WINE_CMD" msiexec /i "$TARGET_FILE" "$@"
+    $GAMEMODE "$WINE_CMD" msiexec /i "$TARGET_FILE" "$@" 2>&1 | tee "$TEMP_GAME_LOG"
+    EXIT_STATUS="${PIPESTATUS[0]}"
 elif [[ "$TARGET_FILE" =~ \.(lnk|ink|LNK|INK)$ ]]; then
     if [ -n "$RUN_PREFIX" ]; then
-        $GAMEMODE "$WINE_CMD" $RUN_PREFIX start /unix "$TARGET" "$@"
+        $GAMEMODE "$WINE_CMD" $RUN_PREFIX start /unix "$TARGET" "$@" 2>&1 | tee "$TEMP_GAME_LOG"
+        EXIT_STATUS="${PIPESTATUS[0]}"
     else
-        $GAMEMODE "$WINE_CMD" start /unix "$TARGET" "$@"
+        $GAMEMODE "$WINE_CMD" start /unix "$TARGET" "$@" 2>&1 | tee "$TEMP_GAME_LOG"
+        EXIT_STATUS="${PIPESTATUS[0]}"
     fi
 elif [[ "$TARGET_FILE" =~ \.([bB][aA][tT]|[cC][mM][dD])$ ]]; then
     if [ -n "$RUN_PREFIX" ]; then
-        $GAMEMODE "$WINE_CMD" $RUN_PREFIX cmd /c "$TARGET_FILE" "$@"
+        $GAMEMODE "$WINE_CMD" $RUN_PREFIX cmd /c "$TARGET_FILE" "$@" 2>&1 | tee "$TEMP_GAME_LOG"
+        EXIT_STATUS="${PIPESTATUS[0]}"
     else
-        $GAMEMODE "$WINE_CMD" cmd /c "$TARGET_FILE" "$@"
+        $GAMEMODE "$WINE_CMD" cmd /c "$TARGET_FILE" "$@" 2>&1 | tee "$TEMP_GAME_LOG"
+        EXIT_STATUS="${PIPESTATUS[0]}"
     fi
 elif [[ "$TARGET_FILE" =~ [Gg]ame[Rr]anger ]]; then
     # GameRanger: Se ejecuta en MODO VENTANA NATIVA de escritorio (NUNCA en pantalla completa)
     # sin contenedor virtual para que flote en el escritorio como cualquier aplicación estándar
-    "$WINE_CMD" "$TARGET_FILE" "$@" $EXTRA_APP_ARGS 2>"${WINEPREFIX}/gameranger_cef.log"
+    "$WINE_CMD" "$TARGET_FILE" "$@" $EXTRA_APP_ARGS 2>&1 | tee "$TEMP_GAME_LOG"
+    EXIT_STATUS="${PIPESTATUS[0]}"
 else
     if [ -n "$RUN_PREFIX" ]; then
-        $GAMESCOPE_PREFIX $GAMEMODE "$WINE_CMD" $RUN_PREFIX "$TARGET_FILE" "$@" $EXTRA_APP_ARGS
+        $GAMESCOPE_PREFIX $GAMEMODE "$WINE_CMD" $RUN_PREFIX "$TARGET_FILE" "$@" $EXTRA_APP_ARGS 2>&1 | tee "$TEMP_GAME_LOG"
+        EXIT_STATUS="${PIPESTATUS[0]}"
     else
-        $GAMESCOPE_PREFIX $GAMEMODE "$WINE_CMD" "$TARGET_FILE" "$@" $EXTRA_APP_ARGS
+        $GAMESCOPE_PREFIX $GAMEMODE "$WINE_CMD" "$TARGET_FILE" "$@" $EXTRA_APP_ARGS 2>&1 | tee "$TEMP_GAME_LOG"
+        EXIT_STATUS="${PIPESTATUS[0]}"
     fi
 fi
-EXIT_STATUS=$?
 
 # Restaurar perfil de energía previo del CPU
 if [ -n "$PREV_POWER_PROFILE" ] && command -v powerprofilesctl &>/dev/null; then
@@ -1738,6 +1761,102 @@ if [[ "$TARGET_FILE" =~ [Gg]ame[Rr]anger ]]; then
         fi
     done
 fi
+
+# ==============================================================================
+# SISTEMA DE DIAGNÓSTICO INTELIGENTE Y REGISTRO DE ERRORES / CRASHES
+# - Si el juego se cierra limpiamente: NO deja ningún archivo residual (cero basura).
+# - Si el juego colapsa o reporta error: Genera un reporte detallado para aislar y resolver la falla.
+# ==============================================================================
+HUBO_ERROR=0
+if [ "$EXIT_STATUS" -ne 0 ]; then
+    HUBO_ERROR=1
+elif [ -s "$TEMP_GAME_LOG" ]; then
+    # Verificar si hubo una excepción crítica de Wine / DirectX / Vulkan no capturada
+    if grep -qiE 'Unhandled exception: [0-9a-fA-F]|wine: Unhandled|page fault on (read|write)|0xc0000005|Assertion failed|Segmentation fault|Fatal error|VK_ERROR_DEVICE_LOST|DXGI_ERROR_DEVICE_RESET' "$TEMP_GAME_LOG" 2>/dev/null; then
+        HUBO_ERROR=1
+    fi
+fi
+
+if [ "$HUBO_ERROR" -eq 1 ]; then
+    mkdir -p "${DIR}/logs_errores"
+    log_ts=$(date '+%Y%m%d_%H%M%S')
+    log_app_name=$(basename "$TARGET_FILE" 2>/dev/null | tr -cd '[:alnum:]_.-' || echo "juego")
+    ERROR_REPORT_FILE="${DIR}/logs_errores/error_${log_app_name}_${log_ts}.log"
+    ULTIMO_ERROR_FILE="${DIR}/logs_errores/ultimo_error.log"
+
+    {
+        echo "================================================================================"
+        echo "VESSEL v1.0 - INFORME DETALLADO DE ERROR / CIERRE INESPERADO"
+        echo "================================================================================"
+        echo "Fecha y Hora          : $(date '+%Y-%m-%d %H:%M:%S')"
+        echo "Juego / Ejecutable    : ${TARGET_FILE}"
+        echo "Ruta Completa         : ${TARGET}"
+        echo "Directorio de Trabajo : ${TARGET_DIR}"
+        echo "Código de Salida      : ${EXIT_STATUS}"
+        echo "Perfil Activo         : ${perfil_id:-generico}"
+        echo "Arquitectura PE / API : ${PE_BITS:-32}-bit | ${PE_API:-DirectX}"
+        echo "Versión de Windows    : ${GAME_WINVER:-win10}"
+        echo "Renderizador          : ${RENDERER_IN_USE:-DXVK (Vulkan)}"
+        echo "CPU                   : ${CPU_MODEL:-Desconocida} (${CPU_CORES:-1} Hilos)"
+        echo "GPU                   : ${DETECTED_GPU:-Desconocida}"
+        echo "Runner Wine           : ${WINE_CMD} ($("$WINE_CMD" --version 2>/dev/null || echo "N/A"))"
+        echo "Prefijo Wine          : ${WINEPREFIX}"
+        echo "Fsync / Esync         : $([ "$WINEFSYNC" = "1" ] && echo "Fsync Activo" || echo "Esync Activo")"
+        echo "FSR Upscaling         : ${fsr_banner:-Desactivado}"
+        echo "Límite FPS            : ${LIMITE_FPS:-60} FPS"
+        echo "Argumentos Extras     : ${EXTRA_APP_ARGS:-Ninguno}"
+        echo "================================================================================"
+        echo ""
+
+        # Adjuntar registros gráficos de DXVK si existen en el directorio del juego o DIR
+        for dxvk_l in "${TARGET_DIR}/${TARGET_FILE%.*}_d3d11.log" "${TARGET_DIR}/${TARGET_FILE%.*}_d3d9.log" "${TARGET_DIR}/${TARGET_FILE%.*}_dxgi.log" "${DIR}/dxvk.log"; do
+            if [ -f "$dxvk_l" ] && [ -s "$dxvk_l" ]; then
+                echo "--- REGISTRO GRÁFICO DXVK ($(basename "$dxvk_l")) ---"
+                tail -n 30 "$dxvk_l" 2>/dev/null || true
+                echo ""
+            fi
+        done
+
+        echo "--- REGISTRO COMPLETO DE CONSOLA Y SALIDA DE ERROR (WINE / STDERR) ---"
+        if [ -s "$TEMP_GAME_LOG" ]; then
+            cat "$TEMP_GAME_LOG"
+        else
+            echo "(El proceso no emitió mensajes de consola antes de cerrarse)"
+        fi
+        echo ""
+        echo "================================================================================"
+        echo "FIN DEL INFORME"
+        echo "================================================================================"
+    } > "$ERROR_REPORT_FILE" 2>/dev/null || true
+
+    # Mantener copia como ultimo_error.log para consulta instantánea
+    cp -f "$ERROR_REPORT_FILE" "$ULTIMO_ERROR_FILE" 2>/dev/null || true
+
+    # Si el directorio del juego es accesible con permisos de escritura, guardar copia local
+    if [ -d "$TARGET_DIR" ] && [ -w "$TARGET_DIR" ]; then
+        cp -f "$ERROR_REPORT_FILE" "${TARGET_DIR}/vessel_error.log" 2>/dev/null || true
+    fi
+
+    # Rotar registros antiguos: conservar solo los 10 más recientes
+    ls -t "${DIR}/logs_errores"/error_*.log 2>/dev/null | tail -n +11 | xargs -r rm -f 2>/dev/null || true
+
+    echo ""
+    echo "================================================================================"
+    echo "[!] SE HA DETECTADO UN ERROR O CIERRE INESPERADO AL EJECUTAR: ${TARGET_FILE}"
+    echo "[!] Código de salida: ${EXIT_STATUS}"
+    echo "[!] El informe de diagnóstico ha sido guardado exitosamente en:"
+    echo "    -> ${ERROR_REPORT_FILE}"
+    echo "    -> ${ULTIMO_ERROR_FILE}"
+    [ -f "${TARGET_DIR}/vessel_error.log" ] && echo "    -> ${TARGET_DIR}/vessel_error.log"
+    echo "================================================================================"
+    echo ""
+else
+    # Si el juego cerró correctamente, limpiar archivo residual de fallos previos en la carpeta del juego
+    [ -f "${TARGET_DIR}/vessel_error.log" ] && rm -f "${TARGET_DIR}/vessel_error.log" 2>/dev/null || true
+fi
+
+# Eliminar archivo temporal de captura en cualquier caso
+rm -f "$TEMP_GAME_LOG" 2>/dev/null || true
 
 # Esperar sincronización limpia de los subprocesos de Wine sin matarlos abruptamente
 "$WINESERVER_CMD" -w 2>/dev/null || wineserver -w 2>/dev/null || true

@@ -1685,6 +1685,7 @@ def menu_herramientas(hw, cfg):
             ("9", "🔍 Diagnóstico de Controladores Gráficos y 32-bit (NVIDIA / AMD / Intel)"),
             ("10", "🎮 Gestor de Librerías y Mandos (SDL2 Gamepad, cnc-ddraw, DSOAL 3D, vkBasalt)"),
             ("11", "🖥️  Regenerar y Validar Acceso Directo de Vessel en el Escritorio"),
+            ("12", "📋 Ver Informe de Errores de Juegos (Crash Reports)"),
             ("0", "↩️  Volver al Menú Principal")
         ]
         sel = submenu_interactivo("🔧  Herramientas de Windows y Reparación", opciones, hw, cfg)
@@ -1771,6 +1772,25 @@ def menu_herramientas(hw, cfg):
             os.system("clear")
             print(f"{PURPLE}🖥️  [ VALIDAR / REGENERAR ACCESO DIRECTO DE VESSEL EN EL ESCRITORIO ]{RESET}\n")
             verificar_acceso_directo_vessel(mostrar_notif=True)
+            pausar()
+        elif sel == "12":
+            os.system("clear")
+            logs_dir = os.path.join(DIR, "logs_errores")
+            ultimo = os.path.join(logs_dir, "ultimo_error.log")
+            if os.path.exists(ultimo):
+                print(f"{PURPLE}📋 [ REGISTRO DE ÚLTIMO ERROR / CRASH REPORT ]{RESET}\n")
+                try:
+                    with open(ultimo, "r", encoding="utf-8", errors="replace") as f:
+                        lines = f.readlines()
+                    print("".join(lines[:45]))
+                    if len(lines) > 45:
+                        print(f"\n{YELLOW}... ({len(lines) - 45} líneas adicionales en: {ultimo}){RESET}")
+                except Exception as e:
+                    print(f"{RED}Error leyendo archivo: {e}{RESET}")
+            else:
+                print(f"{PURPLE}📋 [ REGISTRO DE ERRORES / CRASH REPORTS ]{RESET}\n")
+                print(f"{GREEN}✔ No se han detectado errores recientes.{RESET}")
+                print(f"{WHITE}Todos los juegos se han ejecutado y cerrado limpiamente sin generar registros residuales.{RESET}\n")
             pausar()
 
 # ==============================================================================
