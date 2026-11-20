@@ -175,7 +175,12 @@ def analizar_juego(exe_path):
     elif any(k in file_name for k in ("swat4", "swat4x", "bioshock", "deusex")) or os.path.isdir(os.path.join(game_dir, "System")) or "content/system" in full_path_low:
         engine = "unreal_engine"
 
-    # H) Valve Source Engine
+    # H) Valve GoldSrc Engine (Half-Life 1, Counter-Strike 1.6, Condition Zero, Day of Defeat, etc.)
+    elif any(k in file_name for k in ("cstrike.exe", "hl.exe", "czero.exe", "hltv.exe")) or "hw.dll" in all_files or "sw.dll" in all_files or any(os.path.isdir(os.path.join(game_dir, d)) for d in ("cstrike", "valve", "czero")):
+        engine = "valve_goldsrc"
+        has_d3d9 = False
+
+    # I) Valve Source Engine (Half-Life 2, CS:Source, CS:GO, Team Fortress 2, Portal, L4D)
     elif "tier0.dll" in all_files or "vstdlib.dll" in all_files:
         engine = "source_engine"
 
@@ -223,8 +228,8 @@ def analizar_juego(exe_path):
     # REGLA 3: Juegos DirectDraw clásicos (2D / paleta 8 bits) -> Windows XP (evita pantalla negra en Wine)
     elif engine == "classic_directdraw" or (has_ddraw and not has_d3d9 and not has_d3d11):
         winver = "winxp"
-    # REGLA 4: Motores 3D modernos (Capcom MT Framework / RE6 / RE5, Unreal, Unity, Source, RAGE, RenderWare) -> Windows 10
-    elif engine in ("capcom_mt_framework", "unreal_engine", "unity_engine", "source_engine", "ea_nfs", "rockstar_gtasa"):
+    # REGLA 4: Motores 3D modernos (Capcom MT Framework / RE6 / RE5, Unreal, Unity, Source, GoldSrc, RAGE, RenderWare) -> Windows 10
+    elif engine in ("capcom_mt_framework", "unreal_engine", "unity_engine", "source_engine", "valve_goldsrc", "ea_nfs", "rockstar_gtasa"):
         winver = "win10"
     # REGLA 5: Juegos DirectX 9 y Subsystem moderno -> Windows 10 (DXVK 2.x, mandos XInput 1.4 y audio WASAPI)
     elif has_d3d9 or sub_maj >= 5:
@@ -242,7 +247,9 @@ def analizar_juego(exe_path):
     res["winver"] = winver
 
     # 5. Determinación de API Gráfica
-    if has_d3d12:
+    if engine == "valve_goldsrc":
+        api = "opengl"
+    elif has_d3d12:
         api = "dx12"
     elif has_d3d11:
         api = "dx11"

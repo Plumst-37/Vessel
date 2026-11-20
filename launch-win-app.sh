@@ -883,6 +883,8 @@ aplicar_perfil_aislado_juego() {
         perfil_id="classic_directdraw"
     elif [ -d "${TARGET_DIR}/${TARGET_FILE%.*}_Data" ] || [ -f "${TARGET_DIR}/UnityPlayer.dll" ]; then
         perfil_id="unity_engine"
+    elif [ -f "${TARGET_DIR}/hw.dll" ] || [ -f "${TARGET_DIR}/sw.dll" ] || [[ "$TARGET_FILE" =~ (cstrike|hl|czero|hltv)\.exe$ ]] || [ -d "${TARGET_DIR}/cstrike" ] || [ -d "${TARGET_DIR}/valve" ]; then
+        perfil_id="valve_goldsrc"
     elif [ -f "${TARGET_DIR}/tier0.dll" ] || [ -f "${TARGET_DIR}/bin/tier0.dll" ]; then
         perfil_id="source_engine"
     elif [[ "$TARGET_FILE" =~ [Gg]ame[Rr]anger ]]; then
@@ -1371,6 +1373,71 @@ EOF_DLC
         unity_engine)
             echo "[+] Perfil Activo: Unity Engine [Aislado]"
             EXTRA_APP_ARGS="${EXTRA_APP_ARGS} -screen-fullscreen 1 -screen-width ${best_w} -screen-height ${best_h}"
+            ;;
+
+        valve_goldsrc)
+            echo "[+] Perfil Activo: Valve GoldSrc Engine (Half-Life / CS 1.6) [Aislado]"
+            # 1. Parche proactivo y universal para el hook WinHttpCloseHandle en NextClient / No-Steam
+            # Evita crash por desreferenciación de puntero nulo en Wine (STATUS_ACCESS_VIOLATION 0xc0000005)
+            patch_target="$TARGET"
+            [ ! -f "$patch_target" ] && [ -f "${TARGET_DIR}/cstrike.exe" ] && patch_target="${TARGET_DIR}/cstrike.exe"
+            [ ! -f "$patch_target" ] && [ -f "${TARGET_DIR}/hl.exe" ] && patch_target="${TARGET_DIR}/hl.exe"
+            if [ -f "$patch_target" ] && [ -w "$patch_target" ]; then
+                python3 -c '
+import sys, shutil, os
+target = sys.argv[1]
+try:
+    with open(target, "rb") as f:
+        data = f.read()
+    sig = bytes.fromhex("85f67414813eb8020000750c")
+    pos = data.find(sig)
+    if pos != -1:
+        bak = target + ".vessel_bak"
+        if not os.path.exists(bak):
+            shutil.copy2(target, bak)
+        patch = bytes.fromhex("eb1690909090909090909090")
+        with open(target, "r+b") as f:
+            f.seek(pos)
+            f.write(patch)
+        print("[+] Parche de estabilidad Wine WinHttp aplicado exitosamente en", target)
+except Exception:
+    pass
+' "$patch_target" 2>/dev/null || true
+            fi
+
+            # 2. Renderizador: OpenGL nativo del sistema (hw.dll se comunica directamente con OpenGL / Mesa / NVIDIA)
+            export RENDERER_IN_USE="OpenGL Nativo (Valve GoldSrc)"
+            export PROTON_USE_WINED3D=1
+            unset DXVK_CONFIG_FILE
+            export DXVK_HUD=0
+
+            # 3. Desactivar FSR de Wine (evita conflictos con CEF / Chromium Embedded Framework y con el backend OpenGL)
+            ACTIVAR_FSR_FINAL=0
+            export WINE_FULLSCREEN_FSR=0
+
+            # 4. Forzar librerías DX builtin para que no interfiera DXVK con CEF ni hw.dll
+            export WINEDLLOVERRIDES="d3d9=b;d3d11=b;dxgi=b;d3d8=b;${WINEDLLOVERRIDES}"
+
+            # 5. Argumentos óptimos para GoldSrc (resolución nativa, mouse crudo sin aceleración errática, juego correcto)
+            goldsrc_game="cstrike"
+            if [ -d "${TARGET_DIR}/cstrike" ]; then
+                goldsrc_game="cstrike"
+            elif [ -d "${TARGET_DIR}/czero" ]; then
+                goldsrc_game="czero"
+            elif [ -d "${TARGET_DIR}/valve" ]; then
+                goldsrc_game="valve"
+            fi
+
+            if [[ ! "$EXTRA_APP_ARGS" =~ "-game" ]]; then
+                EXTRA_APP_ARGS="-game ${goldsrc_game} ${EXTRA_APP_ARGS}"
+            fi
+            if [[ ! "$EXTRA_APP_ARGS" =~ "-noforcemaccel" ]]; then
+                EXTRA_APP_ARGS="${EXTRA_APP_ARGS} -noforcemaccel -noforcemparms -noforcemspd"
+            fi
+            if [[ ! "$EXTRA_APP_ARGS" =~ "-fullscreen" ]] && [[ ! "$EXTRA_APP_ARGS" =~ "-window" ]]; then
+                EXTRA_APP_ARGS="${EXTRA_APP_ARGS} -fullscreen -w ${best_w} -h ${best_h}"
+            fi
+            EXTRA_APP_ARGS="${EXTRA_APP_ARGS} -nodirectblit -num_edicts 4096"
             ;;
 
         source_engine)
