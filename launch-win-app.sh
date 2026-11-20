@@ -898,6 +898,9 @@ aplicar_perfil_aislado_juego() {
             limpiar_zombies_juego "GTA5\.exe|PlayGTAV\.exe"
             sleep 0.2
 
+            # Purgar caché previa de DXVK para eliminar pipelines con teselación obsoleta o buffers desalineados
+            rm -f "${HOME}/.cache/dxvk/GTA5.dxvk-cache" "${HOME}/.cache/dxvk/PlayGTAV.dxvk-cache" "${TARGET_DIR}/GTA5.dxvk-cache" "${TARGET_DIR}/PlayGTAV.dxvk-cache" 2>/dev/null || true
+
             # Determinar resolución óptima según GPU (nativa para pantallas <= 1080p, adaptativa si supera 1080p en GPU básica)
             local gta_w="$best_w"
             local gta_h="$best_h"
@@ -911,6 +914,86 @@ aplicar_perfil_aislado_juego() {
             local rsg_doc="$HOME/Documentos/Rockstar Games/GTA V"
             [ ! -d "$rsg_doc" ] && rsg_doc="${WINEPREFIX}/drive_c/users/${USER}/Documents/Rockstar Games/GTA V"
             mkdir -p "$rsg_doc"
+
+            # Si no existe ningún settings.xml, generar uno inicial con geometría 3D blindada (sin vertex explosion)
+            local sxml_base="$rsg_doc/settings.xml"
+            if [ ! -f "$sxml_base" ] && [ ! -f "${TARGET_DIR}/settings.xml" ]; then
+                cat <<EOF_SXML > "$sxml_base"
+<?xml version="1.0" encoding="UTF-8"?>
+<Settings>
+  <version value="27" />
+  <configSource>SMC_AUTO</configSource>
+  <graphics>
+    <Tessellation value="0" />
+    <LodScale value="1.000000" />
+    <PedLodBias value="0.800000" />
+    <VehicleLodBias value="0.800000" />
+    <ShadowQuality value="1" />
+    <ReflectionQuality value="1" />
+    <ReflectionMSAA value="0" />
+    <SSAO value="0" />
+    <AnisotropicFiltering value="16" />
+    <MSAA value="0" />
+    <MSAAFragments value="0" />
+    <MSAAQuality value="0" />
+    <SamplingMode value="0" />
+    <TextureQuality value="0" />
+    <ParticleQuality value="0" />
+    <WaterQuality value="1" />
+    <GrassQuality value="1" />
+    <ShaderQuality value="1" />
+    <Shadow_SoftShadows value="1" />
+    <UltraShadows_Enabled value="false" />
+    <Shadow_ParticleShadows value="false" />
+    <Shadow_Distance value="1.000000" />
+    <Shadow_LongShadows value="false" />
+    <Shadow_SplitZStart value="0.930000" />
+    <Shadow_SplitZEnd value="0.890000" />
+    <Shadow_aircraftExpWeight value="0.990000" />
+    <Shadow_DisableScreenSizeCheck value="false" />
+    <Reflection_MipBlur value="false" />
+    <FXAA_Enabled value="true" />
+    <TXAA_Enabled value="false" />
+    <Lighting_FogVolumes value="false" />
+    <Shader_SSA value="false" />
+    <DX_Version value="2" />
+    <CityDensity value="0.000000" />
+    <PedVarietyMultiplier value="0.400000" />
+    <VehicleVarietyMultiplier value="0.400000" />
+    <PostFX value="0" />
+    <DoF value="false" />
+    <HdStreamingInFlight value="false" />
+    <MaxLodScale value="1.000000" />
+    <MotionBlurStrength value="0.000000" />
+  </graphics>
+  <system>
+    <numBytesPerReplayBlock value="9000000" />
+    <numReplayBlocks value="36" />
+    <maxSizeOfStreamingReplay value="1024" />
+    <maxFileStoreSize value="65536" />
+  </system>
+  <audio>
+    <Audio3d value="false" />
+  </audio>
+  <video>
+    <AdapterIndex value="0" />
+    <OutputIndex value="0" />
+    <ScreenWidth value="${gta_w}" />
+    <ScreenHeight value="${gta_h}" />
+    <RefreshRate value="60" />
+    <Windowed value="0" />
+    <VSync value="1" />
+    <Stereo value="0" />
+    <Convergence value="0.100000" />
+    <Separation value="1.000000" />
+    <PauseOnFocusLoss value="0" />
+    <AspectRatio value="0" />
+  </video>
+  <VideoCardDescription>${GPU_NAME}</VideoCardDescription>
+</Settings>
+EOF_SXML
+            fi
+
             for sxml in "$rsg_doc/settings.xml" "${TARGET_DIR}/settings.xml" "${WINEPREFIX}/drive_c/users/${USER}/Documents/Rockstar Games/GTA V/settings.xml"; do
                 if [ -f "$sxml" ]; then
                     crear_respaldo_seguro "$sxml"
@@ -923,16 +1006,36 @@ aplicar_perfil_aislado_juego() {
                     sed -i 's/<ShaderQuality value="[0-9]*"/<ShaderQuality value="1"/' "$sxml" 2>/dev/null || true
                     sed -i 's/<ReflectionQuality value="[0-9]*"/<ReflectionQuality value="1"/' "$sxml" 2>/dev/null || true
                     sed -i 's/<WaterQuality value="[0-9]*"/<WaterQuality value="1"/' "$sxml" 2>/dev/null || true
-                    sed -i 's/<Tessellation value="[0-9]*"/<Tessellation value="1"/' "$sxml" 2>/dev/null || true
+                    # Desactivar Teselación para erradicar por completo la deformación de mallas y vertex exploding en Vulkan/Linux
+                    sed -i 's/<Tessellation value="[0-9]*"/<Tessellation value="0"/' "$sxml" 2>/dev/null || true
                     sed -i 's/<Shadow_SoftShadows value="[0-9]*"/<Shadow_SoftShadows value="1"/' "$sxml" 2>/dev/null || true
                     sed -i 's/<PauseOnFocusLoss value="[0-9]*"/<PauseOnFocusLoss value="0"/' "$sxml" 2>/dev/null || true
                     sed -i 's/<AspectRatio value="[0-9]*"/<AspectRatio value="0"/' "$sxml" 2>/dev/null || true
+                    # Anti-aliasing estable: FXAA activo, MSAA/TXAA desactivados (evita mallas transparentes y corrupción de profundidad)
+                    sed -i 's/<MSAA value="[0-9]*"/<MSAA value="0"/' "$sxml" 2>/dev/null || true
+                    sed -i 's/<ReflectionMSAA value="[0-9]*"/<ReflectionMSAA value="0"/' "$sxml" 2>/dev/null || true
+                    sed -i 's/<TXAA_Enabled value="true"/<TXAA_Enabled value="false"/' "$sxml" 2>/dev/null || true
                     sed -i 's/<FXAA_Enabled value="false"/<FXAA_Enabled value="true"/' "$sxml" 2>/dev/null || true
+                    # Estabilidad geométrica 3D y distancia de dibujado (evita que los modelos cambien bruscamente al mover la cámara)
+                    sed -i 's/<LodScale value="[0-9\.]*"/<LodScale value="1.000000"/' "$sxml" 2>/dev/null || true
+                    sed -i 's/<MaxLodScale value="[0-9\.]*"/<MaxLodScale value="1.000000"/' "$sxml" 2>/dev/null || true
+                    sed -i 's/<PedLodBias value="[0-9\.]*"/<PedLodBias value="0.800000"/' "$sxml" 2>/dev/null || true
+                    sed -i 's/<VehicleLodBias value="[0-9\.]*"/<VehicleLodBias value="0.800000"/' "$sxml" 2>/dev/null || true
+                    sed -i 's/<Shadow_Distance value="[0-9\.]*"/<Shadow_Distance value="1.000000"/' "$sxml" 2>/dev/null || true
+                    sed -i 's/<DX_Version value="[0-9]*"/<DX_Version value="2"/' "$sxml" 2>/dev/null || true
+                    # Desactivar post-efectos y niebla volumétrica que rompen la vista de cámara en traducción Vulkan
+                    sed -i 's/<DoF value="true"/<DoF value="false"/' "$sxml" 2>/dev/null || true
+                    sed -i 's/<InGameDepthOfField value="true"/<InGameDepthOfField value="false"/' "$sxml" 2>/dev/null || true
+                    sed -i 's/<MotionBlurStrength value="[0-9\.]*"/<MotionBlurStrength value="0.000000"/' "$sxml" 2>/dev/null || true
+                    sed -i 's/<Lighting_FogVolumes value="true"/<Lighting_FogVolumes value="false"/' "$sxml" 2>/dev/null || true
+                    sed -i 's/<UltraShadows_Enabled value="true"/<UltraShadows_Enabled value="false"/' "$sxml" 2>/dev/null || true
+                    sed -i 's/<Shadow_ParticleShadows value="true"/<Shadow_ParticleShadows value="false"/' "$sxml" 2>/dev/null || true
+                    sed -i 's/<Shadow_LongShadows value="true"/<Shadow_LongShadows value="false"/' "$sxml" 2>/dev/null || true
                     local ped_variety="0.800000"
                     local veh_variety="0.800000"
                     if [ "$IS_LOW_SPEC_GPU" = true ]; then
-                        ped_variety="0.300000"
-                        veh_variety="0.300000"
+                        ped_variety="0.400000"
+                        veh_variety="0.400000"
                     fi
                     sed -i "s/<PedVarietyMultiplier value=\"[0-9\.]*\"/<PedVarietyMultiplier value=\"${ped_variety}\"/" "$sxml" 2>/dev/null || true
                     sed -i "s/<VehicleVarietyMultiplier value=\"[0-9\.]*\"/<VehicleVarietyMultiplier value=\"${veh_variety}\"/" "$sxml" 2>/dev/null || true
@@ -942,7 +1045,7 @@ aplicar_perfil_aislado_juego() {
                 fi
             done
 
-            # 3. Optimización en commandline.txt (priorizando -scOfflineOnly y máxima estabilidad geométrica 3D)
+            # 3. Optimización en commandline.txt (priorizando estabilidad geométrica 3D, frame pacing y offline mode)
             local gta_cmdline="${TARGET_DIR}/commandline.txt"
             [ -f "$gta_cmdline" ] && crear_respaldo_seguro "$gta_cmdline"
             cat <<EOF > "$gta_cmdline"
@@ -952,8 +1055,14 @@ aplicar_perfil_aislado_juego() {
 -mouseRawInput
 -scOfflineOnly
 -ignoreDifferentVideoCard
+-Tessellation 0
+-noInGameDOF
+-disableD3D11Dof
+-noDepthOfField
+-frameLimit 1
+-shadowSoftness 1
 EOF
-            echo "[+] GTA V optimizado: Pantalla completa nativa, shaders estables y geometría 3D calibrada (sin deformación de mallas)."
+            echo "[+] GTA V optimizado: Geometría 3D calibrada (Teselación 0, sin deformación ni vertex explosion, frame pacing 60 FPS)."
 
             # Garantizar steam_settings completo para emulador Goldberg (evita bloqueos de red e inicialización de perfil)
             if [ ! -d "${TARGET_DIR}/steam_settings" ]; then

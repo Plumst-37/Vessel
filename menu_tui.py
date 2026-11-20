@@ -176,10 +176,31 @@ def guardar_config(k, v):
 def obtener_info_hardware():
     """Carga o detecta de forma ultrarrápida la información de hardware desde perfil_hardware.cfg."""
     cfg_hw_path = os.path.join(DIR, "perfil_hardware.cfg")
-    if not os.path.exists(cfg_hw_path):
+    current_host_id = "host_generic"
+    if os.path.exists("/etc/machine-id"):
+        try:
+            with open("/etc/machine-id", "r") as f:
+                current_host_id = f.read().strip()
+        except Exception:
+            pass
+
+    re_scan = not os.path.exists(cfg_hw_path)
+    if not re_scan and os.path.exists(cfg_hw_path):
+        try:
+            with open(cfg_hw_path, "r", encoding="utf-8", errors="ignore") as f:
+                content = f.read()
+                if f'HOST_ID="{current_host_id}"' not in content and f"HOST_ID='{current_host_id}'" not in content and f"HOST_ID={current_host_id}" not in content:
+                    re_scan = True
+        except Exception:
+            re_scan = True
+
+    if re_scan:
         script_det = os.path.join(DIR, "herramientas", "detector_hardware.sh")
         if os.path.exists(script_det):
             subprocess.run(["bash", script_det, "--save"], stderr=subprocess.DEVNULL)
+        script_dxvk = os.path.join(DIR, "generar_dxvk_conf.sh")
+        if os.path.exists(script_dxvk):
+            subprocess.run(["bash", script_dxvk], stderr=subprocess.DEVNULL)
 
     hw = {}
     if os.path.exists(cfg_hw_path):
