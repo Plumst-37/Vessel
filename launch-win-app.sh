@@ -861,7 +861,7 @@ crear_respaldo_seguro() {
 }
 
 aplicar_perfil_aislado_juego() {
-    local perfil_id="generico"
+    perfil_id="generico"
 
     if [ -n "$PE_ENGINE" ] && [ "$PE_ENGINE" != "generico" ]; then
         perfil_id="$PE_ENGINE"
@@ -1422,7 +1422,17 @@ except Exception:
             # 4. Forzar librerías DX builtin para que no interfiera DXVK con CEF ni hw.dll
             export WINEDLLOVERRIDES="d3d9=b;d3d11=b;dxgi=b;d3d8=b;${WINEDLLOVERRIDES}"
 
-            # 5. Argumentos óptimos para GoldSrc (resolución nativa, mouse crudo sin aceleración errática, juego correcto)
+            # 5. Auto-reparar configuración de video en el registro de Wine para GoldSrc
+            # Elimina el indicador de colapso previo que dispara el diálogo de error de renderizado y asegura OpenGL
+            "$WINE_CMD" reg add "HKEY_CURRENT_USER\\Software\\Valve\\Half-Life\\Settings" /v CrashInitializingVideoMode /t REG_DWORD /d 0 /f >/dev/null 2>&1 || true
+            "$WINE_CMD" reg add "HKEY_CURRENT_USER\\Software\\Valve\\Half-Life\\Settings" /v EngineDLL /t REG_SZ /d "hw.dll" /f >/dev/null 2>&1 || true
+            "$WINE_CMD" reg add "HKEY_CURRENT_USER\\Software\\Valve\\Half-Life\\Settings" /v EngineD3D /t REG_DWORD /d 0 /f >/dev/null 2>&1 || true
+            "$WINE_CMD" reg add "HKEY_CURRENT_USER\\Software\\Valve\\Half-Life\\Settings" /v ScreenWidth /t REG_DWORD /d "${best_w}" /f >/dev/null 2>&1 || true
+            "$WINE_CMD" reg add "HKEY_CURRENT_USER\\Software\\Valve\\Half-Life\\Settings" /v ScreenHeight /t REG_DWORD /d "${best_h}" /f >/dev/null 2>&1 || true
+            "$WINE_CMD" reg add "HKEY_CURRENT_USER\\Software\\Valve\\Half-Life\\Settings" /v ScreenBPP /t REG_DWORD /d 32 /f >/dev/null 2>&1 || true
+            "$WINE_CMD" reg add "HKEY_CURRENT_USER\\Software\\Valve\\Half-Life\\Settings" /v ScreenWindowed /t REG_DWORD /d 0 /f >/dev/null 2>&1 || true
+
+            # 6. Argumentos óptimos para GoldSrc (OpenGL nativo sin FBO conflictivo, resolución nativa, mouse crudo)
             goldsrc_game="cstrike"
             if [ -d "${TARGET_DIR}/cstrike" ]; then
                 goldsrc_game="cstrike"
@@ -1435,13 +1445,19 @@ except Exception:
             if [[ ! "$EXTRA_APP_ARGS" =~ "-game" ]]; then
                 EXTRA_APP_ARGS="-game ${goldsrc_game} ${EXTRA_APP_ARGS}"
             fi
+            if [[ ! "$EXTRA_APP_ARGS" =~ "-gl" ]]; then
+                EXTRA_APP_ARGS="${EXTRA_APP_ARGS} -gl"
+            fi
+            if [[ ! "$EXTRA_APP_ARGS" =~ "-nofbo" ]]; then
+                EXTRA_APP_ARGS="${EXTRA_APP_ARGS} -nofbo -nomsaa"
+            fi
             if [[ ! "$EXTRA_APP_ARGS" =~ "-noforcemaccel" ]]; then
                 EXTRA_APP_ARGS="${EXTRA_APP_ARGS} -noforcemaccel -noforcemparms -noforcemspd"
             fi
-            if [[ ! "$EXTRA_APP_ARGS" =~ "-fullscreen" ]] && [[ ! "$EXTRA_APP_ARGS" =~ "-window" ]]; then
-                EXTRA_APP_ARGS="${EXTRA_APP_ARGS} -fullscreen -w ${best_w} -h ${best_h}"
+            if [[ ! "$EXTRA_APP_ARGS" =~ "-full" ]] && [[ ! "$EXTRA_APP_ARGS" =~ "-window" ]] && [[ ! "$EXTRA_APP_ARGS" =~ "-sw" ]]; then
+                EXTRA_APP_ARGS="${EXTRA_APP_ARGS} -full -w ${best_w} -h ${best_h}"
             fi
-            EXTRA_APP_ARGS="${EXTRA_APP_ARGS} -nodirectblit -num_edicts 4096"
+            EXTRA_APP_ARGS="${EXTRA_APP_ARGS} -stretchaspect -num_edicts 4096"
             ;;
 
         source_engine)
@@ -1541,8 +1557,8 @@ if [[ ! "$TARGET_FILE" =~ ([Gg]ame[Rr]anger|winecfg|regedit|cmd|notepad) ]]; the
     # Unity Engine (ej. *_Data o UnityPlayer.dll)
     if [ -d "${TARGET_DIR}/${TARGET_FILE%.*}_Data" ] || [ -f "${TARGET_DIR}/UnityPlayer.dll" ]; then
         EXTRA_APP_ARGS="${EXTRA_APP_ARGS} -screen-fullscreen 1 -screen-width ${best_w} -screen-height ${best_h}"
-    # Source Engine (Half-Life 2, L4D, Portal, etc.)
-    elif [ -f "${TARGET_DIR}/tier0.dll" ] || [ -f "${TARGET_DIR}/bin/tier0.dll" ]; then
+    # Source Engine (Half-Life 2, L4D, Portal, etc. - excluyendo GoldSrc para no duplicar banderas)
+    elif [ "$perfil_id" != "valve_goldsrc" ] && { [ -f "${TARGET_DIR}/tier0.dll" ] || [ -f "${TARGET_DIR}/bin/tier0.dll" ]; }; then
         EXTRA_APP_ARGS="${EXTRA_APP_ARGS} -fullscreen -w ${best_w} -h ${best_h}"
     # Unreal Engine 3/4
     elif [ -d "${TARGET_DIR}/Engine" ] || [ -d "${TARGET_DIR}/Binaries" ]; then
@@ -1771,8 +1787,8 @@ HUBO_ERROR=0
 if [ "$EXIT_STATUS" -ne 0 ]; then
     HUBO_ERROR=1
 elif [ -s "$TEMP_GAME_LOG" ]; then
-    # Verificar si hubo una excepción crítica de Wine / DirectX / Vulkan no capturada
-    if grep -qiE 'Unhandled exception: [0-9a-fA-F]|wine: Unhandled|page fault on (read|write)|0xc0000005|Assertion failed|Segmentation fault|Fatal error|VK_ERROR_DEVICE_LOST|DXGI_ERROR_DEVICE_RESET' "$TEMP_GAME_LOG" 2>/dev/null; then
+    # Verificar si hubo una excepción crítica de Wine / DirectX / Vulkan / SDL no capturada
+    if grep -qiE 'Unhandled exception: [0-9a-fA-F]|wine: Unhandled|page fault on (read|write)|0xc0000005|Assertion failed|Segmentation fault|Fatal error|Failed to create SDL|Sys_Error|VK_ERROR_DEVICE_LOST|DXGI_ERROR_DEVICE_RESET' "$TEMP_GAME_LOG" 2>/dev/null; then
         HUBO_ERROR=1
     fi
 fi
