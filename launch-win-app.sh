@@ -794,16 +794,16 @@ detectar_pantalla_activa() {
         done < <(xrandr 2>/dev/null | grep -E 'connected')
 
         if [ "$cur_found" -eq 0 ]; then
-            if [ -n "$max_w" ]; then
-                ACTIVE_MON_W="$max_w"
-                ACTIVE_MON_H="$max_h"
-                ACTIVE_MON_X="$max_x"
-                ACTIVE_MON_Y="$max_y"
-            elif [ -n "$prim_w" ]; then
+            if [ -n "$prim_w" ]; then
                 ACTIVE_MON_W="$prim_w"
                 ACTIVE_MON_H="$prim_h"
                 ACTIVE_MON_X="$prim_x"
                 ACTIVE_MON_Y="$prim_y"
+            elif [ -n "$max_w" ]; then
+                ACTIVE_MON_W="$max_w"
+                ACTIVE_MON_H="$max_h"
+                ACTIVE_MON_X="$max_x"
+                ACTIVE_MON_Y="$max_y"
             fi
         fi
     fi
@@ -1423,14 +1423,84 @@ except Exception:
             export WINEDLLOVERRIDES="d3d9=b;d3d11=b;dxgi=b;d3d8=b;${WINEDLLOVERRIDES}"
 
             # 5. Auto-reparar configuración de video en el registro de Wine para GoldSrc
-            # Elimina el indicador de colapso previo que dispara el diálogo de error de renderizado y asegura OpenGL
-            "$WINE_CMD" reg add "HKEY_CURRENT_USER\\Software\\Valve\\Half-Life\\Settings" /v CrashInitializingVideoMode /t REG_DWORD /d 0 /f >/dev/null 2>&1 || true
-            "$WINE_CMD" reg add "HKEY_CURRENT_USER\\Software\\Valve\\Half-Life\\Settings" /v EngineDLL /t REG_SZ /d "hw.dll" /f >/dev/null 2>&1 || true
-            "$WINE_CMD" reg add "HKEY_CURRENT_USER\\Software\\Valve\\Half-Life\\Settings" /v EngineD3D /t REG_DWORD /d 0 /f >/dev/null 2>&1 || true
-            "$WINE_CMD" reg add "HKEY_CURRENT_USER\\Software\\Valve\\Half-Life\\Settings" /v ScreenWidth /t REG_DWORD /d "${best_w}" /f >/dev/null 2>&1 || true
-            "$WINE_CMD" reg add "HKEY_CURRENT_USER\\Software\\Valve\\Half-Life\\Settings" /v ScreenHeight /t REG_DWORD /d "${best_h}" /f >/dev/null 2>&1 || true
-            "$WINE_CMD" reg add "HKEY_CURRENT_USER\\Software\\Valve\\Half-Life\\Settings" /v ScreenBPP /t REG_DWORD /d 32 /f >/dev/null 2>&1 || true
-            "$WINE_CMD" reg add "HKEY_CURRENT_USER\\Software\\Valve\\Half-Life\\Settings" /v ScreenWindowed /t REG_DWORD /d 0 /f >/dev/null 2>&1 || true
+            # Elimina el indicador de colapso previo que dispara el diálogo de error de renderizado y asegura OpenGL nativo
+            local goldsrc_w="${best_w}"
+            local goldsrc_h="${best_h}"
+            # Snapping para resoluciones atípicas que GoldSrc / SDL2 rechaza en Linux (como 1366x768 -> 1360x768 o 1280x720)
+            if [ "$goldsrc_w" -eq 1366 ]; then
+                goldsrc_w=1360
+            fi
+
+            # Inyectar configuración de video óptima en el registro en una sola transacción ultra-rápida
+            if pgrep -x wineserver >/dev/null 2>&1; then
+                "$WINE_CMD" regedit /S - << EOF >/dev/null 2>&1 || true
+Windows Registry Editor Version 5.00
+
+[HKEY_CURRENT_USER\Software\Valve\Half-Life\Settings]
+"CrashInitializingVideoMode"=dword:00000000
+"EngineDLL"="hw.dll"
+"EngineD3D"=dword:00000000
+"ScreenWidth"=dword:$(printf "%08x" "${goldsrc_w}")
+"ScreenHeight"=dword:$(printf "%08x" "${goldsrc_h}")
+"ScreenBPP"=dword:00000020
+"ScreenWindowed"=dword:00000000
+EOF
+            else
+                python3 -c '
+import os, sys, re, time
+prefix = sys.argv[1]
+w = int(sys.argv[2])
+h = int(sys.argv[3])
+user_reg = os.path.join(prefix, "user.reg")
+if os.path.exists(user_reg):
+    try:
+        with open(user_reg, "r", encoding="utf-8", errors="ignore") as f:
+            content = f.read()
+        section = "[Software\\\\Valve\\\\Half-Life\\\\Settings]"
+        keys = {
+            "\"CrashInitializingVideoMode\"": "dword:00000000",
+            "\"EngineDLL\"": "\"hw.dll\"",
+            "\"EngineD3D\"": "dword:00000000",
+            "\"ScreenWidth\"": f"dword:{w:08x}",
+            "\"ScreenHeight\"": f"dword:{h:08x}",
+            "\"ScreenBPP\"": "dword:00000020",
+            "\"ScreenWindowed\"": "dword:00000000",
+        }
+        if section in content:
+            def update_sect(m):
+                header = m.group(1)
+                body = m.group(2)
+                lines = body.splitlines()
+                k_seen = set()
+                new_lines = []
+                for l in lines:
+                    matched = False
+                    for k, v in keys.items():
+                        if l.startswith(k + "="):
+                            new_lines.append(f"{k}={v}")
+                            k_seen.add(k)
+                            matched = True
+                            break
+                    if not matched:
+                        new_lines.append(l)
+                for k, v in keys.items():
+                    if k not in k_seen:
+                        new_lines.append(f"{k}={v}")
+                return header + "\n".join(new_lines) + "\n"
+            content = re.sub(r"(\[Software\\\\Valve\\\\Half-Life\\\\Settings\][^\n]*\n)(.*?)((?=\n\[)|\Z)",
+                             update_sect, content, flags=re.DOTALL)
+        else:
+            ts = int(time.time())
+            new_block = f"\n{section} {ts}\n#time=0\n"
+            for k, v in keys.items():
+                new_block += f"{k}={v}\n"
+            content += new_block
+        with open(user_reg, "w", encoding="utf-8") as f:
+            f.write(content)
+    except Exception:
+        pass
+' "$WINEPREFIX" "$goldsrc_w" "$goldsrc_h" 2>/dev/null || true
+            fi
 
             # 6. Argumentos óptimos para GoldSrc (OpenGL nativo sin FBO conflictivo, resolución nativa, mouse crudo)
             goldsrc_game="cstrike"
@@ -1455,7 +1525,10 @@ except Exception:
                 EXTRA_APP_ARGS="${EXTRA_APP_ARGS} -noforcemaccel -noforcemparms -noforcemspd"
             fi
             if [[ ! "$EXTRA_APP_ARGS" =~ "-full" ]] && [[ ! "$EXTRA_APP_ARGS" =~ "-window" ]] && [[ ! "$EXTRA_APP_ARGS" =~ "-sw" ]]; then
-                EXTRA_APP_ARGS="${EXTRA_APP_ARGS} -full -w ${best_w} -h ${best_h}"
+                EXTRA_APP_ARGS="${EXTRA_APP_ARGS} -full -w ${goldsrc_w} -h ${goldsrc_h}"
+            fi
+            if [[ ! "$EXTRA_APP_ARGS" =~ "-noupdate" ]]; then
+                EXTRA_APP_ARGS="${EXTRA_APP_ARGS} -noupdate"
             fi
             EXTRA_APP_ARGS="${EXTRA_APP_ARGS} -stretchaspect -num_edicts 4096"
             ;;
@@ -1784,7 +1857,7 @@ fi
 # - Si el juego colapsa o reporta error: Genera un reporte detallado para aislar y resolver la falla.
 # ==============================================================================
 HUBO_ERROR=0
-if [ "$EXIT_STATUS" -ne 0 ]; then
+if [ "$EXIT_STATUS" -ne 0 ] && [ "$EXIT_STATUS" -ne 130 ] && [ "$EXIT_STATUS" -ne 143 ]; then
     HUBO_ERROR=1
 elif [ -s "$TEMP_GAME_LOG" ]; then
     # Verificar si hubo una excepción crítica de Wine / DirectX / Vulkan / SDL no capturada
