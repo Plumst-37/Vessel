@@ -1071,6 +1071,106 @@ def seleccionar_archivo_mouse(titulo="Seleccionar Juego o Programa"):
 # SUBMENÚ 2: CONFIGURAR PROGRAMA WIN
 # ==============================================================================
 
+WINVER_LABELS = {
+    "win10": "Windows 10",
+    "win7": "Windows 7",
+    "winxp": "Windows XP SP3",
+    "win81": "Windows 8.1"
+}
+
+def detectar_winver_sugerido(pe_info, ruta_exe):
+    """
+    Determina la versión de Windows sugerida de acuerdo a la época,
+    arquitectura (32/64 bits), APIs y subsistema del binario.
+    """
+    file_name = os.path.basename(ruta_exe).lower() if ruta_exe else ""
+    if "gameranger" in file_name:
+        return "win7"
+    if not pe_info:
+        return "win10"
+    if pe_info.get("is_64") or pe_info.get("has_d3d12") or pe_info.get("has_d3d11") or pe_info.get("has_vulkan"):
+        return "win10"
+
+    subsys_str = pe_info.get("subsys", "6.0")
+    try:
+        sub_maj = int(subsys_str.split(".")[0])
+        sub_min = int(subsys_str.split(".")[1]) if "." in subsys_str else 0
+    except Exception:
+        sub_maj = 6
+        sub_min = 0
+
+    if pe_info.get("has_ddraw") or pe_info.get("has_d3d8") or pe_info.get("engine") == "classic_directdraw":
+        return "winxp"
+    if sub_maj <= 4 or (sub_maj == 5 and sub_min == 0):
+        return "winxp"
+    if sub_maj == 5 and sub_min <= 1 and any(k in file_name for k in ["speed", "nfs", "swat", "vice", "re3", "re2", "re1", "gta", "maxpayne", "blood"]):
+        return "winxp"
+
+    return "win10"
+
+def seleccionar_version_windows_interactivo(nombre, ruta, hw, cfg):
+    """
+    Submenú interactivo para seleccionar la versión de Windows para el juego a agregar.
+    Incorpora recomendación inteligente según la arquitectura y APIs detectadas.
+    Permite aceptar la recomendación simplemente presionando [Enter].
+    Retorna la versión elegida ('win10', 'win7', 'winxp') o None si el usuario cancela.
+    """
+    pe_info = analizar_juego(ruta) if (analizar_juego and os.path.exists(ruta)) else None
+    winver_sugerido = detectar_winver_sugerido(pe_info, ruta)
+
+    if pe_info and pe_info.get("is_pe"):
+        bits_txt = f"{pe_info['bits']}-bit"
+        api_txt = pe_info['api'].upper()
+        if api_txt == "AUTO":
+            api_txt = "DirectX / GDI"
+        info_binario = f"{bits_txt} / {api_txt}"
+    else:
+        info_binario = "Binario estándar de Windows"
+
+    info_lines = [
+        f"{WHITE}Juego : {BOLD}{CYAN}{nombre}{RESET}  {GRAY}(Binario detectado: {info_binario}){RESET}",
+        f"{WHITE}Selecciona el entorno de compatibilidad de Windows:{RESET}",
+        f"{GRAY}Presiona {BOLD}{WHITE}[Enter]{RESET}{GRAY} para confirmar la opción recomendada o usa las flechas:{RESET}"
+    ]
+
+    rec_tag = f" {GREEN}─── [ RECOMENDADO ]{RESET}"
+    lbl_win10 = f"⭐ Windows 10{rec_tag if winver_sugerido == 'win10' else ''}\n• Juegos modernos (2014+), 64 bits y DirectX 11 / 12\n• Máximo rendimiento gráfico y mandos modernos (XInput)"
+    lbl_win7 = f"💿 Windows 7{rec_tag if winver_sugerido == 'win7' else ''}\n• Juegos de la era 2007 a 2013, DirectX 9 / 10 y GameRanger"
+    lbl_winxp = f"💾 Windows XP{rec_tag if winver_sugerido == 'winxp' else ''}\n• Clásicos retro de 32 bits (1998 a 2006) y DirectX 8 / 9\n• Evita fallos de memoria antigua y problemas de resolución"
+
+    sub_winver = [
+        ("1", lbl_win10),
+        ("2", lbl_win7),
+        ("3", lbl_winxp),
+        ("0", "↩️  Cancelar")
+    ]
+
+    default_idx = 0
+    if winver_sugerido == "win7":
+        default_idx = 1
+    elif winver_sugerido == "winxp":
+        default_idx = 2
+
+    sel_w = submenu_interactivo("⚙️  Seleccionar Versión de Windows para el Juego", sub_winver, hw, cfg, default_idx=default_idx, info_lines=info_lines)
+    if sel_w == "0":
+        return None
+
+    version_final = "win10"
+    if sel_w == "2":
+        version_final = "win7"
+    elif sel_w == "3":
+        version_final = "winxp"
+
+    # Salvaguarda de compatibilidad técnica
+    if version_final == "winxp" and pe_info and (pe_info.get("is_64") or pe_info.get("has_d3d12")):
+        print(f"\n{RED}❌ Incompatible: Este juego es nativo de 64 bits o utiliza DirectX 12.{RESET}")
+        print(f"{YELLOW}   Windows XP no admite ejecutables de 64-bit ni D3D12CreateDevice en Wine.{RESET}")
+        print(f"{CYAN}   Se mantendrá en Windows 10 para garantizar máxima estabilidad gráfica.{RESET}")
+        version_final = "win10"
+        pausar()
+
+    return version_final
+
 def menu_configurar_programas(hw, cfg):
     """Submenú 2: Configurar programas (Añadir con mouse, teclado, renombrar, eliminar, accesos de escritorio, mods)."""
     while True:
@@ -1181,16 +1281,36 @@ def menu_configurar_programas(hw, cfg):
                 continue
             modo_p = "aislado" if sel_p == "2" else "compartido"
 
+            # Preguntar por la versión de Windows a ejecutar (Submenú interactivo con recomendación inteligente)
+            version_elegida = seleccionar_version_windows_interactivo(nombre_custom, ruta, hw, cfg)
+            if not version_elegida:
+                pausar()
+                continue
+
             progs_actuales = cargar_lista_programas()
-            progs_actuales.append((nombre_custom, ruta, modo_p, "win10", "off"))
+            progs_actuales.append((nombre_custom, ruta, modo_p, version_elegida, "off"))
             guardar_lista_programas(progs_actuales)
 
-            print(f"\n{GREEN}✔ ¡Juego '{nombre_custom}' registrado exitosamente en la lista!{RESET}")
+            # Configurar Wine AppDefaults en el registro para el ejecutable
+            try:
+                pe_inf = analizar_juego(ruta) if (analizar_juego and os.path.exists(ruta)) else None
+                target_exe = os.path.basename(pe_inf["resolved_exe"]) if pe_inf and pe_inf.get("resolved_exe") else os.path.basename(ruta)
+                pfx_list = [WINEPREFIX]
+                if modo_p == "aislado":
+                    pfx_list.append(os.path.join(DIR, "wineprefixes", nombre_custom))
+                for pfx in pfx_list:
+                    if os.path.isdir(pfx):
+                        cmd_reg = f'WINEPREFIX="{pfx}" wine reg add "HKEY_CURRENT_USER\\Software\\Wine\\AppDefaults\\{target_exe}" /v Version /t REG_SZ /d "{version_elegida}" /f'
+                        subprocess.run(cmd_reg, shell=True, stderr=subprocess.DEVNULL)
+            except Exception:
+                pass
+
+            print(f"\n{GREEN}✔ ¡Juego '{nombre_custom}' registrado exitosamente en la lista! ({WINVER_LABELS.get(version_elegida, version_elegida)}){RESET}")
 
             # Ofrecer crear acceso directo inmediatamente
             crear = input(f"\n{WHITE}¿Deseas crear acceso directo en el Escritorio ahora? (S/n): {RESET}").strip().lower()
             if crear != 'n':
-                crear_desktop_entry(nombre_custom, ruta, modo_p, "win10", "off")
+                crear_desktop_entry(nombre_custom, ruta, modo_p, version_elegida, "off")
 
             # Ofrecer iniciar ahora
             ini = input(f"\n{PURPLE}¿Deseas iniciar '{nombre_custom}' ahora mismo? (s/N): {RESET}").strip().lower()
@@ -1204,6 +1324,8 @@ def menu_configurar_programas(hw, cfg):
                 args_launch = ["bash", LAUNCHER]
                 if modo_p == "aislado":
                     args_launch.append("--isolated")
+                if version_elegida and version_elegida != "win10":
+                    args_launch.extend(["--winver", version_elegida])
                 args_launch.append(ruta)
                 subprocess.run(args_launch)
             pausar()
@@ -1326,14 +1448,34 @@ def menu_configurar_programas(hw, cfg):
                         sel_p = submenu_interactivo("Modo de Almacenamiento y Prefijo", sub_pref, hw, cfg)
                         if sel_p != "0":
                             modo_p = "aislado" if sel_p == "2" else "compartido"
+
+                            version_elegida = seleccionar_version_windows_interactivo(nom_custom, auto_detectado_path, hw, cfg)
+                            if not version_elegida:
+                                version_elegida = "win10"
+
                             progs_actuales = cargar_lista_programas()
-                            progs_actuales.append((nom_custom, auto_detectado_path, modo_p, "win10", "off"))
+                            progs_actuales.append((nom_custom, auto_detectado_path, modo_p, version_elegida, "off"))
                             guardar_lista_programas(progs_actuales)
-                            print(f"\n{GREEN}✔ ¡'{nom_custom}' registrado exitosamente en Vessel!{RESET}")
+
+                            # Configurar Wine AppDefaults en el registro
+                            try:
+                                pe_inf = analizar_juego(auto_detectado_path) if (analizar_juego and os.path.exists(auto_detectado_path)) else None
+                                target_exe = os.path.basename(pe_inf["resolved_exe"]) if pe_inf and pe_inf.get("resolved_exe") else os.path.basename(auto_detectado_path)
+                                pfx_list = [WINEPREFIX]
+                                if modo_p == "aislado":
+                                    pfx_list.append(os.path.join(DIR, "wineprefixes", nom_custom))
+                                for pfx in pfx_list:
+                                    if os.path.isdir(pfx):
+                                        cmd_reg = f'WINEPREFIX="{pfx}" wine reg add "HKEY_CURRENT_USER\\Software\\Wine\\AppDefaults\\{target_exe}" /v Version /t REG_SZ /d "{version_elegida}" /f'
+                                        subprocess.run(cmd_reg, shell=True, stderr=subprocess.DEVNULL)
+                            except Exception:
+                                pass
+
+                            print(f"\n{GREEN}✔ ¡'{nom_custom}' registrado exitosamente en Vessel! ({WINVER_LABELS.get(version_elegida, version_elegida)}){RESET}")
 
                             c_desk = input(f"\n{WHITE}¿Deseas crear acceso directo en el Escritorio de Linux ahora? (S/n): {RESET}").strip().lower()
                             if c_desk != 'n':
-                                crear_desktop_entry(nom_custom, auto_detectado_path, modo_p, "win10", "off")
+                                crear_desktop_entry(nom_custom, auto_detectado_path, modo_p, version_elegida, "off")
 
                             c_ini = input(f"\n{PURPLE}¿Deseas iniciar '{nom_custom}' ahora mismo? (s/N): {RESET}").strip().lower()
                             if c_ini == 's':
@@ -1342,6 +1484,8 @@ def menu_configurar_programas(hw, cfg):
                                 args_launch = ["bash", LAUNCHER]
                                 if modo_p == "aislado":
                                     args_launch.append("--isolated")
+                                if version_elegida and version_elegida != "win10":
+                                    args_launch.extend(["--winver", version_elegida])
                                 args_launch.append(auto_detectado_path)
                                 subprocess.run(args_launch)
                 else:
