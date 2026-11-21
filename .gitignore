@@ -22,5 +22,6 @@ Subir Github/
 *.vessel_orig
 perfil_hardware.cfg
 .smart_perf_listo
+.winver_configurados
 __pycache__/
 *.pyc

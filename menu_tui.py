@@ -33,6 +33,7 @@ WINEPREFIX = os.path.join(DIR, "wineprefix")
 VERSION_FILE = os.path.join(DIR, "version.txt")
 INSTALADO_MARKER = os.path.join(DIR, ".instalado")
 SMART_PERF_MARKER = os.path.join(DIR, ".smart_perf_listo")
+WINVER_CONF_FILE = os.path.join(DIR, ".winver_configurados")
 VERSION_ACTUAL = "1.0"
 SMART_PERF_VERSION_ACTUAL = "1.0"
 
@@ -830,12 +831,43 @@ def menu_iniciar_programa(hw, cfg):
         winver = item[3] if len(item) > 3 and item[3] else "win10"
         fsr = item[4] if len(item) > 4 and item[4] else "off"
 
-        winver_labels = {
-            "win10": "Windows 10",
-            "win7": "Windows 7",
-            "winxp": "Windows XP SP3",
-            "win81": "Windows 8.1"
-        }
+        # Comprobar si el juego ya tenía confirmada su versión de Windows.
+        # Si no la tenía (juegos agregados antes de esta mejora), se le pregunta UNA SOLA VEZ aquí.
+        if not es_winver_confirmado(nombre, ruta):
+            v_elegida = seleccionar_version_windows_interactivo(nombre, ruta, hw, cfg, primera_vez=True)
+            if v_elegida:
+                winver = v_elegida
+                programas[idx] = (nombre, ruta, prefijo, winver, fsr)
+                guardar_lista_programas(programas)
+                registrar_winver_confirmado(nombre, ruta)
+
+                # Configurar Wine AppDefaults en el registro
+                try:
+                    pe_inf = analizar_juego(ruta) if (analizar_juego and os.path.exists(ruta)) else None
+                    target_exe = os.path.basename(pe_inf["resolved_exe"]) if pe_inf and pe_inf.get("resolved_exe") else os.path.basename(ruta)
+                    pfx_list = [WINEPREFIX]
+                    if prefijo == "aislado":
+                        pfx_list.append(os.path.join(DIR, "wineprefixes", nombre))
+                    for pfx in pfx_list:
+                        if os.path.isdir(pfx):
+                            cmd_reg = f'WINEPREFIX="{pfx}" wine reg add "HKEY_CURRENT_USER\\Software\\Wine\\AppDefaults\\{target_exe}" /v Version /t REG_SZ /d "{winver}" /f'
+                            subprocess.run(cmd_reg, shell=True, stderr=subprocess.DEVNULL)
+                except Exception:
+                    pass
+
+                # Actualizar el acceso directo en el escritorio si ya existía
+                try:
+                    for d_dir in [os.path.expanduser("~/Escritorio"), os.path.expanduser("~/Desktop")]:
+                        if os.path.isdir(d_dir):
+                            desk_f = os.path.join(d_dir, f"{nombre}.desktop")
+                            if os.path.exists(desk_f):
+                                crear_desktop_entry(nombre, ruta, prefijo, winver, fsr)
+                except Exception:
+                    pass
+            else:
+                return
+
+        winver_labels = WINVER_LABELS
         fsr_labels = {
             "off": "Desactivado",
             "quality": "Calidad (+30% FPS)",
@@ -945,6 +977,7 @@ def menu_iniciar_programa(hw, cfg):
             if n_win != winver:
                 programas[idx] = (nombre, ruta, prefijo, n_win, fsr)
                 guardar_lista_programas(programas)
+                registrar_winver_confirmado(nombre, ruta)
                 target_exe = os.path.basename(pe_info["resolved_exe"]) if pe_info and pe_info.get("resolved_exe") else os.path.basename(ruta)
                 for pfx in [WINEPREFIX, os.path.join(DIR, "wineprefixes", nombre)]:
                     if os.path.isdir(pfx):
@@ -1078,6 +1111,52 @@ WINVER_LABELS = {
     "win81": "Windows 8.1"
 }
 
+def cargar_winver_confirmados():
+    """Carga el conjunto de juegos que ya han confirmado su versión de Windows."""
+    confirmados = set()
+    if os.path.exists(WINVER_CONF_FILE):
+        try:
+            with open(WINVER_CONF_FILE, "r", encoding="utf-8") as f:
+                for line in f:
+                    c = line.strip().lower()
+                    if c:
+                        confirmados.add(c)
+        except Exception:
+            pass
+    return confirmados
+
+def registrar_winver_confirmado(nombre, ruta):
+    """Registra un juego como confirmado para no volver a preguntarle al usuario."""
+    confirmados = cargar_winver_confirmados()
+    if nombre:
+        confirmados.add(nombre.strip().lower())
+    if ruta:
+        confirmados.add(ruta.strip().lower())
+        try:
+            confirmados.add(os.path.realpath(ruta).lower())
+        except Exception:
+            pass
+    try:
+        with open(WINVER_CONF_FILE, "w", encoding="utf-8") as f:
+            for item in sorted(confirmados):
+                f.write(f"{item}\n")
+    except Exception:
+        pass
+
+def es_winver_confirmado(nombre, ruta):
+    """Comprueba si el juego ya confirmó previamente su versión de Windows."""
+    confirmados = cargar_winver_confirmados()
+    if nombre and nombre.strip().lower() in confirmados:
+        return True
+    if ruta and ruta.strip().lower() in confirmados:
+        return True
+    try:
+        if ruta and os.path.realpath(ruta).lower() in confirmados:
+            return True
+    except Exception:
+        pass
+    return False
+
 def detectar_winver_sugerido(pe_info, ruta_exe):
     """
     Determina la versión de Windows sugerida de acuerdo a la época,
@@ -1108,7 +1187,7 @@ def detectar_winver_sugerido(pe_info, ruta_exe):
 
     return "win10"
 
-def seleccionar_version_windows_interactivo(nombre, ruta, hw, cfg):
+def seleccionar_version_windows_interactivo(nombre, ruta, hw, cfg, primera_vez=False):
     """
     Submenú interactivo para seleccionar la versión de Windows para el juego a agregar.
     Incorpora recomendación inteligente según la arquitectura y APIs detectadas.
@@ -1127,11 +1206,13 @@ def seleccionar_version_windows_interactivo(nombre, ruta, hw, cfg):
     else:
         info_binario = "Binario estándar de Windows"
 
-    info_lines = [
-        f"{WHITE}Juego : {BOLD}{CYAN}{nombre}{RESET}  {GRAY}(Binario detectado: {info_binario}){RESET}",
-        f"{WHITE}Selecciona el entorno de compatibilidad de Windows:{RESET}",
-        f"{GRAY}Presiona {BOLD}{WHITE}[Enter]{RESET}{GRAY} para confirmar la opción recomendada o usa las flechas:{RESET}"
-    ]
+    info_lines = []
+    if primera_vez:
+        info_lines.append(f"{YELLOW}⚡ Primera ejecución: Configura la versión de Windows para este juego.{RESET}")
+        info_lines.append(f"{GRAY}Esta configuración se guardará y no se volverá a preguntar.{RESET}")
+    info_lines.append(f"{WHITE}Juego : {BOLD}{CYAN}{nombre}{RESET}  {GRAY}(Binario detectado: {info_binario}){RESET}")
+    info_lines.append(f"{WHITE}Selecciona el entorno de compatibilidad de Windows:{RESET}")
+    info_lines.append(f"{GRAY}Presiona {BOLD}{WHITE}[Enter]{RESET}{GRAY} para confirmar la opción recomendada o usa las flechas:{RESET}")
 
     rec_tag = f" {GREEN}─── [ RECOMENDADO ]{RESET}"
     lbl_win10 = f"⭐ Windows 10{rec_tag if winver_sugerido == 'win10' else ''}\n• Juegos modernos (2014+), 64 bits y DirectX 11 / 12\n• Máximo rendimiento gráfico y mandos modernos (XInput)"
@@ -1290,6 +1371,7 @@ def menu_configurar_programas(hw, cfg):
             progs_actuales = cargar_lista_programas()
             progs_actuales.append((nombre_custom, ruta, modo_p, version_elegida, "off"))
             guardar_lista_programas(progs_actuales)
+            registrar_winver_confirmado(nombre_custom, ruta)
 
             # Configurar Wine AppDefaults en el registro para el ejecutable
             try:
@@ -1456,6 +1538,7 @@ def menu_configurar_programas(hw, cfg):
                             progs_actuales = cargar_lista_programas()
                             progs_actuales.append((nom_custom, auto_detectado_path, modo_p, version_elegida, "off"))
                             guardar_lista_programas(progs_actuales)
+                            registrar_winver_confirmado(nom_custom, auto_detectado_path)
 
                             # Configurar Wine AppDefaults en el registro
                             try:
