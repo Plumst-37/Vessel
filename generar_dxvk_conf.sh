@@ -90,6 +90,7 @@ dxgi.maxFrameLatency = 2
 dxvk.trackPipelineLifetime = False
 dxvk.maxChunkSize = 32
 d3d9.memoryTrackTest = False
+dxvk.enableNvapi = True
 
 # Perfiles específicos por ejecutable para máxima fidelidad 3D, estabilidad y rendimiento
 [GTA5.exe]

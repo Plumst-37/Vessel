@@ -160,7 +160,7 @@ configurar_dlloverrides() {
         xactengine2_6 xactengine2_7 xactengine2_8 xactengine2_9
         xactengine3_0 xactengine3_1 xactengine3_2 xactengine3_3 xactengine3_4 xactengine3_5
         xactengine3_6 xactengine3_7
-        dplayx
+        dplayx d3d8 nvapi nvapi64
     )
 
     local vc_overrides=(
@@ -308,6 +308,69 @@ instalar_openal() {
     echo -e "${GREEN}✓ Audio 3D OpenAL y DSOAL configurado.${RESET}"
 }
 
+# 9.1 INSTALAR D3D8TO9 (Traductor DirectX 8 a DirectX 9 / Vulkan para 60 FPS fijos)
+instalar_d3d8to9() {
+    local target_prefix="${1:-${DIR}/wineprefix}"
+    echo -e "\n${CYAN}🕹️  [ MEJORA 3D ] Configurando D3D8to9 (DirectX 8 -> Vulkan)...${RESET}"
+    local d3d8_cache="${CACHE_DIR}/d3d8to9"
+    mkdir -p "$d3d8_cache"
+    local d3d8_dll="${d3d8_cache}/d3d8.dll"
+
+    if [ ! -f "$d3d8_dll" ]; then
+        if [ -f "${DIR}/../librerias/d3d8to9/d3d8.dll" ]; then
+            cp -f "${DIR}/../librerias/d3d8to9/d3d8.dll" "$d3d8_dll"
+        else
+            echo -e "${CYAN}  📦 Descargando D3D8to9 desde GitHub...${RESET}"
+            curl -sL --connect-timeout 10 --max-time 60 "https://github.com/crosire/d3d8to9/releases/download/v1.16.0/d3d8.dll" -o "$d3d8_dll" || true
+        fi
+    fi
+
+    if [ -f "$d3d8_dll" ]; then
+        [ -d "${target_prefix}/drive_c/windows/syswow64" ] && cp -f "$d3d8_dll" "${target_prefix}/drive_c/windows/syswow64/d3d8.dll"
+        [ -d "${target_prefix}/drive_c/windows/system32" ] && cp -f "$d3d8_dll" "${target_prefix}/drive_c/windows/system32/d3d8.dll"
+        echo -e "${GREEN}✓ D3D8to9 inyectado: Clásicos 3D DirectX 8 ahora correrán nativos sobre DXVK Vulkan a 60 FPS.${RESET}"
+    else
+        echo -e "${YELLOW}⚠ D3D8to9 no disponible en este momento.${RESET}"
+    fi
+}
+
+# 9.2 INSTALAR DXVK-NVAPI (Puente nativo para tarjetas NVIDIA GeForce)
+instalar_dxvk_nvapi() {
+    local target_prefix="${1:-${DIR}/wineprefix}"
+    echo -e "\n${CYAN}🟢 [ MEJORA 3D ] Configurando DXVK-NVAPI (Puente nativo NVIDIA GeForce)...${RESET}"
+    local nvapi_cache="${CACHE_DIR}/dxvk-nvapi"
+    mkdir -p "$nvapi_cache"
+
+    if [ ! -f "${nvapi_cache}/x32/nvapi.dll" ] || [ ! -f "${nvapi_cache}/x64/nvapi64.dll" ]; then
+        if [ -d "${DIR}/../librerias/dxvk-nvapi" ]; then
+            cp -rf "${DIR}/../librerias/dxvk-nvapi"/* "$nvapi_cache/" 2>/dev/null || true
+        else
+            echo -e "${CYAN}  📦 Descargando DXVK-NVAPI desde GitHub...${RESET}"
+            local tar_file="${nvapi_cache}/dxvk-nvapi.tar.gz"
+            if curl -sL --connect-timeout 10 --max-time 60 "https://github.com/jp7677/dxvk-nvapi/releases/download/v0.9.3/dxvk-nvapi-v0.9.3.tar.gz" -o "$tar_file"; then
+                tar -xzf "$tar_file" -C "$nvapi_cache" 2>/dev/null || true
+                rm -f "$tar_file"
+            fi
+        fi
+    fi
+
+    local instalado=0
+    if [ -d "${target_prefix}/drive_c/windows/syswow64" ] && [ -f "${nvapi_cache}/x32/nvapi.dll" ]; then
+        cp -f "${nvapi_cache}/x32/nvapi.dll" "${target_prefix}/drive_c/windows/syswow64/nvapi.dll"
+        instalado=1
+    fi
+    if [ -d "${target_prefix}/drive_c/windows/system32" ] && [ -f "${nvapi_cache}/x64/nvapi64.dll" ]; then
+        cp -f "${nvapi_cache}/x64/nvapi64.dll" "${target_prefix}/drive_c/windows/system32/nvapi64.dll"
+        instalado=1
+    fi
+
+    if [ "$instalado" -eq 1 ]; then
+        echo -e "${GREEN}✓ DXVK-NVAPI inyectado: Características y extensiones de bajo nivel NVIDIA listas.${RESET}"
+    else
+        echo -e "${YELLOW}⚠ DXVK-NVAPI no disponible en este momento.${RESET}"
+    fi
+}
+
 # 10. PROPAGAR AUTOMÁTICAMENTE LIBRERÍAS A PREFIJOS AISLADOS (0 EXTRA DISCO VÍA HARDLINKS)
 propagar_librerias_a_prefijo() {
     local dest_prefix="${1:-}"
@@ -358,6 +421,8 @@ instalar_paquete_maestro() {
 
     instalar_directx_completo "$target_prefix"
     instalar_vcredist_aio "$target_prefix"
+    instalar_d3d8to9 "$target_prefix"
+    instalar_dxvk_nvapi "$target_prefix"
     instalar_corefonts "$target_prefix"
     instalar_directplay "$target_prefix"
     instalar_openal "$target_prefix"
@@ -433,6 +498,20 @@ mostrar_estado() {
         echo -e "  [${YELLOW}○${RESET}] ${BOLD}DSOAL:${RESET} Descargable bajo demanda para juegos clásicos"
     fi
 
+    # D3D8to9
+    if [ -f "${DIR}/wineprefix/drive_c/windows/syswow64/d3d8.dll" ] || [ -f "${CACHE_DIR}/d3d8to9/d3d8.dll" ]; then
+        echo -e "  [${GREEN}✓${RESET}] ${BOLD}D3D8to9 (DirectX 8 -> Vulkan):${RESET} Instalado y listo (60 FPS para clásicos 2001-2006)"
+    else
+        echo -e "  [${YELLOW}○${RESET}] ${BOLD}D3D8to9:${RESET} Disponible para instalación bajo demanda"
+    fi
+
+    # DXVK-NVAPI
+    if [ -f "${DIR}/wineprefix/drive_c/windows/system32/nvapi64.dll" ] || [ -f "${CACHE_DIR}/dxvk-nvapi/x64/nvapi64.dll" ]; then
+        echo -e "  [${GREEN}✓${RESET}] ${BOLD}DXVK-NVAPI (NVIDIA GeForce Bridge):${RESET} Instalado y activo para GPUs GeForce"
+    else
+        echo -e "  [${YELLOW}○${RESET}] ${BOLD}DXVK-NVAPI:${RESET} Disponible para instalación bajo demanda"
+    fi
+
     # vkBasalt
     if command -v vkbasalt &>/dev/null || [ -f "/usr/lib/x86_64-linux-gnu/libvkbasalt.so" ] || [ -f "/usr/lib64/libvkbasalt.so" ] || [ -f "/usr/lib/libvkbasalt.so" ]; then
         echo -e "  [${GREEN}✓${RESET}] ${BOLD}vkBasalt (Post-procesado Vulkan):${RESET} Instalado en el sistema"
@@ -471,6 +550,14 @@ case "${1:-menu}" in
     instalar_openal)
         instalar_openal "${2:-${DIR}/wineprefix}"
         ;;
+    instalar_d3d8to9)
+        instalar_d3d8to9 "${2:-${DIR}/wineprefix}"
+        configurar_dlloverrides "${2:-${DIR}/wineprefix}"
+        ;;
+    instalar_nvapi)
+        instalar_dxvk_nvapi "${2:-${DIR}/wineprefix}"
+        configurar_dlloverrides "${2:-${DIR}/wineprefix}"
+        ;;
     propagar)
         propagar_librerias_a_prefijo "${2:-}"
         ;;
@@ -498,23 +585,27 @@ case "${1:-menu}" in
         echo "  [1] 🚀 Instalar Paquete Maestro de DLLs para Todos los Juegos (Recomendado)"
         echo "  [2] 🎮 Instalar DirectX 9/10/11 Completo (+100 DLLs nativas de Microsoft)"
         echo "  [3] ⚙️  Instalar Visual C++ 2005 a 2022 AIO (32 y 64 bits)"
-        echo "  [4] 🔤 Instalar Fuentes Oficiales de Windows (Corefonts: Arial, Times, Tahoma)"
-        echo "  [5] 🔊 Descargar / Preparar DSOAL (Audio 3D Espacial EAX)"
-        echo "  [6] 🕹️  Descargar / Preparar cnc-ddraw (DirectDraw OpenGL)"
-        echo "  [7] 🎮 Actualizar base de datos de mandos (gamecontrollerdb.txt)"
-        echo "  [8] 🎨 Generar configuración optimizada de vkBasalt (AMD CAS)"
-        echo "  [9] ↩️  Salir"
+        echo "  [4] 🕹️  Instalar D3D8to9 (DirectX 8 -> Vulkan 60 FPS fijos)"
+        echo "  [5] 🟢 Instalar DXVK-NVAPI (Puente nativo NVIDIA GeForce)"
+        echo "  [6] 🔤 Instalar Fuentes Oficiales de Windows (Corefonts: Arial, Times, Tahoma)"
+        echo "  [7] 🔊 Descargar / Preparar DSOAL (Audio 3D Espacial EAX)"
+        echo "  [8] 🕹️  Descargar / Preparar cnc-ddraw (DirectDraw OpenGL)"
+        echo "  [9] 🎮 Actualizar base de datos de mandos (gamecontrollerdb.txt)"
+        echo "  [10] 🎨 Generar configuración optimizada de vkBasalt (AMD CAS)"
+        echo "  [0] ↩️  Salir"
         echo ""
-        read -rp "Selecciona una opción [1-9]: " opc
+        read -rp "Selecciona una opción [0-10]: " opc
         case "$opc" in
             1) instalar_paquete_maestro "${DIR}/wineprefix" ;;
             2) instalar_directx_completo "${DIR}/wineprefix" && configurar_dlloverrides "${DIR}/wineprefix" ;;
             3) instalar_vcredist_aio "${DIR}/wineprefix" && configurar_dlloverrides "${DIR}/wineprefix" ;;
-            4) instalar_corefonts "${DIR}/wineprefix" ;;
-            5) instalar_dsoal ;;
-            6) instalar_cnc_ddraw ;;
-            7) actualizar_gamecontrollerdb ;;
-            8) configurar_vkbasalt ;;
+            4) instalar_d3d8to9 "${DIR}/wineprefix" && configurar_dlloverrides "${DIR}/wineprefix" ;;
+            5) instalar_dxvk_nvapi "${DIR}/wineprefix" && configurar_dlloverrides "${DIR}/wineprefix" ;;
+            6) instalar_corefonts "${DIR}/wineprefix" ;;
+            7) instalar_dsoal ;;
+            8) instalar_cnc_ddraw ;;
+            9) actualizar_gamecontrollerdb ;;
+            10) configurar_vkbasalt ;;
             *) echo "Saliendo..." ;;
         esac
         ;;

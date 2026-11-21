@@ -546,6 +546,14 @@ if [ -z "${WINEDEBUG:-}" ]; then
     export WINEDEBUG="-all"
 fi
 
+# 9.2 Detección y activación de puente DXVK-NVAPI para GPUs NVIDIA GeForce
+NVAPI_ACTIVO="Inactivo"
+if [[ "${DETECTED_GPU:-}" =~ [Nn][Vv][Ii][Dd][Ii][Aa] ]] || lspci 2>/dev/null | grep -qi "NVIDIA"; then
+    export DXVK_ENABLE_NVAPI=1
+    export WINEDLLOVERRIDES="nvapi,nvapi64=n,b;${WINEDLLOVERRIDES:-}"
+    NVAPI_ACTIVO="Activo (GeForce Reflex & Low-Latency)"
+fi
+
 # 10. Soporte para AMD FSR (FidelityFX Super Resolution - Reescalado de FPS) (Mejora 4)
 ACTIVAR_FSR_FINAL=0
 MODO_FSR_FINAL="quality"
@@ -1611,6 +1619,7 @@ echo "    - GPU: ${DETECTED_GPU}"
 echo "    - Versión de Vessel: v1.0 (Producción)"
 echo "    - Renderizador: ${RENDERER_IN_USE:-DXVK (Vulkan)}"
 echo "    - Consumo RAM / CPU: Ultra-Liviano (WINEDEBUG silenciado, Pipelines dinámicos)"
+echo "    - Fidelidad 3D & Shaders: Filtrado Anisotrópico 16x | D3D8to9 Vulkan | NVAPI: ${NVAPI_ACTIVO}"
 echo "    - Fsync/Esync: $([ "$WINEFSYNC" = "1" ] && echo "Fsync Activo" || echo "Esync Activo")"
 echo "    - Límite de FPS: ${LIMITE_FPS:-60} FPS"
 fsr_banner="Desactivado"

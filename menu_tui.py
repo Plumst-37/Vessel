@@ -1950,13 +1950,15 @@ def menu_herramientas(hw, cfg):
         elif sel == "6":
             script_lib = os.path.join(DIR, "herramientas", "gestor_librerias.sh")
             sub_winetricks = [
-                ("1", "🚀 Instalar Paquete Maestro de DLLs para Todos los Juegos (Recomendado)\n• DirectX 9/10/11 (+100 DLLs), VC++ 2005-2022 AIO, OpenAL 3D, DirectPlay y Corefonts"),
+                ("1", "🚀 Instalar Paquete Maestro de DLLs para Todos los Juegos (Recomendado)\n• DirectX 9/10/11 (+100 DLLs), VC++ 2005-2022 AIO, D3D8to9, NVAPI, OpenAL 3D, DirectPlay y Corefonts"),
                 ("2", "🎮 DirectX 9, 10 y 11 Completo (+100 DLLs oficiales de Microsoft)\n• D3DX9/10/11, D3DCompiler 33-47, XInput 1.1-1.4, XAudio2 y XACT"),
                 ("3", "⚙️  Microsoft Visual C++ Runtimes (2005 a 2022 AIO Oficial)\n• VCRuntime140, MSVCP140, MSVCR120, MSVCP120, MSVCR100, MFC42"),
-                ("4", "🔤 Fuentes Oficiales de Windows (Corefonts: Arial, Times, Tahoma, Verdana)"),
-                ("5", "🌐 .NET Framework 4.8 (dotnet48 para launchers y mods)"),
-                ("6", "🔊 Audio 3D OpenAL + DSOAL (EAX binaural espacial)"),
-                ("7", "🕹️  DirectDraw Retro OpenGL (cnc-ddraw para clásicos 1995-2003)"),
+                ("4", "🕹️  D3D8to9: Traductor DirectX 8 a Vulkan (60 FPS para clásicos 2001-2006)\n• Convierte GTA Vice City/SA, Max Payne, NFS Underground a DirectX 9 / DXVK"),
+                ("5", "🟢 DXVK-NVAPI: Puente de Alto Rendimiento para GPUs NVIDIA GeForce\n• Desbloquea Reflex, baja latencia y extensiones nativas NVIDIA"),
+                ("6", "🔤 Fuentes Oficiales de Windows (Corefonts: Arial, Times, Tahoma, Verdana)"),
+                ("7", "🌐 .NET Framework 4.8 (dotnet48 para launchers y mods)"),
+                ("8", "🔊 Audio 3D OpenAL + DSOAL (EAX binaural espacial)"),
+                ("9", "🕹️  DirectDraw Retro OpenGL (cnc-ddraw para clásicos 1995-2003)"),
                 ("0", "↩️  Cancelar")
             ]
             w_sel = submenu_interactivo("📦  Instalar Dependencias y DLLs de Windows", sub_winetricks, hw, cfg)
@@ -1974,18 +1976,26 @@ def menu_herramientas(hw, cfg):
                 pausar()
             elif w_sel == "4":
                 os.system("clear")
-                subprocess.run(["bash", script_lib, "instalar_fuentes", WINEPREFIX])
+                subprocess.run(["bash", script_lib, "instalar_d3d8to9", WINEPREFIX])
                 pausar()
             elif w_sel == "5":
+                os.system("clear")
+                subprocess.run(["bash", script_lib, "instalar_nvapi", WINEPREFIX])
+                pausar()
+            elif w_sel == "6":
+                os.system("clear")
+                subprocess.run(["bash", script_lib, "instalar_fuentes", WINEPREFIX])
+                pausar()
+            elif w_sel == "7":
                 os.system("clear")
                 print(f"{CYAN}🌐 Instalando .NET Framework 4.8 (puede tardar varios minutos)...{RESET}\n")
                 subprocess.run(f"WINEPREFIX='{WINEPREFIX}' winetricks -q dotnet48", shell=True)
                 pausar()
-            elif w_sel == "6":
+            elif w_sel == "8":
                 os.system("clear")
                 subprocess.run(["bash", script_lib, "instalar_openal", WINEPREFIX])
                 pausar()
-            elif w_sel == "7":
+            elif w_sel == "9":
                 os.system("clear")
                 target_dest = os.path.join(WINEPREFIX, "drive_c", "windows", "syswow64") if os.path.isdir(os.path.join(WINEPREFIX, "drive_c", "windows", "syswow64")) else os.path.join(WINEPREFIX, "drive_c", "windows", "system32")
                 subprocess.run(["bash", script_lib, "instalar_ddraw", target_dest])
