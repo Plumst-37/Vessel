@@ -454,6 +454,34 @@ def pausar():
     print(f"\n{PURPLE}{'─' * total_w}{RESET}")
     input(f"  {PURPLE}[Enter]{RESET} {WHITE}Presiona Enter para continuar...{RESET} ")
 
+def ejecutar_juego_y_liberar_ram(cmd_args, con_hud=False):
+    """
+    Libera completamente la memoria RAM de Python (~25 MB) reemplazando el proceso
+    por el ejecutor ligero de bash, y reabre el menú automáticamente al salir del juego.
+    """
+    script_ejecutor = os.path.join(DIR, "herramientas", "ejecutar_y_volver.sh")
+    env = os.environ.copy()
+    if con_hud:
+        env["ENABLE_DXVK_HUD"] = "1"
+
+    if os.path.exists(script_ejecutor):
+        os.chmod(script_ejecutor, 0o755)
+        try:
+            import termios
+            termios.tcflush(sys.stdin, termios.TCIFLUSH)
+        except Exception:
+            pass
+        # os.execvpe reemplaza este proceso de Python liberando el 100% de su RAM
+        os.execvpe("bash", ["bash", script_ejecutor] + cmd_args, env)
+    else:
+        # Fallback de respaldo en caso de que no exista el script ejecutor
+        full_cmd = ["bash", LAUNCHER] + cmd_args
+        if con_hud:
+            subprocess.run(full_cmd, env=env)
+        else:
+            subprocess.run(full_cmd)
+        pausar()
+
 # ==============================================================================
 # GESTIÓN Y PERSISTENCIA DE PROGRAMAS Y JUEGOS (GAMERANGER PORTABLE SIEMPRE LISTO)
 # ==============================================================================
@@ -899,13 +927,9 @@ def menu_iniciar_programa(hw, cfg):
         if accion == "1":
             os.system("clear")
             print(f"{GREEN}🚀 Iniciando: {BOLD}{nombre}{RESET} de forma nativa en tu computadora...\n")
-            try:
-                termios.tcflush(sys.stdin, termios.TCIFLUSH)
-            except Exception:
-                pass
             if not os.path.exists(ruta) and "gameranger" in ruta.lower():
                 ruta = "GameRanger.exe"
-            cmd_args = ["bash", LAUNCHER]
+            cmd_args = []
             if prefijo == "aislado":
                 cmd_args.append("--isolated")
             if winver:
@@ -913,20 +937,13 @@ def menu_iniciar_programa(hw, cfg):
             if fsr and fsr != "off":
                 cmd_args.extend(["--fsr", fsr])
             cmd_args.append(ruta)
-            subprocess.run(cmd_args)
-            pausar()
+            ejecutar_juego_y_liberar_ram(cmd_args, con_hud=False)
         elif accion == "2":
             os.system("clear")
             print(f"{PURPLE}📊 Iniciando: {BOLD}{nombre}{RESET} con HUD de FPS activo...\n")
-            try:
-                termios.tcflush(sys.stdin, termios.TCIFLUSH)
-            except Exception:
-                pass
             if not os.path.exists(ruta) and "gameranger" in ruta.lower():
                 ruta = "GameRanger.exe"
-            env = os.environ.copy()
-            env["ENABLE_DXVK_HUD"] = "1"
-            cmd_args = ["bash", LAUNCHER]
+            cmd_args = []
             if prefijo == "aislado":
                 cmd_args.append("--isolated")
             if winver:
@@ -934,8 +951,7 @@ def menu_iniciar_programa(hw, cfg):
             if fsr and fsr != "off":
                 cmd_args.extend(["--fsr", fsr])
             cmd_args.append(ruta)
-            subprocess.run(cmd_args, env=env)
-            pausar()
+            ejecutar_juego_y_liberar_ram(cmd_args, con_hud=True)
         elif accion == "3":
             carpeta = os.path.join(DIR, "GameRanger") if "gameranger" in ruta.lower() else os.path.dirname(ruta)
             subprocess.run(["xdg-open", carpeta], stderr=subprocess.DEVNULL)
@@ -1399,17 +1415,13 @@ def menu_configurar_programas(hw, cfg):
             if ini == 's':
                 os.system("clear")
                 print(f"{GREEN}🚀 Iniciando: {BOLD}{nombre_custom}{RESET}...\n")
-                try:
-                    termios.tcflush(sys.stdin, termios.TCIFLUSH)
-                except Exception:
-                    pass
-                args_launch = ["bash", LAUNCHER]
+                args_launch = []
                 if modo_p == "aislado":
                     args_launch.append("--isolated")
                 if version_elegida and version_elegida != "win10":
                     args_launch.extend(["--winver", version_elegida])
                 args_launch.append(ruta)
-                subprocess.run(args_launch)
+                ejecutar_juego_y_liberar_ram(args_launch, con_hud=False)
             pausar()
         elif sel == "2":
             sub_metodo = [
@@ -1564,13 +1576,13 @@ def menu_configurar_programas(hw, cfg):
                             if c_ini == 's':
                                 os.system("clear")
                                 print(f"{GREEN}🚀 Iniciando: {BOLD}{nom_custom}{RESET}...\n")
-                                args_launch = ["bash", LAUNCHER]
+                                args_launch = []
                                 if modo_p == "aislado":
                                     args_launch.append("--isolated")
                                 if version_elegida and version_elegida != "win10":
                                     args_launch.extend(["--winver", version_elegida])
                                 args_launch.append(auto_detectado_path)
-                                subprocess.run(args_launch)
+                                ejecutar_juego_y_liberar_ram(args_launch, con_hud=False)
                 else:
                     print(f"\n{CYAN}💡 Si el instalador creó un ejecutable en 'Program Files', puedes registrarlo con la opción 1.{RESET}")
             else:

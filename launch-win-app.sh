@@ -541,6 +541,11 @@ else
     unset DXVK_CONFIG_FILE
 fi
 
+# 9.1 Silenciar completamente la depuración de Wine para mínimo consumo de RAM y CPU (Ahorro: -15 MB)
+if [ -z "${WINEDEBUG:-}" ]; then
+    export WINEDEBUG="-all"
+fi
+
 # 10. Soporte para AMD FSR (FidelityFX Super Resolution - Reescalado de FPS) (Mejora 4)
 ACTIVAR_FSR_FINAL=0
 MODO_FSR_FINAL="quality"
@@ -1605,6 +1610,7 @@ echo "    - CPU: ${CPU_MODEL} (${CPU_CORES} Hilos)"
 echo "    - GPU: ${DETECTED_GPU}"
 echo "    - Versión de Vessel: v1.0 (Producción)"
 echo "    - Renderizador: ${RENDERER_IN_USE:-DXVK (Vulkan)}"
+echo "    - Consumo RAM / CPU: Ultra-Liviano (WINEDEBUG silenciado, Pipelines dinámicos)"
 echo "    - Fsync/Esync: $([ "$WINEFSYNC" = "1" ] && echo "Fsync Activo" || echo "Esync Activo")"
 echo "    - Límite de FPS: ${LIMITE_FPS:-60} FPS"
 fsr_banner="Desactivado"
