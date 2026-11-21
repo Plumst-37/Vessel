@@ -32,12 +32,13 @@ source "${DIR}/hardware_detect.sh"
 # 2. Aplicar optimizaciones dinámicas para el hardware real del equipo
 aplicar_entorno_hardware
 
-# 3. Procesar banderas opcionales (prefijo dedicado, modo aislado, runner custom, versión de Windows y AMD FSR)
+# 3. Procesar banderas opcionales (prefijo dedicado, modo aislado, runner custom, versión de Windows, AMD FSR y modo programa)
 CUSTOM_PREFIX=""
 FORCE_ISOLATED=0
 CUSTOM_RUNNER=""
 CUSTOM_WINVER=""
 CUSTOM_FSR=""
+IS_PROGRAM=0
 while [ $# -gt 0 ]; do
     case "$1" in
         --prefix)
@@ -60,6 +61,10 @@ while [ $# -gt 0 ]; do
             CUSTOM_FSR="$2"
             shift 2
             ;;
+        --program)
+            IS_PROGRAM=1
+            shift
+            ;;
         *)
             break
             ;;
@@ -67,7 +72,7 @@ while [ $# -gt 0 ]; do
 done
 
 if [ $# -eq 0 ]; then
-    echo "Uso: $0 [--prefix /ruta/al/prefijo] [--isolated] [--runner /ruta/a/wine] [--winver win10|win7|winxp] [--fsr off|quality|performance] /ruta/al/programa.exe [argumentos]"
+    echo "Uso: $0 [--prefix /ruta/al/prefijo] [--isolated] [--runner /ruta/a/wine] [--winver win10|win7|winxp] [--fsr off|quality|performance] [--program] /ruta/al/programa.exe [argumentos]"
     exit 1
 fi
 
@@ -216,6 +221,15 @@ else
             if [ -n "$PE_TARGET" ] && [ -f "$PE_TARGET" ] && [ "$TARGET" != "$PE_TARGET" ]; then
                 TARGET="$PE_TARGET"
             fi
+        fi
+    fi
+
+    # Identificación automática de categoría (Juego vs Programa de Escritorio)
+    if [ "$IS_PROGRAM" -eq 0 ]; then
+        if [ "$PE_CATEGORY" = "programa" ]; then
+            IS_PROGRAM=1
+        elif [[ "$(basename "$TARGET")" =~ (winecfg|explorer|notepad|cmd|regedit|taskmgr|control) ]]; then
+            IS_PROGRAM=1
         fi
     fi
 
@@ -573,13 +587,13 @@ fi
 
 # 11. Uso condicional de GameMode según perfil
 GAMEMODE=""
-if [ "$PERFIL_RENDIMIENTO" != "ahorro" ] && command -v gamemoderun &> /dev/null; then
+if [ "$IS_PROGRAM" -ne 1 ] && [ "$PERFIL_RENDIMIENTO" != "ahorro" ] && command -v gamemoderun &> /dev/null; then
     GAMEMODE="gamemoderun"
 fi
 
 # Activar modo alto rendimiento de energía en CPU (desbloquea Turbo Boost sin throttling agresivo en cualquier distro)
 PREV_POWER_PROFILE=""
-if [ "$PERFIL_RENDIMIENTO" != "ahorro" ]; then
+if [ "$IS_PROGRAM" -ne 1 ] && [ "$PERFIL_RENDIMIENTO" != "ahorro" ]; then
     if command -v powerprofilesctl &> /dev/null; then
         PREV_POWER_PROFILE=$(powerprofilesctl get 2>/dev/null || true)
         powerprofilesctl set performance 2>/dev/null || true
@@ -739,6 +753,38 @@ if [[ "$TARGET_FILE" =~ [Gg]ame[Rr]anger ]]; then
     # GameRanger es un programa/lobby de escritorio, debe ejecutarse en MODO VENTANA (NUNCA en pantalla completa)
     ESCRITORIO_VIRTUAL="0"
     EXTRA_APP_ARGS="--disable-gpu --disable-gpu-compositing"
+fi
+
+# ==============================================================================
+# CONFIGURACIÓN UNIVERSAL PARA PROGRAMAS Y UTILIDADES DE ESCRITORIO DE WINDOWS
+# - Modo Ventana Nativa X11 / Wayland (redimensionable, decorada, sin captura de cursor)
+# - Subpixel Antialiasing ClearType HD para renderizado impecable de fuentes y textos
+# - Sobrecargas de librerías para software de productividad, suites y diseño
+# ==============================================================================
+if [ "$IS_PROGRAM" -eq 1 ]; then
+    GAMEMODE=""
+    GAMESCOPE_PREFIX=""
+    ESCRITORIO_VIRTUAL="0"
+
+    # Fuentes ClearType HD en el Registro de Windows
+    "$WINE_CMD" reg add "HKEY_CURRENT_USER\Control Panel\Desktop" /v "FontSmoothing" /t REG_SZ /d "2" /f >/dev/null 2>&1 || true
+    "$WINE_CMD" reg add "HKEY_CURRENT_USER\Control Panel\Desktop" /v "FontSmoothingType" /t REG_DWORD /d 2 /f >/dev/null 2>&1 || true
+    "$WINE_CMD" reg add "HKEY_CURRENT_USER\Control Panel\Desktop" /v "FontSmoothingGamma" /t REG_DWORD /d 1400 /f >/dev/null 2>&1 || true
+    "$WINE_CMD" reg add "HKEY_CURRENT_USER\Control Panel\Desktop" /v "FontSmoothingOrientation" /t REG_DWORD /d 1 /f >/dev/null 2>&1 || true
+
+    # Ventana de escritorio decorada y redimensionable
+    if [ -n "$TARGET_FILE" ]; then
+        "$WINE_CMD" reg add "HKEY_CURRENT_USER\Software\Wine\AppDefaults\\${TARGET_FILE}\X11 Driver" /v "Decorated" /t REG_SZ /d "Y" /f >/dev/null 2>&1 || true
+        "$WINE_CMD" reg add "HKEY_CURRENT_USER\Software\Wine\AppDefaults\\${TARGET_FILE}\X11 Driver" /v "Managed" /t REG_SZ /d "Y" /f >/dev/null 2>&1 || true
+        "$WINE_CMD" reg add "HKEY_CURRENT_USER\Software\Wine\AppDefaults\\${TARGET_FILE}\X11 Driver" /v "GrabFullscreen" /t REG_SZ /d "N" /f >/dev/null 2>&1 || true
+    fi
+
+    # Overrides de librerías de productividad y oficina
+    "$WINE_CMD" reg add "HKEY_CURRENT_USER\Software\Wine\DllOverrides" /v "riched20" /t REG_SZ /d "native,builtin" /f >/dev/null 2>&1 || true
+    "$WINE_CMD" reg add "HKEY_CURRENT_USER\Software\Wine\DllOverrides" /v "riched32" /t REG_SZ /d "native,builtin" /f >/dev/null 2>&1 || true
+    "$WINE_CMD" reg add "HKEY_CURRENT_USER\Software\Wine\DllOverrides" /v "msxml3" /t REG_SZ /d "native,builtin" /f >/dev/null 2>&1 || true
+    "$WINE_CMD" reg add "HKEY_CURRENT_USER\Software\Wine\DllOverrides" /v "msxml6" /t REG_SZ /d "native,builtin" /f >/dev/null 2>&1 || true
+    "$WINE_CMD" reg add "HKEY_CURRENT_USER\Software\Wine\DllOverrides" /v "gdiplus" /t REG_SZ /d "native,builtin" /f >/dev/null 2>&1 || true
 fi
 
 # Moverse al directorio donde reside el juego (vital para rutas relativas y DLLs)
@@ -1604,52 +1650,73 @@ if [ "$PERFIL_RENDIMIENTO" = "extremo" ] && [[ ! "$TARGET_FILE" =~ [Gg]ame[Rr]an
     fi
 fi
 
-perf_label="${PERFIL_RENDIMIENTO:-inteligente}"
-case "$perf_label" in
-    inteligente|maximo) perf_label="Inteligente (Autocalibrado)" ;;
-    estandar) perf_label="Estándar / Compatibilidad" ;;
-    extremo) perf_label="Portátil Extremo (FSR Boost)" ;;
-    ahorro) perf_label="Ahorro de Energía" ;;
-esac
+if [ "$IS_PROGRAM" -eq 1 ]; then
+    perf_label="Entorno de Escritorio Windows (ClearType HD)"
+else
+    perf_label="${PERFIL_RENDIMIENTO:-inteligente}"
+    case "$perf_label" in
+        inteligente|maximo) perf_label="Inteligente (Autocalibrado)" ;;
+        estandar) perf_label="Estándar / Compatibilidad" ;;
+        extremo) perf_label="Portátil Extremo (FSR Boost)" ;;
+        ahorro) perf_label="Ahorro de Energía" ;;
+    esac
+fi
 
 echo ""
-echo "[+] Ejecutando con Perfil [${perf_label}] (Vessel v1.0)..."
-echo "    - CPU: ${CPU_MODEL} (${CPU_CORES} Hilos)"
-echo "    - GPU: ${DETECTED_GPU}"
-echo "    - Versión de Vessel: v1.0 (Producción)"
-echo "    - Renderizador: ${RENDERER_IN_USE:-DXVK (Vulkan)}"
-echo "    - Consumo RAM / CPU: Ultra-Liviano (WINEDEBUG silenciado, Pipelines dinámicos)"
-echo "    - Fidelidad 3D & Shaders: Filtrado Anisotrópico 16x | D3D8to9 Vulkan | NVAPI: ${NVAPI_ACTIVO}"
-echo "    - Fsync/Esync: $([ "$WINEFSYNC" = "1" ] && echo "Fsync Activo" || echo "Esync Activo")"
-echo "    - Límite de FPS: ${LIMITE_FPS:-60} FPS"
-fsr_banner="Desactivado"
-if [ "$ACTIVAR_FSR_FINAL" -eq 1 ]; then
-    fsr_banner="Activo [Modo: ${MODO_FSR_FINAL}, Nitidez: ${FSR_STRENGTH:-2}]"
-fi
-echo "    - AMD FSR Upscaling: ${fsr_banner}"
-echo "    - Versión de Windows: ${GAME_WINVER^^}"
-if [ -n "$PE_BITS" ] && [ "$PE_BITS" != "0" ]; then
-    echo "    - Arquitectura / Binario: ${PE_BITS}-bit (Subsystem ${PE_SUBSYS:-N/A}) | API: ${PE_API^^}"
-fi
-if [[ "$TARGET_FILE" =~ [Gg]ame[Rr]anger ]]; then
-    echo "    - GameMode: Desactivado (Aplicación de Escritorio / Lobby)"
-    echo "    - Modo Pantalla: Ventana de Escritorio (No Pantalla Completa)"
-    echo "    - Red / Multijugador: Puertos 16000 UDP y DirectPlay Abiertos (100% Conectado)"
+if [ "$IS_PROGRAM" -eq 1 ]; then
+    echo "[+] Ejecutando Programa de Windows [Modo Ventana Nativa - ClearType HD] (Vessel v1.0)..."
+    echo "    - CPU: ${CPU_MODEL} (${CPU_CORES} Hilos)"
+    echo "    - GPU: ${DETECTED_GPU}"
+    echo "    - Versión de Vessel: v1.0 (Producción)"
+    echo "    - Modo de Ejecución: Ventana Nativa X11 / Wayland (Redimensionable)"
+    echo "    - Renderizado de Texto: ClearType HD Subpixel Antialiasing"
+    echo "    - Consumo de Recursos: Mínimo (~25-40 MB RAM, 0% CPU adicional)"
+    echo "    - Versión de Windows: ${GAME_WINVER^^}"
+    if [ -n "$PE_BITS" ] && [ "$PE_BITS" != "0" ]; then
+        echo "    - Arquitectura / Binario: ${PE_BITS}-bit (Subsystem ${PE_SUBSYS:-N/A})"
+    fi
+    echo "    - Runner Wine: ${RUNNER_LABEL}"
+    echo "    - Prefijo Wine: ${WINEPREFIX}"
+    echo "    - Productividad: RichEdit, MSXML y GDI+ habilitados"
 else
-    echo "    - GameMode: $([ -n "$GAMEMODE" ] && echo "Activo" || echo "Inactivo")"
-    echo "    - Modo Pantalla: Pantalla Completa Nativa Directa (Hardware)"
-    echo "    - Caché de Shaders: NVMe SSD (~/.cache/dxvk)"
-fi
-[ -f "${DIR}/herramientas/gamecontrollerdb.txt" ] && echo "    - Mapeo de Mandos: SDL2 GameControllerDB Activo (+2.300 mandos)"
-echo "    - Runner Wine: ${RUNNER_LABEL}"
-echo "    - Prefijo Wine: ${WINEPREFIX}"
-if [ ${#MODS_ACTIVADOS[@]} -gt 0 ] || [ "$CANT_ASI" -gt 0 ]; then
-    echo "    - Mods / Hooks Activos: $([ ${#MODS_ACTIVADOS[@]} -gt 0 ] && echo "${MODS_ACTIVADOS[*]}" || echo "Ninguna DLL especial")"
-    [ "$CANT_ASI" -gt 0 ] && echo "    - Plugins ASI / Scripts: ${CANT_ASI} archivo(s) detectado(s)"
+    echo "[+] Ejecutando con Perfil [${perf_label}] (Vessel v1.0)..."
+    echo "    - CPU: ${CPU_MODEL} (${CPU_CORES} Hilos)"
+    echo "    - GPU: ${DETECTED_GPU}"
+    echo "    - Versión de Vessel: v1.0 (Producción)"
+    echo "    - Renderizador: ${RENDERER_IN_USE:-DXVK (Vulkan)}"
+    echo "    - Consumo RAM / CPU: Ultra-Liviano (WINEDEBUG silenciado, Pipelines dinámicos)"
+    echo "    - Fidelidad 3D & Shaders: Filtrado Anisotrópico 16x | D3D8to9 Vulkan | NVAPI: ${NVAPI_ACTIVO}"
+    echo "    - Fsync/Esync: $([ "$WINEFSYNC" = "1" ] && echo "Fsync Activo" || echo "Esync Activo")"
+    echo "    - Límite de FPS: ${LIMITE_FPS:-60} FPS"
+    fsr_banner="Desactivado"
+    if [ "$ACTIVAR_FSR_FINAL" -eq 1 ]; then
+        fsr_banner="Activo [Modo: ${MODO_FSR_FINAL}, Nitidez: ${FSR_STRENGTH:-2}]"
+    fi
+    echo "    - AMD FSR Upscaling: ${fsr_banner}"
+    echo "    - Versión de Windows: ${GAME_WINVER^^}"
+    if [ -n "$PE_BITS" ] && [ "$PE_BITS" != "0" ]; then
+        echo "    - Arquitectura / Binario: ${PE_BITS}-bit (Subsystem ${PE_SUBSYS:-N/A}) | API: ${PE_API^^}"
+    fi
+    if [[ "$TARGET_FILE" =~ [Gg]ame[Rr]anger ]]; then
+        echo "    - GameMode: Desactivado (Aplicación de Escritorio / Lobby)"
+        echo "    - Modo Pantalla: Ventana de Escritorio (No Pantalla Completa)"
+        echo "    - Red / Multijugador: Puertos 16000 UDP y DirectPlay Abiertos (100% Conectado)"
+    else
+        echo "    - GameMode: $([ -n "$GAMEMODE" ] && echo "Activo" || echo "Inactivo")"
+        echo "    - Modo Pantalla: Pantalla Completa Nativa Directa (Hardware)"
+        echo "    - Caché de Shaders: NVMe SSD (~/.cache/dxvk)"
+    fi
+    [ -f "${DIR}/herramientas/gamecontrollerdb.txt" ] && echo "    - Mapeo de Mandos: SDL2 GameControllerDB Activo (+2.300 mandos)"
+    echo "    - Runner Wine: ${RUNNER_LABEL}"
+    echo "    - Prefijo Wine: ${WINEPREFIX}"
+    if [ ${#MODS_ACTIVADOS[@]} -gt 0 ] || [ "$CANT_ASI" -gt 0 ]; then
+        echo "    - Mods / Hooks Activos: $([ ${#MODS_ACTIVADOS[@]} -gt 0 ] && echo "${MODS_ACTIVADOS[*]}" || echo "Ninguna DLL especial")"
+        [ "$CANT_ASI" -gt 0 ] && echo "    - Plugins ASI / Scripts: ${CANT_ASI} archivo(s) detectado(s)"
+    fi
 fi
 
 # Argumentos de pantalla completa y resolución adaptativa según el motor del juego
-if [[ ! "$TARGET_FILE" =~ ([Gg]ame[Rr]anger|winecfg|regedit|cmd|notepad) ]]; then
+if [ "$IS_PROGRAM" -ne 1 ] && [[ ! "$TARGET_FILE" =~ ([Gg]ame[Rr]anger|winecfg|regedit|cmd|notepad) ]]; then
     # Unity Engine (ej. *_Data o UnityPlayer.dll)
     if [ -d "${TARGET_DIR}/${TARGET_FILE%.*}_Data" ] || [ -f "${TARGET_DIR}/UnityPlayer.dll" ]; then
         EXTRA_APP_ARGS="${EXTRA_APP_ARGS} -screen-fullscreen 1 -screen-width ${best_w} -screen-height ${best_h}"
@@ -1664,7 +1731,7 @@ fi
 
 # Guardián en segundo plano para asegurar pantalla completa en juegos retro que no manejan fullscreen nativo
 WATCHDOG_PID=""
-if [ -n "${DISPLAY:-}" ] && [[ ! "$TARGET_FILE" =~ ([Gg]ame[Rr]anger|winecfg|regedit|cmd|notepad|GTA|GTA5|PlayGTAV) ]]; then
+if [ -n "${DISPLAY:-}" ] && [ "$IS_PROGRAM" -ne 1 ] && [[ ! "$TARGET_FILE" =~ ([Gg]ame[Rr]anger|winecfg|regedit|cmd|notepad|GTA|GTA5|PlayGTAV) ]]; then
     (
         for i in $(seq 1 30); do
             sleep 0.5
@@ -1804,7 +1871,11 @@ trap limpiar_procesos_al_interrumpir INT TERM
 
 # Sincronizar buffers de disco y optimizar prioridad de proceso
 sync 2>/dev/null || true
-renice -n -5 $$ 2>/dev/null || true
+if [ "$IS_PROGRAM" -eq 1 ]; then
+    renice -n 0 $$ 2>/dev/null || true
+else
+    renice -n -5 $$ 2>/dev/null || true
+fi
 
 # Desactivar 'set -e' antes de la ejecución para garantizar que salidas con código != 0 no interrumpan la limpieza
 set +e

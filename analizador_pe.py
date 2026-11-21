@@ -12,6 +12,24 @@ import os
 import struct
 import json
 
+PROGRAM_NAMES = {
+    "winecfg.exe", "winecfg", "explorer.exe", "explorer", "notepad.exe", "notepad",
+    "notepad++.exe", "regedit.exe", "regedit", "taskmgr.exe", "taskmgr", "cmd.exe", "cmd",
+    "control.exe", "control", "calc.exe", "mspaint.exe", "wordpad.exe", "iexplore.exe",
+    "winword.exe", "excel.exe", "powerpnt.exe", "outlook.exe", "onenote.exe", "msaccess.exe",
+    "soffice.exe", "soffice.bin", "swriter.exe", "scalc.exe", "wps.exe", "wpp.exe", "et.exe",
+    "sublime_text.exe", "code.exe", "vscodium.exe", "pycharm.exe", "pycharm64.exe",
+    "idea.exe", "idea64.exe", "clion.exe", "clion64.exe", "devcpp.exe", "codeblocks.exe",
+    "geany.exe", "atom.exe", "7zfm.exe", "7zg.exe", "winrar.exe", "peazip.exe", "rufus.exe",
+    "etcher.exe", "ccleaner.exe", "keepass.exe", "putty.exe", "filezilla.exe", "anydesk.exe",
+    "teamviewer.exe", "vlc.exe", "mpc-hc.exe", "mpc-hc64.exe", "potplayer.exe",
+    "foobar2000.exe", "calibre.exe", "sumatrapdf.exe", "acrobat.exe", "foxitreader.exe",
+    "acroord32.exe", "audacity.exe", "blender.exe", "gimp.exe", "inkscape.exe",
+    "photoshop.exe", "illustrator.exe", "indesign.exe", "fl64.exe", "fl.exe", "reaper.exe",
+    "chrome.exe", "brave.exe", "firefox.exe", "msedge.exe", "opera.exe", "discord.exe",
+    "telegram.exe", "slack.exe", "zoom.exe", "skype.exe", "thunderbird.exe"
+}
+
 def resolve_target_file(target_path):
     """
     Si target_path es un acceso directo (.lnk/.ink) o script por lotes (.bat/.cmd),
@@ -74,10 +92,14 @@ def analizar_juego(exe_path):
         "has_d3d9": False,
         "has_d3d8": False,
         "has_ddraw": False,
-        "has_vulkan": False
+        "has_vulkan": False,
+        "category": "juego"
     }
 
     if not real_path or not os.path.isfile(real_path):
+        bn = os.path.basename(exe_path or "").lower()
+        if bn in PROGRAM_NAMES:
+            res["category"] = "programa"
         return res
 
     game_dir = os.path.dirname(os.path.abspath(real_path))
@@ -265,11 +287,34 @@ def analizar_juego(exe_path):
         api = "dx11" if is_64 else "d3d9"
 
     res["api"] = api
+
+    # 6. Clasificación de Categoría: Juego vs Programa de Escritorio
+    category = "juego"
+    if file_name in PROGRAM_NAMES:
+        category = "programa"
+    elif engine != "generico":
+        category = "juego"
+    elif any(p_kw in full_path_low for p_kw in ("/program files", "/program files (x86)", "/software", "/utilidades", "/herramientas", "/office", "/adobe", "/editors")):
+        category = "programa"
+    elif any(g_kw in full_path_low for g_kw in ("/juegos", "/games", "/steam", "/epic", "/gog", "repack", "fitgirl", "dodi", "crack")):
+        category = "juego"
+    elif not (has_d3d12 or has_d3d11 or has_d3d9 or has_d3d8 or has_ddraw or has_vulkan):
+        if any(w in file_name for w in ("setup", "install", "tool", "config", "patch", "edit", "calc", "view", "player", "reader", "suite")):
+            category = "programa"
+        else:
+            category = "juego"
+    else:
+        category = "juego"
+
+    if "gameranger" in file_name:
+        category = "juego"
+
+    res["category"] = category
     return res
 
 def main():
     if len(sys.argv) < 2:
-        print("Uso: analizador_pe.py [--bash | --json | --winver | --engine | --api | --bits] <ruta_al_exe>")
+        print("Uso: analizador_pe.py [--bash | --json | --winver | --engine | --api | --bits | --category] <ruta_al_exe>")
         sys.exit(1)
 
     flag = ""
@@ -298,6 +343,7 @@ def main():
         print(f'PE_HAS_DX12="{1 if info["has_d3d12"] else 0}"')
         print(f'PE_HAS_DX11="{1 if info["has_d3d11"] else 0}"')
         print(f'PE_HAS_DDRAW="{1 if info["has_ddraw"] else 0}"')
+        print(f'PE_CATEGORY="{info["category"]}"')
     elif flag == "--json":
         print(json.dumps(info, indent=2))
     elif flag == "--winver":
@@ -308,10 +354,13 @@ def main():
         print(info["api"])
     elif flag == "--bits":
         print(info["bits"])
+    elif flag == "--category":
+        print(info["category"])
     else:
         # Formato legible por defecto
         print(f"Archivo   : {info['resolved_exe']}")
         print(f"Formato   : {'PE32+ (64-bit)' if info['is_64'] else 'PE32 (32-bit)'}")
+        print(f"Tipo      : {'🎮 Juego' if info['category'] == 'juego' else '💼 Programa'}")
         print(f"Windows   : {info['winver'].upper()}")
         print(f"Motor     : {info['engine']}")
         print(f"API 3D    : {info['api'].upper()}")
