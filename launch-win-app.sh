@@ -384,8 +384,10 @@ TARGET_FILE="$(basename "$TARGET")"
 IS_WAYLAND=0
 if [ "${XDG_SESSION_TYPE:-}" = "wayland" ] || [ -n "${WAYLAND_DISPLAY:-}" ]; then
     IS_WAYLAND=1
-    export SDL_VIDEODRIVER="wayland,x11"
 fi
+# NUNCA exportar SDL_VIDEODRIVER para Wine: las librerías Windows SDL2.dll sólo soportan el driver 'windows'.
+# Si SDL_VIDEODRIVER tiene 'wayland' o 'x11', SDL_VideoInit colapsa con 'not available' y 'Failed to create SDL Window'.
+unset SDL_VIDEODRIVER
 
 # 6. Detección y activación del ejecutable de Wine (Runner portable, Lutris, Heroic, Wine-TKG o del sistema)
 WINE_CMD=""
@@ -1414,6 +1416,7 @@ except Exception:
             export PROTON_USE_WINED3D=1
             unset DXVK_CONFIG_FILE
             export DXVK_HUD=0
+            unset SDL_VIDEODRIVER
 
             # 3. Desactivar FSR de Wine (evita conflictos con CEF / Chromium Embedded Framework y con el backend OpenGL)
             ACTIVAR_FSR_FINAL=0
