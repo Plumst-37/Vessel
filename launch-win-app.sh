@@ -2129,12 +2129,17 @@ touch "$TEMP_GAME_LOG" 2>/dev/null || true
 
 if [ "$ENABLE_DESKTOP_SESSION" -eq 1 ]; then
     sincronizar_escritorio_virtual_windows
-    detectar_pantalla_activa
-    best_w="${ACTIVE_MON_W:-1920}"
-    best_h="${ACTIVE_MON_H:-1080}"
-    echo "[+] Iniciando Sesión de Escritorio Windows Completo (${best_w}x${best_h})..."
-    "$WINE_CMD" explorer "/desktop=Windows_Vessel,${best_w}x${best_h}" "$@" 2>&1 | tee "$TEMP_GAME_LOG"
-    EXIT_STATUS="${PIPESTATUS[0]}"
+    echo "[+] Iniciando Sesión de Escritorio Windows Completo (Vessel Sistema Doble)..."
+    if [ -f "${DIR}/escritorio_windows.py" ] && command -v python3 &>/dev/null; then
+        python3 "${DIR}/escritorio_windows.py" 2>&1 | tee "$TEMP_GAME_LOG"
+        EXIT_STATUS="${PIPESTATUS[0]}"
+    else
+        detectar_pantalla_activa
+        best_w="${ACTIVE_MON_W:-1280}"
+        best_h="${ACTIVE_MON_H:-720}"
+        "$WINE_CMD" explorer "/desktop=Windows_Vessel,${best_w}x${best_h}" winefile.exe 2>&1 | tee "$TEMP_GAME_LOG"
+        EXIT_STATUS="${PIPESTATUS[0]}"
+    fi
 elif [[ "$TARGET_FILE" =~ \.(msi|MSI)$ ]]; then
     $GAMEMODE "$WINE_CMD" msiexec /i "$TARGET_FILE" "$@" 2>&1 | tee "$TEMP_GAME_LOG"
     EXIT_STATUS="${PIPESTATUS[0]}"

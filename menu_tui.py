@@ -851,16 +851,19 @@ def ejecutar_herramienta_windows(tool_exe, label):
 
 def iniciar_escritorio_windows_completo(hw, cfg):
     """Inicia una sesión de Escritorio Virtual Windows completa (Sistema Doble Multiventana)."""
-    os.system("clear")
-    print(f"\n{BOLD}{CYAN}╔══════════════════════════════════════════════════════════════════════╗{RESET}")
-    print(f"{BOLD}{CYAN}║     🪟 INICIANDO ESCRITORIO VIRTUAL WINDOWS (SISTEMA DOBLE)         ║{RESET}")
-    print(f"{BOLD}{CYAN}╚══════════════════════════════════════════════════════════════════════╝{RESET}\n")
-    print(f"  {WHITE}Cargando entorno de escritorio Windows completo...{RESET}")
-    print(f"  {GRAY}• Multiventana: Ejecuta múltiples juegos y programas a la vez.{RESET}")
-    print(f"  {GRAY}• Accesos directos integrados en el Escritorio de Windows.{RESET}")
-    print(f"  {GRAY}• Barra de tareas, bandeja del sistema y administrador de ventanas.{RESET}\n")
-    time.sleep(1)
-    ejecutar_juego_y_liberar_ram(["--desktop"], con_hud=False)
+    script_desk = os.path.join(DIR, "escritorio_windows.py")
+    if os.path.exists(script_desk):
+        os.system("clear")
+        print(f"\n{BOLD}{CYAN}╔══════════════════════════════════════════════════════════════════════╗{RESET}")
+        print(f"{BOLD}{CYAN}║     🪟 INICIANDO ESCRITORIO VIRTUAL WINDOWS (SISTEMA DOBLE)         ║{RESET}")
+        print(f"{BOLD}{CYAN}╚══════════════════════════════════════════════════════════════════════╝{RESET}\n")
+        print(f"  {WHITE}Cargando entorno de escritorio Windows 10 Pro completo...{RESET}")
+        print(f"  {GRAY}• Multiventana: Ejecuta múltiples juegos y programas a la vez.{RESET}")
+        print(f"  {GRAY}• Iconos interactivos, Menú Inicio y Barra de Tareas.{RESET}\n")
+        time.sleep(0.5)
+        subprocess.run(["python3", script_desk])
+    else:
+        ejecutar_juego_y_liberar_ram(["--desktop"], con_hud=False)
 
 def gestionar_o_iniciar_juego(item, hw, cfg):
     """Acciones completas para el videojuego seleccionado (jugar, telemetría, mods, winver, fsr)."""
