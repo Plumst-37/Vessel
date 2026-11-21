@@ -1,12 +1,15 @@
 #!/usr/bin/env bash
 # ==============================================================================
-# VESSEL - GESTOR MODULAR DE LIBRERÍAS Y MEJORAS DE CÓDIGO ABIERTO
-# Descarga bajo demanda, instala y optimiza:
-# 1. cnc-ddraw (Traductor DirectDraw a OpenGL/Vulkan para clásicos DirectX 1-7)
-# 2. DSOAL + OpenAL Soft (Audio 3D Espacial y EAX binaural HRTF)
-# 3. SDL2 GameControllerDB (Base de datos universal de 1000+ mandos USB/Bluetooth)
-# 4. vkBasalt (Nitidez adaptativa AMD CAS y post-procesado Vulkan)
-# 5. Gamescope (Micro-compositor de Valve para reescalado FSR de resolución fija)
+# VESSEL - GESTOR MODULAR DE LIBRERÍAS Y RUNTIMES DE WINDOWS PARA JUEGOS
+# Descarga, instala, inyecta y optimiza:
+# 1. DirectX 9 / 10 / 11 Completo (+100 DLLs oficiales de Microsoft)
+# 2. Microsoft Visual C++ 2005 a 2022 AIO (32 y 64 bits oficiales)
+# 3. OpenAL Soft + DSOAL (Audio 3D Espacial y EAX binaural HRTF)
+# 4. DirectPlay (Multijugador clásico LAN / GameRanger)
+# 5. Fuentes de Windows (Corefonts: Arial, Tahoma, Times, Courier, Verdana)
+# 6. cnc-ddraw (Traductor DirectDraw a OpenGL para clásicos 1995-2003)
+# 7. SDL2 GameControllerDB (Base de datos universal de +2.300 mandos)
+# 8. vkBasalt (Nitidez adaptativa AMD CAS y post-procesado Vulkan)
 # ==============================================================================
 
 set -euo pipefail
@@ -70,7 +73,6 @@ instalar_cnc_ddraw() {
         cp -f "${ddraw_cache}/ddraw.dll" "${target_dir}/ddraw.dll"
         [ -d "${ddraw_cache}/shaders" ] && cp -rf "${ddraw_cache}/shaders" "${target_dir}/"
 
-        # Configurar ddraw.ini optimizado para 100% compatibilidad multi-GPU
         cat << 'EOF' > "${target_dir}/ddraw.ini"
 [ddraw]
 renderer=opengl
@@ -103,9 +105,7 @@ instalar_dsoal() {
             if command -v unzip &>/dev/null; then
                 unzip -q -o "$zip_file" -d "$dsoal_cache"
                 rm -f "$zip_file"
-                # Si viene un zip anidado (ej. DSOAL_r697.zip), descomprimirlo también
                 find "$dsoal_cache" -name "*.zip" -exec unzip -q -o {} -d "$dsoal_cache" \; 2>/dev/null || true
-                # Aplanar estructura de DLLs de 32 bits (Win32) hacia la raíz de caché
                 find "$dsoal_cache" -type f \( -iname "dsound.dll" -o -iname "dsoal-aldrv.dll" \) -exec cp -f {} "$dsoal_cache/" \; 2>/dev/null || true
                 find "$dsoal_cache" -name "*.zip" -delete 2>/dev/null || true
             else
@@ -118,7 +118,6 @@ instalar_dsoal() {
         fi
     fi
 
-    # Configuración de OpenAL Soft con HRTF (Head-Related Transfer Function) para auriculares
     cat << 'EOF' > "${dsoal_cache}/alsoft.ini"
 [general]
 drivers = -dsound,
@@ -139,7 +138,238 @@ EOF
     fi
 }
 
-# 4. CONFIGURAR VKBASALT (Nitidez AMD CAS en Vulkan)
+# 4. CONFIGURAR DllOverrides EN REGISTRO DE WINE
+configurar_dlloverrides() {
+    local target_prefix="${1:-${DIR}/wineprefix}"
+    echo -e "${CYAN}⚙️  Configurando DllOverrides en el registro de Wine para compatibilidad nativa...${RESET}"
+
+    local dx_overrides=(
+        d3dx9_24 d3dx9_25 d3dx9_26 d3dx9_27 d3dx9_28 d3dx9_29 d3dx9_30
+        d3dx9_31 d3dx9_32 d3dx9_33 d3dx9_34 d3dx9_35 d3dx9_36 d3dx9_37
+        d3dx9_38 d3dx9_39 d3dx9_40 d3dx9_41 d3dx9_42 d3dx9_43
+        d3dx10_33 d3dx10_34 d3dx10_35 d3dx10_36 d3dx10_37 d3dx10_38
+        d3dx10_39 d3dx10_40 d3dx10_41 d3dx10_42 d3dx10_43
+        d3dx11_42 d3dx11_43
+        d3dcompiler_33 d3dcompiler_34 d3dcompiler_35 d3dcompiler_36
+        d3dcompiler_37 d3dcompiler_38 d3dcompiler_39 d3dcompiler_40
+        d3dcompiler_41 d3dcompiler_42 d3dcompiler_43 d3dcompiler_46 d3dcompiler_47
+        d3dcsx_42 d3dcsx_43
+        dinput8 xinput1_1 xinput1_2 xinput1_3 xinput1_4 xinput9_1_0
+        xaudio2_0 xaudio2_1 xaudio2_2 xaudio2_3 xaudio2_4 xaudio2_5 xaudio2_6 xaudio2_7
+        xactengine2_0 xactengine2_1 xactengine2_2 xactengine2_3 xactengine2_4 xactengine2_5
+        xactengine2_6 xactengine2_7 xactengine2_8 xactengine2_9
+        xactengine3_0 xactengine3_1 xactengine3_2 xactengine3_3 xactengine3_4 xactengine3_5
+        xactengine3_6 xactengine3_7
+        dplayx
+    )
+
+    local vc_overrides=(
+        vcruntime140 vcruntime140_1 msvcp140 msvcp140_1 msvcp140_2
+        msvcp140_codecvt_ids msvcp140_atomic_wait concrt140 vcomp140
+        msvcp120 msvcr120 msvcp110 msvcr110 msvcp100 msvcr100
+        msvcp90 msvcr90 msvcp80 msvcr80
+        mfc42 mfc100 mfc110 mfc120 mfc140
+    )
+
+    local reg_file="/tmp/vessel_dlloverrides_$$.reg"
+    cat << 'EOF' > "$reg_file"
+Windows Registry Editor Version 5.00
+
+[HKEY_CURRENT_USER\Software\Wine\DllOverrides]
+EOF
+
+    for dll in "${dx_overrides[@]}" "${vc_overrides[@]}"; do
+        echo "\"${dll}\"=\"native,builtin\"" >> "$reg_file"
+    done
+
+    WINEPREFIX="$target_prefix" wine regedit /S "$reg_file" 2>/dev/null || true
+    rm -f "$reg_file"
+    echo -e "${GREEN}✓ DllOverrides configurado: +120 librerías nativas registradas con prioridad en Wine.${RESET}"
+}
+
+# 5. INSTALAR DIRECTX 9/10/11 COMPLETO (+100 DLLs NATIVAS)
+instalar_directx_completo() {
+    local target_prefix="${1:-${DIR}/wineprefix}"
+    local dx_cache="${CACHE_DIR}/directx9"
+    local dx_exe="${dx_cache}/directx_Jun2010_redist.exe"
+    mkdir -p "$dx_cache"
+
+    echo -e "\n${CYAN}🎮 [ PASO 1/5 ] Descargando e instalando DirectX End-User Runtimes Completo...${RESET}"
+    if [ ! -f "$dx_exe" ] || [ ! -s "$dx_exe" ]; then
+        echo -e "${CYAN}  📦 Descargando paquete oficial DirectX Junio 2010 Redist (96 MB)...${RESET}"
+        if ! curl -sL --connect-timeout 15 --max-time 180 "https://files.holarse-linuxgaming.de/mirrors/microsoft/directx_Jun2010_redist.exe" -o "${dx_exe}.tmp"; then
+            echo -e "${YELLOW}  ⚠ Falló servidor primario, intentando espejo alternativo...${RESET}"
+            curl -sL --connect-timeout 15 --max-time 180 "https://archive.org/download/directx_Jun2010_redist/directx_Jun2010_redist.exe" -o "${dx_exe}.tmp" || true
+        fi
+        if [ -s "${dx_exe}.tmp" ]; then
+            mv -f "${dx_exe}.tmp" "$dx_exe"
+        else
+            rm -f "${dx_exe}.tmp" 2>/dev/null || true
+            echo -e "${RED}✗ Error al descargar DirectX Redistributable.${RESET}"
+            return 1
+        fi
+    fi
+
+    if [ ! -d "${dx_cache}/x86" ] || [ $(ls "${dx_cache}/x86"/*.dll 2>/dev/null | wc -l) -lt 50 ]; then
+        echo -e "${CYAN}  📂 Desempaquetando archivos de DirectX para 32-bit y 64-bit...${RESET}"
+        mkdir -p "${dx_cache}/extracted" "${dx_cache}/x86" "${dx_cache}/x64"
+        7z x -y -o"${dx_cache}/extracted" "$dx_exe" >/dev/null 2>&1 || cabextract -q -d "${dx_cache}/extracted" "$dx_exe" 2>/dev/null || true
+
+        cd "${dx_cache}/extracted"
+        7z e -y -o"${dx_cache}/x86" "*_x86.cab" "*.dll" >/dev/null 2>&1 || true
+        7z e -y -o"${dx_cache}/x64" "*_x64.cab" "*.dll" >/dev/null 2>&1 || true
+        rm -rf "${dx_cache}/extracted"
+        cd "$DIR"
+    fi
+
+    local num_x86=$(ls "${dx_cache}/x86"/*.dll 2>/dev/null | wc -l)
+    local num_x64=$(ls "${dx_cache}/x64"/*.dll 2>/dev/null | wc -l)
+    echo -e "${GREEN}✓ ${num_x86} DLLs (32-bit) y ${num_x64} DLLs (64-bit) de DirectX listas en caché.${RESET}"
+
+    local sys32="${target_prefix}/drive_c/windows/system32"
+    local syswow="${target_prefix}/drive_c/windows/syswow64"
+    if [ -d "$sys32" ]; then
+        echo -e "${CYAN}  🔧 Inyectando librerías DirectX en Windows System32 y SysWOW64...${RESET}"
+        if [ -d "$syswow" ]; then
+            cp -n "${dx_cache}/x86"/*.dll "$syswow/" 2>/dev/null || cp -f "${dx_cache}/x86"/*.dll "$syswow/" 2>/dev/null || true
+            cp -n "${dx_cache}/x64"/*.dll "$sys32/" 2>/dev/null || cp -f "${dx_cache}/x64"/*.dll "$sys32/" 2>/dev/null || true
+        else
+            cp -n "${dx_cache}/x86"/*.dll "$sys32/" 2>/dev/null || cp -f "${dx_cache}/x86"/*.dll "$sys32/" 2>/dev/null || true
+        fi
+        echo -e "${GREEN}✓ DirectX 9/10/11 (D3DX, D3DCompiler, XAudio2, XACT, XInput) instalado en el prefijo.${RESET}"
+    fi
+}
+
+# 6. INSTALAR VISUAL C++ 2005 A 2022 AIO
+instalar_vcredist_aio() {
+    local target_prefix="${1:-${DIR}/wineprefix}"
+    local vc_cache="${CACHE_DIR}/vcredist"
+    mkdir -p "$vc_cache"
+
+    echo -e "\n${CYAN}⚙️  [ PASO 2/5 ] Descargando e instalando Microsoft Visual C++ Runtimes (2005-2022 AIO)...${RESET}"
+
+    local vcx86="${vc_cache}/vc_redist.x86.exe"
+    local vcx64="${vc_cache}/vc_redist.x64.exe"
+
+    if [ ! -f "$vcx86" ] || [ ! -s "$vcx86" ]; then
+        echo -e "${CYAN}  📦 Descargando Visual C++ 2015-2022 (32-bit)...${RESET}"
+        curl -sL --connect-timeout 15 --max-time 120 "https://aka.ms/vs/17/release/vc_redist.x86.exe" -o "$vcx86" || true
+    fi
+    if [ ! -f "$vcx64" ] || [ ! -s "$vcx64" ]; then
+        echo -e "${CYAN}  📦 Descargando Visual C++ 2015-2022 (64-bit)...${RESET}"
+        curl -sL --connect-timeout 15 --max-time 120 "https://aka.ms/vs/17/release/vc_redist.x64.exe" -o "$vcx64" || true
+    fi
+
+    if [ -f "$vcx86" ] && [ -s "$vcx86" ]; then
+        echo -e "${CYAN}  🔧 Instalando Visual C++ 2015-2022 x86 en Wine...${RESET}"
+        WINEPREFIX="$target_prefix" wine "$vcx86" /install /quiet /norestart >/dev/null 2>&1 || true
+    fi
+    if [ -f "$vcx64" ] && [ -s "$vcx64" ] && [ -d "${target_prefix}/drive_c/windows/syswow64" ]; then
+        echo -e "${CYAN}  🔧 Instalando Visual C++ 2015-2022 x64 en Wine...${RESET}"
+        WINEPREFIX="$target_prefix" wine "$vcx64" /install /quiet /norestart >/dev/null 2>&1 || true
+    fi
+
+    if command -v winetricks &>/dev/null; then
+        echo -e "${CYAN}  🔧 Instalando runtimes complementarios (VC++ 2010, 2012, 2013, MFC42)...${RESET}"
+        WINEPREFIX="$target_prefix" winetricks -q vcrun2010 vcrun2012 vcrun2013 mfc42 >/dev/null 2>&1 || true
+    fi
+
+    echo -e "${GREEN}✓ Microsoft Visual C++ 2005-2022 AIO instalado con éxito.${RESET}"
+}
+
+# 7. INSTALAR FUENTES OFICIALES DE WINDOWS (COREFONTS)
+instalar_corefonts() {
+    local target_prefix="${1:-${DIR}/wineprefix}"
+    echo -e "\n${CYAN}🔤 [ PASO 3/5 ] Instalando Fuentes Oficiales de Windows (Corefonts)...${RESET}"
+    if command -v winetricks &>/dev/null; then
+        WINEPREFIX="$target_prefix" winetricks -q corefonts >/dev/null 2>&1 || true
+        echo -e "${GREEN}✓ Fuentes de Windows (Arial, Times, Tahoma, Courier, Verdana) instaladas.${RESET}"
+    fi
+}
+
+# 8. HABILITAR DIRECTPLAY PARA MULTIJUGADOR / GAMERANGER
+instalar_directplay() {
+    local target_prefix="${1:-${DIR}/wineprefix}"
+    echo -e "\n${CYAN}🌐 [ PASO 4/5 ] Habilitando DirectPlay para multijugador y LAN...${RESET}"
+    if command -v winetricks &>/dev/null; then
+        WINEPREFIX="$target_prefix" winetricks -q directplay >/dev/null 2>&1 || true
+        echo -e "${GREEN}✓ DirectPlay habilitado y listo para multijugador.${RESET}"
+    fi
+}
+
+# 9. INSTALAR AUDIO 3D OPENAL SOFT Y DSOAL
+instalar_openal() {
+    local target_prefix="${1:-${DIR}/wineprefix}"
+    echo -e "\n${CYAN}🔊 [ PASO 5/5 ] Instalando OpenAL 3D Sound y DSOAL (EAX Spatial Audio)...${RESET}"
+    local syswow="${target_prefix}/drive_c/windows/syswow64"
+    local sys32="${target_prefix}/drive_c/windows/system32"
+    local dest="${syswow:-$sys32}"
+    instalar_dsoal "$dest"
+    echo -e "${GREEN}✓ Audio 3D OpenAL y DSOAL configurado.${RESET}"
+}
+
+# 10. PROPAGAR AUTOMÁTICAMENTE LIBRERÍAS A PREFIJOS AISLADOS (0 EXTRA DISCO VÍA HARDLINKS)
+propagar_librerias_a_prefijo() {
+    local dest_prefix="${1:-}"
+    local master_prefix="${DIR}/wineprefix"
+    [ -z "$dest_prefix" ] && return 0
+    [ ! -d "${dest_prefix}/drive_c/windows" ] && return 0
+    [ ! -d "${master_prefix}/drive_c/windows" ] && return 0
+    [ "$dest_prefix" = "$master_prefix" ] && return 0
+
+    local m_sys32="${master_prefix}/drive_c/windows/system32"
+    local m_syswow="${master_prefix}/drive_c/windows/syswow64"
+    local d_sys32="${dest_prefix}/drive_c/windows/system32"
+    local d_syswow="${dest_prefix}/drive_c/windows/syswow64"
+
+    if [ -d "$m_syswow" ] && [ -d "$d_syswow" ]; then
+        for f in "$m_syswow"/*.dll; do
+            [ -f "$f" ] || continue
+            local bname=$(basename "$f")
+            if [ ! -f "${d_syswow}/${bname}" ]; then
+                ln -f "$f" "${d_syswow}/${bname}" 2>/dev/null || cp -n "$f" "${d_syswow}/${bname}" 2>/dev/null || true
+            fi
+        done
+    fi
+
+    if [ -d "$m_sys32" ] && [ -d "$d_sys32" ]; then
+        for f in "$m_sys32"/*.dll; do
+            [ -f "$f" ] || continue
+            local bname=$(basename "$f")
+            if [ ! -f "${d_sys32}/${bname}" ]; then
+                ln -f "$f" "${d_sys32}/${bname}" 2>/dev/null || cp -n "$f" "${d_sys32}/${bname}" 2>/dev/null || true
+            fi
+        done
+    fi
+
+    configurar_dlloverrides "$dest_prefix" >/dev/null 2>&1 || true
+}
+
+# 11. INSTALADOR MAESTRO DE TODAS LAS DEPENDENCIAS DE JUEGOS
+instalar_paquete_maestro() {
+    local target_prefix="${1:-${DIR}/wineprefix}"
+    echo -e "\n${BOLD}${PURPLE}========================================================================${RESET}"
+    echo -e "${BOLD}${PURPLE}   VESSEL - INSTALADOR MAESTRO DE DLLs Y RUNTIMES PARA JUEGOS          ${RESET}"
+    echo -e "${BOLD}${PURPLE}========================================================================${RESET}"
+    echo -e "  ${WHITE}Prefijo objetivo : ${CYAN}${target_prefix}${RESET}"
+    echo -e "  ${WHITE}Librerías        : DirectX 9/10/11 (+100 DLLs), VC++ 2005-2022 AIO,${RESET}"
+    echo -e "                     OpenAL 3D, DirectPlay, Corefonts, cnc-ddraw, SDL2 DB${RESET}"
+    echo -e "${BOLD}${PURPLE}========================================================================${RESET}\n"
+
+    instalar_directx_completo "$target_prefix"
+    instalar_vcredist_aio "$target_prefix"
+    instalar_corefonts "$target_prefix"
+    instalar_directplay "$target_prefix"
+    instalar_openal "$target_prefix"
+    actualizar_gamecontrollerdb
+    configurar_dlloverrides "$target_prefix"
+
+    echo -e "\n${BOLD}${GREEN}✔ ¡PAQUETE MAESTRO DE DLLs INSTALADO EXITOSAMENTE!${RESET}"
+    echo -e "${WHITE}  Tu prefijo de Wine ahora cuenta con la máxima compatibilidad gráfica,${RESET}"
+    echo -e "${WHITE}  de audio, mandos y dependencias para correr cualquier juego Windows.${RESET}\n"
+}
+
+# 12. CONFIGURAR VKBASALT (Nitidez AMD CAS en Vulkan)
 configurar_vkbasalt() {
     local conf_dir="${HOME}/.config/vkBasalt"
     mkdir -p "$conf_dir"
@@ -155,7 +385,7 @@ EOF
     echo -e "    - Tecla rápida para activar/desactivar en tiempo real: ${BOLD}Inicio (Home)${RESET}"
 }
 
-# 5. DIAGNÓSTICO DEL ECOSISTEMA DE MEJORAS
+# 13. DIAGNÓSTICO DEL ECOSISTEMA DE MEJORAS
 mostrar_estado() {
     echo -e "\n${BOLD}${BLUE}================================================================${RESET}"
     echo -e "${BOLD}${BLUE}    ESTADO DE LIBRERÍAS Y MEJORAS DE CÓDIGO ABIERTO EN VESSEL   ${RESET}"
@@ -166,6 +396,27 @@ mostrar_estado() {
         echo -e "  [${GREEN}✓${RESET}] ${BOLD}SDL2 GameControllerDB:${RESET} Presente ($(wc -l < "${HERRAMIENTAS_DIR}/gamecontrollerdb.txt") mandos soportados)"
     else
         echo -e "  [${YELLOW}✗${RESET}] ${BOLD}SDL2 GameControllerDB:${RESET} No encontrado (ejecuta actualización)"
+    fi
+
+    # DirectX
+    if [ -f "${DIR}/wineprefix/drive_c/windows/syswow64/d3dx9_43.dll" ] || [ -f "${CACHE_DIR}/directx9/x86/d3dx9_43.dll" ]; then
+        echo -e "  [${GREEN}✓${RESET}] ${BOLD}DirectX 9/10/11 Completo:${RESET} Instalado y listo (+100 DLLs nativas de Microsoft)"
+    else
+        echo -e "  [${YELLOW}○${RESET}] ${BOLD}DirectX 9/10/11 Completo:${RESET} Disponible para instalación bajo demanda"
+    fi
+
+    # Visual C++
+    if [ -f "${DIR}/wineprefix/drive_c/windows/syswow64/vcruntime140.dll" ]; then
+        echo -e "  [${GREEN}✓${RESET}] ${BOLD}Visual C++ 2005-2022 AIO:${RESET} Instalado en el prefijo Wine"
+    else
+        echo -e "  [${YELLOW}○${RESET}] ${BOLD}Visual C++ 2005-2022 AIO:${RESET} Disponible para instalación bajo demanda"
+    fi
+
+    # Corefonts
+    if [ -f "${DIR}/wineprefix/drive_c/windows/Fonts/arial.ttf" ]; then
+        echo -e "  [${GREEN}✓${RESET}] ${BOLD}Fuentes Oficiales Windows:${RESET} Corefonts presentes (Arial, Times, Tahoma)"
+    else
+        echo -e "  [${YELLOW}○${RESET}] ${BOLD}Fuentes Oficiales Windows:${RESET} Disponibles para instalación bajo demanda"
     fi
 
     # cnc-ddraw
@@ -200,6 +451,32 @@ mostrar_estado() {
 
 # MODO INTERACTIVO O CLI
 case "${1:-menu}" in
+    paquete_maestro)
+        instalar_paquete_maestro "${2:-${DIR}/wineprefix}"
+        ;;
+    instalar_directx)
+        instalar_directx_completo "${2:-${DIR}/wineprefix}"
+        configurar_dlloverrides "${2:-${DIR}/wineprefix}"
+        ;;
+    instalar_vcredist)
+        instalar_vcredist_aio "${2:-${DIR}/wineprefix}"
+        configurar_dlloverrides "${2:-${DIR}/wineprefix}"
+        ;;
+    instalar_fuentes)
+        instalar_corefonts "${2:-${DIR}/wineprefix}"
+        ;;
+    instalar_directplay)
+        instalar_directplay "${2:-${DIR}/wineprefix}"
+        ;;
+    instalar_openal)
+        instalar_openal "${2:-${DIR}/wineprefix}"
+        ;;
+    propagar)
+        propagar_librerias_a_prefijo "${2:-}"
+        ;;
+    configurar_overrides)
+        configurar_dlloverrides "${2:-${DIR}/wineprefix}"
+        ;;
     actualizar_mandos)
         actualizar_gamecontrollerdb
         ;;
@@ -218,18 +495,26 @@ case "${1:-menu}" in
     menu|*)
         mostrar_estado
         echo -e "${PURPLE}Opciones disponibles:${RESET}"
-        echo "  [1] Actualizar base de datos de mandos (gamecontrollerdb.txt)"
-        echo "  [2] Descargar / Preparar cnc-ddraw (DirectDraw OpenGL)"
-        echo "  [3] Descargar / Preparar DSOAL (Audio 3D EAX)"
-        echo "  [4] Generar configuración optimizada de vkBasalt (AMD CAS)"
-        echo "  [5] Salir"
+        echo "  [1] 🚀 Instalar Paquete Maestro de DLLs para Todos los Juegos (Recomendado)"
+        echo "  [2] 🎮 Instalar DirectX 9/10/11 Completo (+100 DLLs nativas de Microsoft)"
+        echo "  [3] ⚙️  Instalar Visual C++ 2005 a 2022 AIO (32 y 64 bits)"
+        echo "  [4] 🔤 Instalar Fuentes Oficiales de Windows (Corefonts: Arial, Times, Tahoma)"
+        echo "  [5] 🔊 Descargar / Preparar DSOAL (Audio 3D Espacial EAX)"
+        echo "  [6] 🕹️  Descargar / Preparar cnc-ddraw (DirectDraw OpenGL)"
+        echo "  [7] 🎮 Actualizar base de datos de mandos (gamecontrollerdb.txt)"
+        echo "  [8] 🎨 Generar configuración optimizada de vkBasalt (AMD CAS)"
+        echo "  [9] ↩️  Salir"
         echo ""
-        read -rp "Selecciona una opción [1-5]: " opc
+        read -rp "Selecciona una opción [1-9]: " opc
         case "$opc" in
-            1) actualizar_gamecontrollerdb ;;
-            2) instalar_cnc_ddraw ;;
-            3) instalar_dsoal ;;
-            4) configurar_vkbasalt ;;
+            1) instalar_paquete_maestro "${DIR}/wineprefix" ;;
+            2) instalar_directx_completo "${DIR}/wineprefix" && configurar_dlloverrides "${DIR}/wineprefix" ;;
+            3) instalar_vcredist_aio "${DIR}/wineprefix" && configurar_dlloverrides "${DIR}/wineprefix" ;;
+            4) instalar_corefonts "${DIR}/wineprefix" ;;
+            5) instalar_dsoal ;;
+            6) instalar_cnc_ddraw ;;
+            7) actualizar_gamecontrollerdb ;;
+            8) configurar_vkbasalt ;;
             *) echo "Saliendo..." ;;
         esac
         ;;

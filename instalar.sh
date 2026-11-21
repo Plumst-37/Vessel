@@ -450,11 +450,11 @@ if [ -f "${DIR}/generar_dxvk_conf.sh" ]; then
     echo -e "${C_GREEN}✔ Archivo dxvk.conf generado a medida.${C_RESET}"
 fi
 
-# 4.1 Asegurar librerías esenciales para instaladores (MFC, Visual C++, DirectX 9, Fuentes) y registro
-if command -v winetricks &>/dev/null && [ ! -f "${DIR}/wineprefix/drive_c/windows/syswow64/mfc42.dll" ]; then
-    echo -e "${C_CYAN}      Instalando librerías base para instaladores y juegos clásicos (MFC, VC++, DirectX 9, DirectPlay, Corefonts)...${C_RESET}"
-    WINEPREFIX="${DIR}/wineprefix" winetricks -q corefonts vcrun2022 vcrun2010 mfc42 d3dx9 directplay 2>/dev/null || true
-    echo -e "${C_GREEN}✔ Entorno base optimizado para cualquier instalador.${C_RESET}"
+# 4.1 Asegurar paquete maestro de DLLs y runtimes esenciales (DirectX 9/10/11, VC++ 2005-2022 AIO, Corefonts, DirectPlay, OpenAL)
+if [ -f "${DIR}/herramientas/gestor_librerias.sh" ]; then
+    echo -e "${C_CYAN}      Instalando paquete maestro de DLLs y runtimes para juegos...${C_RESET}"
+    bash "${DIR}/herramientas/gestor_librerias.sh" paquete_maestro "${DIR}/wineprefix" >/dev/null 2>&1 || true
+    echo -e "${C_GREEN}✔ Entorno base optimizado con todas las librerías nativas para juegos.${C_RESET}"
 fi
 
 # 4.2 Optimización de hilos gráficos Direct3D (CSMT multithread) y supresión de fallos

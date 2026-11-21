@@ -502,16 +502,11 @@ if [ "$RENDERER_IN_USE" != "WineD3D (OpenGL Compatibilidad)" ]; then
     fi
 fi
 
-# 7.2 Inyección silenciosa de runtimes esenciales (Visual C++, MFC, DirectX) desde la plantilla base (Mejora 3)
+# 7.2 Inyección silenciosa y propagación de runtimes esenciales (DirectX, Visual C++, OpenAL, Fuentes) a prefijos aislados
 if [ -d "${DIR}/wineprefix/drive_c/windows" ] && [ "$WINEPREFIX" != "${DIR}/wineprefix" ]; then
-    for r_dll in mfc42.dll vcruntime140.dll vcruntime140_1.dll msvcp140.dll d3dx9_43.dll d3dcompiler_43.dll d3dcompiler_47.dll xinput1_3.dll; do
-        if [ -f "${DIR}/wineprefix/drive_c/windows/syswow64/${r_dll}" ] && [ ! -f "${WINEPREFIX}/drive_c/windows/syswow64/${r_dll}" ]; then
-            cp -n "${DIR}/wineprefix/drive_c/windows/syswow64/${r_dll}" "${WINEPREFIX}/drive_c/windows/syswow64/" 2>/dev/null || true
-        fi
-        if [ -f "${DIR}/wineprefix/drive_c/windows/system32/${r_dll}" ] && [ ! -f "${WINEPREFIX}/drive_c/windows/system32/${r_dll}" ]; then
-            cp -n "${DIR}/wineprefix/drive_c/windows/system32/${r_dll}" "${WINEPREFIX}/drive_c/windows/system32/" 2>/dev/null || true
-        fi
-    done
+    if [ -f "${DIR}/herramientas/gestor_librerias.sh" ]; then
+        bash "${DIR}/herramientas/gestor_librerias.sh" propagar "$WINEPREFIX" >/dev/null 2>&1 || true
+    fi
 fi
 
 # 8. Configuración de pantalla completa universal, ratón ultra-fluido, estabilidad 3D y supresión de crash dialogs
