@@ -1432,6 +1432,8 @@ except Exception:
             fi
 
             # Inyectar configuración de video óptima en el registro en una sola transacción ultra-rápida
+            # IMPORTANTE: En Linux (Xwayland / Wine), ScreenWindowed=1 + borderless evita llamadas a ChangeDisplaySettingsEx
+            # en el servidor X, previniendo al 100% el fallo "Failed to create SDL Window"
             if pgrep -x wineserver >/dev/null 2>&1; then
                 "$WINE_CMD" regedit /S - << EOF >/dev/null 2>&1 || true
 Windows Registry Editor Version 5.00
@@ -1443,7 +1445,7 @@ Windows Registry Editor Version 5.00
 "ScreenWidth"=dword:$(printf "%08x" "${goldsrc_w}")
 "ScreenHeight"=dword:$(printf "%08x" "${goldsrc_h}")
 "ScreenBPP"=dword:00000020
-"ScreenWindowed"=dword:00000000
+"ScreenWindowed"=dword:00000001
 EOF
             else
                 python3 -c '
@@ -1464,7 +1466,7 @@ if os.path.exists(user_reg):
             "\"ScreenWidth\"": f"dword:{w:08x}",
             "\"ScreenHeight\"": f"dword:{h:08x}",
             "\"ScreenBPP\"": "dword:00000020",
-            "\"ScreenWindowed\"": "dword:00000000",
+            "\"ScreenWindowed\"": "dword:00000001",
         }
         if section in content:
             def update_sect(m):
@@ -1524,8 +1526,16 @@ if os.path.exists(user_reg):
             if [[ ! "$EXTRA_APP_ARGS" =~ "-noforcemaccel" ]]; then
                 EXTRA_APP_ARGS="${EXTRA_APP_ARGS} -noforcemaccel -noforcemparms -noforcemspd"
             fi
-            if [[ ! "$EXTRA_APP_ARGS" =~ "-full" ]] && [[ ! "$EXTRA_APP_ARGS" =~ "-window" ]] && [[ ! "$EXTRA_APP_ARGS" =~ "-sw" ]]; then
-                EXTRA_APP_ARGS="${EXTRA_APP_ARGS} -full -w ${goldsrc_w} -h ${goldsrc_h}"
+            # Eliminar -full / -fullscreen para evitar que SDL2 intente cambiar modos de hardware en Xwayland
+            EXTRA_APP_ARGS=$(echo "$EXTRA_APP_ARGS" | sed -E 's/-full(screen)?//g')
+            if [[ ! "$EXTRA_APP_ARGS" =~ "-window" ]] && [[ ! "$EXTRA_APP_ARGS" =~ "-sw" ]]; then
+                EXTRA_APP_ARGS="${EXTRA_APP_ARGS} -window"
+            fi
+            if [[ ! "$EXTRA_APP_ARGS" =~ "-noborder" ]]; then
+                EXTRA_APP_ARGS="${EXTRA_APP_ARGS} -noborder"
+            fi
+            if [[ ! "$EXTRA_APP_ARGS" =~ "-w " ]]; then
+                EXTRA_APP_ARGS="${EXTRA_APP_ARGS} -w ${goldsrc_w} -h ${goldsrc_h}"
             fi
             if [[ ! "$EXTRA_APP_ARGS" =~ "-noupdate" ]]; then
                 EXTRA_APP_ARGS="${EXTRA_APP_ARGS} -noupdate"
