@@ -171,6 +171,15 @@ configurar_dlloverrides() {
         mfc42 mfc100 mfc110 mfc120 mfc140
     )
 
+    local prod_overrides=(
+        riched20 riched32 msftedit
+        msxml3 msxml4 msxml6
+        gdiplus windowscodecs mscms
+        actxprxy wbemprox wbemdisp wmiutils
+        schannel crypt32 secur32
+        wininet urlmon dwrite
+    )
+
     local reg_file="/tmp/vessel_dlloverrides_$$.reg"
     cat << 'EOF' > "$reg_file"
 Windows Registry Editor Version 5.00
@@ -178,13 +187,13 @@ Windows Registry Editor Version 5.00
 [HKEY_CURRENT_USER\Software\Wine\DllOverrides]
 EOF
 
-    for dll in "${dx_overrides[@]}" "${vc_overrides[@]}"; do
+    for dll in "${dx_overrides[@]}" "${vc_overrides[@]}" "${prod_overrides[@]}"; do
         echo "\"${dll}\"=\"native,builtin\"" >> "$reg_file"
     done
 
     WINEPREFIX="$target_prefix" wine regedit /S "$reg_file" 2>/dev/null || true
     rm -f "$reg_file"
-    echo -e "${GREEN}✓ DllOverrides configurado: +120 librerías nativas registradas con prioridad en Wine.${RESET}"
+    echo -e "${GREEN}✓ DllOverrides configurado: +140 librerías nativas registradas con prioridad en Wine (DirectX, VC++, Productividad y Sistema).${RESET}"
 }
 
 # 5. INSTALAR DIRECTX 9/10/11 COMPLETO (+100 DLLs NATIVAS)

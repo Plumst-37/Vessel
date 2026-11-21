@@ -32,13 +32,14 @@ source "${DIR}/hardware_detect.sh"
 # 2. Aplicar optimizaciones dinámicas para el hardware real del equipo
 aplicar_entorno_hardware
 
-# 3. Procesar banderas opcionales (prefijo dedicado, modo aislado, runner custom, versión de Windows, AMD FSR y modo programa)
+# 3. Procesar banderas opcionales (prefijo dedicado, modo aislado, runner custom, versión de Windows, AMD FSR, modo programa y sesión de escritorio)
 CUSTOM_PREFIX=""
 FORCE_ISOLATED=0
 CUSTOM_RUNNER=""
 CUSTOM_WINVER=""
 CUSTOM_FSR=""
 IS_PROGRAM=0
+ENABLE_DESKTOP_SESSION=0
 while [ $# -gt 0 ]; do
     case "$1" in
         --prefix)
@@ -65,6 +66,11 @@ while [ $# -gt 0 ]; do
             IS_PROGRAM=1
             shift
             ;;
+        --desktop)
+            ENABLE_DESKTOP_SESSION=1
+            IS_PROGRAM=1
+            shift
+            ;;
         *)
             break
             ;;
@@ -72,15 +78,24 @@ while [ $# -gt 0 ]; do
 done
 
 if [ $# -eq 0 ]; then
-    echo "Uso: $0 [--prefix /ruta/al/prefijo] [--isolated] [--runner /ruta/a/wine] [--winver win10|win7|winxp] [--fsr off|quality|performance] [--program] /ruta/al/programa.exe [argumentos]"
-    exit 1
+    if [ "$ENABLE_DESKTOP_SESSION" -eq 1 ]; then
+        TARGET="desktop"
+    else
+        echo "Uso: $0 [--prefix /ruta/al/prefijo] [--isolated] [--runner /ruta/a/wine] [--winver win10|win7|winxp] [--fsr off|quality|performance] [--program] [--desktop] [/ruta/al/programa.exe] [argumentos]"
+        exit 1
+    fi
+else
+    TARGET="$1"
+    shift || true
 fi
 
-TARGET="$1"
-shift || true
+if [ "$TARGET" = "desktop" ] || [ "$TARGET" = "escritorio" ]; then
+    ENABLE_DESKTOP_SESSION=1
+    IS_PROGRAM=1
+fi
 
 # 4.0 Auto-reparación transparente de rutas inexistentes o movidas (ej. carpetas ZIP extraídas)
-if [ ! -f "$TARGET" ] && [[ ! "$TARGET" =~ [Gg]ame[Rr]anger ]]; then
+if [ "$ENABLE_DESKTOP_SESSION" -eq 0 ] && [ ! -f "$TARGET" ] && [[ ! "$TARGET" =~ [Gg]ame[Rr]anger ]]; then
     CANDIDATE_PATH=""
     # 1. Probar eliminando /ZIP/ o /zip/ de la ruta
     NO_ZIP=$(echo "$TARGET" | sed -E 's|/[zZ][iI][pP]/|/|g')
@@ -391,8 +406,13 @@ fi
 
 
 # 4.3 Obtener directorio y nombre base del archivo objetivo de ejecución
-TARGET_DIR="$(cd "$(dirname "$TARGET")" 2>/dev/null && pwd || dirname "$TARGET")"
-TARGET_FILE="$(basename "$TARGET")"
+if [ "$ENABLE_DESKTOP_SESSION" -eq 1 ]; then
+    TARGET_DIR="${DIR}"
+    TARGET_FILE="explorer.exe"
+else
+    TARGET_DIR="$(cd "$(dirname "$TARGET")" 2>/dev/null && pwd || dirname "$TARGET")"
+    TARGET_FILE="$(basename "$TARGET")"
+fi
 
 # 5. Detección de entorno gráfico: Wayland vs X11
 IS_WAYLAND=0
@@ -523,7 +543,209 @@ if [ -d "${DIR}/wineprefix/drive_c/windows" ] && [ "$WINEPREFIX" != "${DIR}/wine
     fi
 fi
 
+# ==============================================================================
+# CALIBRACIÓN UNIVERSAL DE COMPATIBILIDAD WINDOWS 10/11, DIRECT2D, DIRECT3D Y VRAM
+# ==============================================================================
+optimizar_entorno_windows_completo() {
+    # Si ya fue calibrado en este prefijo, retornar inmediatamente (0.01s)
+    if [ -f "${WINEPREFIX}/.vessel_win_full_v1" ]; then
+        return 0
+    fi
+
+    # 1. Detección precisa de VRAM de la GPU para reporte fiel a juegos 3D y suites de diseño
+    local vram_mb=""
+    if command -v nvidia-smi &>/dev/null; then
+        vram_mb=$(nvidia-smi --query-gpu=memory.total --format=csv,noheader,nounits 2>/dev/null | head -n 1)
+    fi
+    if [ -z "$vram_mb" ]; then
+        for f in /sys/class/drm/card*/device/mem_info_vram_total; do
+            if [ -f "$f" ]; then
+                local b
+                b=$(cat "$f" 2>/dev/null)
+                if [ -n "$b" ] && [ "$b" -gt 0 ]; then
+                    vram_mb=$((b / 1048576))
+                    break
+                fi
+            fi
+        done
+    fi
+    if [ -z "$vram_mb" ] && command -v glxinfo &>/dev/null; then
+        vram_mb=$(glxinfo -B 2>/dev/null | grep -iE "video memory|total available memory" | head -n 1 | grep -oE "[0-9]+" | head -n 1)
+    fi
+    if [ -z "$vram_mb" ]; then
+        local ram_sys
+        ram_sys=$(free -m 2>/dev/null | awk '/^Mem:/{print $2}')
+        if [ "${ram_sys:-0}" -ge 12000 ]; then vram_mb=4096; elif [ "${ram_sys:-0}" -ge 6000 ]; then vram_mb=2048; else vram_mb=1024; fi
+    fi
+    [ -z "$vram_mb" ] && vram_mb=2048
+
+    # 2. Generar inyección atómica en el registro (.reg) en una sola operación de Wine
+    local reg_full
+    reg_full=$(mktemp "${TMPDIR:-/tmp}/vessel_win_full_XXXXXX.reg" 2>/dev/null || echo "/tmp/vessel_win_full_$$.reg")
+    cat << EOF > "$reg_full"
+Windows Registry Editor Version 5.00
+
+[HKEY_LOCAL_MACHINE\Software\Microsoft\Windows NT\CurrentVersion]
+"ProductName"="Windows 10 Pro"
+"CurrentBuild"="19045"
+"CurrentBuildNumber"="19045"
+"ReleaseId"="22H2"
+"DisplayVersion"="22H2"
+"UBR"=dword:00000ef2
+"EditionID"="Professional"
+"InstallationType"="Client"
+"CurrentMajorVersionNumber"=dword:0000000a
+"CurrentMinorVersionNumber"=dword:00000000
+"CompositionVersion"="10.0.19045.3826"
+
+[HKEY_LOCAL_MACHINE\Software\WOW6432Node\Microsoft\Windows NT\CurrentVersion]
+"ProductName"="Windows 10 Pro"
+"CurrentBuild"="19045"
+"CurrentBuildNumber"="19045"
+"ReleaseId"="22H2"
+"DisplayVersion"="22H2"
+"UBR"=dword:00000ef2
+"EditionID"="Professional"
+"InstallationType"="Client"
+"CurrentMajorVersionNumber"=dword:0000000a
+"CurrentMinorVersionNumber"=dword:00000000
+
+[HKEY_CURRENT_USER\Software\Wine\Direct3D]
+"VideoMemorySize"="${vram_mb}"
+"StrictDrawOrdering"="disabled"
+"AlwaysOffscreen"="enabled"
+"OffscreenRenderingMode"="fbo"
+"Multisampling"="enabled"
+"CheckFloatConstants"="disabled"
+"CheckDepthStencil"="enabled"
+"csmt"=dword:00000001
+
+[HKEY_CURRENT_USER\Software\Wine\Direct2D]
+"max_version_factory"=dword:00000001
+
+[HKEY_CURRENT_USER\Control Panel\Desktop]
+"FontSmoothing"="2"
+"FontSmoothingType"=dword:00000002
+"FontSmoothingGamma"=dword:00000578
+"FontSmoothingOrientation"=dword:00000001
+
+[HKEY_CURRENT_USER\Software\Wine\DirectInput]
+"MouseWarpOverride"="enable"
+
+[HKEY_CURRENT_USER\Software\Wine\WineDbg]
+"ShowCrashDialog"=dword:00000000
+
+[HKEY_LOCAL_MACHINE\Software\Microsoft\Windows NT\CurrentVersion\AeDebug]
+"Auto"="0"
+
+[HKEY_CURRENT_USER\Software\Wine\DllOverrides]
+"riched20"="native,builtin"
+"riched32"="native,builtin"
+"msftedit"="native,builtin"
+"msxml3"="native,builtin"
+"msxml4"="native,builtin"
+"msxml6"="native,builtin"
+"gdiplus"="native,builtin"
+"windowscodecs"="native,builtin"
+"mscms"="native,builtin"
+"actxprxy"="native,builtin"
+"wbemprox"="native,builtin"
+"wbemdisp"="native,builtin"
+"wmiutils"="native,builtin"
+"schannel"="native,builtin"
+"crypt32"="native,builtin"
+"secur32"="native,builtin"
+"wininet"="native,builtin"
+"urlmon"="native,builtin"
+"dwrite"="native,builtin"
+EOF
+
+    DISPLAY="" "$WINE_CMD" regedit /s "$reg_full" >/dev/null 2>&1 || true
+    rm -f "$reg_full" 2>/dev/null || true
+    touch "${WINEPREFIX}/.vessel_win_full_v1" 2>/dev/null || true
+}
+
+# ==============================================================================
+# SINCRONIZACIÓN DE ACCESOS DIRECTOS EN ESCRITORIO VIRTUAL WINDOWS
+# ==============================================================================
+sincronizar_escritorio_virtual_windows() {
+    local desk_dir="${WINEPREFIX}/drive_c/users/Public/Desktop"
+    mkdir -p "$desk_dir" 2>/dev/null || true
+
+    # 1. Utilidades estándar de Windows
+    cat << 'EOF' > "${desk_dir}/Explorador de Archivos.bat"
+@echo off
+start explorer.exe
+EOF
+    cat << 'EOF' > "${desk_dir}/Panel de Control.bat"
+@echo off
+start winecfg.exe
+EOF
+    cat << 'EOF' > "${desk_dir}/Bloc de Notas.bat"
+@echo off
+start notepad.exe
+EOF
+    cat << 'EOF' > "${desk_dir}/Simbolo del Sistema.bat"
+@echo off
+start cmd.exe
+EOF
+    cat << 'EOF' > "${desk_dir}/Editor del Registro.bat"
+@echo off
+start regedit.exe
+EOF
+    cat << 'EOF' > "${desk_dir}/Administrador de Tareas.bat"
+@echo off
+start taskmgr.exe
+EOF
+
+    # 2. Sincronizar catálogo registrado de juegos y programas
+    local db_sources=("${DIR}/programas.db" "${DIR}/programas_usuario.db")
+    for db in "${db_sources[@]}"; do
+        if [ -f "$db" ]; then
+            while IFS='|' read -r nombre ruta modo_p win_v fsr_v tipo_item resto || [ -n "$nombre" ]; do
+                [[ "$nombre" =~ ^[[:space:]]*# ]] && continue
+                [ -z "$nombre" ] && continue
+                [ -z "$ruta" ] && continue
+                local bat_name
+                bat_name=$(echo "$nombre" | tr -cd '[:alnum:] _-')
+                [ -z "$bat_name" ] && bat_name="App"
+                local bat_file="${desk_dir}/${bat_name}.bat"
+
+                local win_target=""
+                local win_workdir=""
+                if [[ "$ruta" =~ ^[a-zA-Z]:\\ ]]; then
+                    win_target="$ruta"
+                elif [ -f "$ruta" ]; then
+                    win_target=$("$WINE_CMD" winepath -w "$ruta" 2>/dev/null || echo "Z:${ruta//\//\\}")
+                    win_workdir=$("$WINE_CMD" winepath -w "$(dirname "$ruta")" 2>/dev/null || echo "Z:${ruta%/*}")
+                elif [ -f "${DIR}/${ruta}" ]; then
+                    win_target=$("$WINE_CMD" winepath -w "${DIR}/${ruta}" 2>/dev/null || echo "Z:${DIR//\//\\}\\${ruta}")
+                    win_workdir=$("$WINE_CMD" winepath -w "$DIR" 2>/dev/null || echo "Z:${DIR//\//\\}")
+                else
+                    win_target="$ruta"
+                fi
+
+                if [ -n "$win_workdir" ]; then
+                    cat << EOF > "$bat_file"
+@echo off
+rem Acceso directo generado por Vessel
+cd /d "${win_workdir}"
+start "" "${win_target}"
+EOF
+                else
+                    cat << EOF > "$bat_file"
+@echo off
+rem Acceso directo generado por Vessel
+start "" "${win_target}"
+EOF
+                fi
+            done < "$db"
+        fi
+    done
+}
+
 # 8. Configuración de pantalla completa universal, ratón ultra-fluido, estabilidad 3D y supresión de crash dialogs
+optimizar_entorno_windows_completo
 if [ ! -f "${WINEPREFIX}/.vessel_reg_v4" ]; then
     "$WINE_CMD" reg add "HKEY_CURRENT_USER\Software\Wine\WineDbg" /v ShowCrashDialog /t REG_DWORD /d 0 /f >/dev/null 2>&1 || true
     "$WINE_CMD" reg add "HKEY_LOCAL_MACHINE\Software\Microsoft\Windows NT\CurrentVersion\AeDebug" /v Auto /t REG_SZ /d 0 /f >/dev/null 2>&1 || true
@@ -609,8 +831,13 @@ if [ "$IS_PROGRAM" -ne 1 ] && [ "$PERFIL_RENDIMIENTO" != "ahorro" ]; then
 fi
 
 # 11. Obtener directorio y nombre del archivo
-TARGET_DIR="$(cd "$(dirname "$TARGET")" && pwd)"
-TARGET_FILE="$(basename "$TARGET")"
+if [ "$ENABLE_DESKTOP_SESSION" -eq 1 ]; then
+    TARGET_DIR="${DIR}"
+    TARGET_FILE="explorer.exe"
+else
+    TARGET_DIR="$(cd "$(dirname "$TARGET")" 2>/dev/null && pwd || dirname "$TARGET")"
+    TARGET_FILE="$(basename "$TARGET")"
+fi
 
 # ==============================================================================
 # OPTIMIZACIÓN UNIVERSAL DE RED Y MULTIJUGADOR PARA WINE
@@ -1663,7 +1890,18 @@ else
 fi
 
 echo ""
-if [ "$IS_PROGRAM" -eq 1 ]; then
+if [ "$ENABLE_DESKTOP_SESSION" -eq 1 ]; then
+    echo "[+] Iniciando Escritorio Windows Completo [Sistema Doble Multiventana] (Vessel v1.0)..."
+    echo "    - CPU: ${CPU_MODEL} (${CPU_CORES} Hilos)"
+    echo "    - GPU: ${DETECTED_GPU}"
+    echo "    - Versión de Vessel: v1.0 (Producción)"
+    echo "    - Modo de Ejecución: Escritorio Virtual Multiventana Integrado"
+    echo "    - Identidad del SO: Windows 10 Pro 22H2 (Build 19045.3826)"
+    echo "    - Renderizado: Direct2D 1.1 + Direct3D FBO + ClearType HD"
+    echo "    - Multitarea: Soporta múltiples programas y juegos simultáneos"
+    echo "    - Runner Wine: ${RUNNER_LABEL}"
+    echo "    - Prefijo Wine: ${WINEPREFIX}"
+elif [ "$IS_PROGRAM" -eq 1 ]; then
     echo "[+] Ejecutando Programa de Windows [Modo Ventana Nativa - ClearType HD] (Vessel v1.0)..."
     echo "    - CPU: ${CPU_MODEL} (${CPU_CORES} Hilos)"
     echo "    - GPU: ${DETECTED_GPU}"
@@ -1677,7 +1915,7 @@ if [ "$IS_PROGRAM" -eq 1 ]; then
     fi
     echo "    - Runner Wine: ${RUNNER_LABEL}"
     echo "    - Prefijo Wine: ${WINEPREFIX}"
-    echo "    - Productividad: RichEdit, MSXML y GDI+ habilitados"
+    echo "    - Productividad: RichEdit, MSXML, GDI+ y DirectWrite habilitados"
 else
     echo "[+] Ejecutando con Perfil [${perf_label}] (Vessel v1.0)..."
     echo "    - CPU: ${CPU_MODEL} (${CPU_CORES} Hilos)"
@@ -1889,8 +2127,28 @@ fi
 TEMP_GAME_LOG=$(mktemp "${TMPDIR:-/tmp}/vessel_run_XXXXXX.log" 2>/dev/null || echo "/tmp/vessel_run_$$.log")
 touch "$TEMP_GAME_LOG" 2>/dev/null || true
 
-if [[ "$TARGET_FILE" =~ \.(msi|MSI)$ ]]; then
+if [ "$ENABLE_DESKTOP_SESSION" -eq 1 ]; then
+    sincronizar_escritorio_virtual_windows
+    detectar_pantalla_activa
+    best_w="${ACTIVE_MON_W:-1920}"
+    best_h="${ACTIVE_MON_H:-1080}"
+    echo "[+] Iniciando Sesión de Escritorio Windows Completo (${best_w}x${best_h})..."
+    "$WINE_CMD" explorer "/desktop=Windows_Vessel,${best_w}x${best_h}" "$@" 2>&1 | tee "$TEMP_GAME_LOG"
+    EXIT_STATUS="${PIPESTATUS[0]}"
+elif [[ "$TARGET_FILE" =~ \.(msi|MSI)$ ]]; then
     $GAMEMODE "$WINE_CMD" msiexec /i "$TARGET_FILE" "$@" 2>&1 | tee "$TEMP_GAME_LOG"
+    EXIT_STATUS="${PIPESTATUS[0]}"
+elif [[ "$TARGET_FILE" =~ \.(reg|REG)$ ]]; then
+    echo "[+] Importando archivo de registro en Wine: $TARGET_FILE"
+    "$WINE_CMD" regedit /s "$TARGET_FILE" 2>&1 | tee "$TEMP_GAME_LOG"
+    EXIT_STATUS="${PIPESTATUS[0]}"
+elif [[ "$TARGET_FILE" =~ \.([vV][bB][sS]|[jJ][sS])$ ]]; then
+    echo "[+] Ejecutando script de Windows ($TARGET_FILE)..."
+    "$WINE_CMD" wscript.exe "$TARGET_FILE" "$@" 2>&1 | tee "$TEMP_GAME_LOG"
+    EXIT_STATUS="${PIPESTATUS[0]}"
+elif [[ "$TARGET_FILE" =~ \.([pP][sS]1)$ ]]; then
+    echo "[+] Ejecutando script PowerShell de Windows ($TARGET_FILE)..."
+    "$WINE_CMD" powershell.exe -ExecutionPolicy Bypass -File "$TARGET_FILE" "$@" 2>&1 | tee "$TEMP_GAME_LOG"
     EXIT_STATUS="${PIPESTATUS[0]}"
 elif [[ "$TARGET_FILE" =~ \.(lnk|ink|LNK|INK)$ ]]; then
     if [ -n "$RUN_PREFIX" ]; then

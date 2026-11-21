@@ -849,6 +849,19 @@ def ejecutar_herramienta_windows(tool_exe, label):
     print(f"{GREEN}🚀 Abriendo {label}...{RESET}\n")
     ejecutar_juego_y_liberar_ram(["--program", tool_exe], con_hud=False)
 
+def iniciar_escritorio_windows_completo(hw, cfg):
+    """Inicia una sesión de Escritorio Virtual Windows completa (Sistema Doble Multiventana)."""
+    os.system("clear")
+    print(f"\n{BOLD}{CYAN}╔══════════════════════════════════════════════════════════════════════╗{RESET}")
+    print(f"{BOLD}{CYAN}║     🪟 INICIANDO ESCRITORIO VIRTUAL WINDOWS (SISTEMA DOBLE)         ║{RESET}")
+    print(f"{BOLD}{CYAN}╚══════════════════════════════════════════════════════════════════════╝{RESET}\n")
+    print(f"  {WHITE}Cargando entorno de escritorio Windows completo...{RESET}")
+    print(f"  {GRAY}• Multiventana: Ejecuta múltiples juegos y programas a la vez.{RESET}")
+    print(f"  {GRAY}• Accesos directos integrados en el Escritorio de Windows.{RESET}")
+    print(f"  {GRAY}• Barra de tareas, bandeja del sistema y administrador de ventanas.{RESET}\n")
+    time.sleep(1)
+    ejecutar_juego_y_liberar_ram(["--desktop"], con_hud=False)
+
 def gestionar_o_iniciar_juego(item, hw, cfg):
     """Acciones completas para el videojuego seleccionado (jugar, telemetría, mods, winver, fsr)."""
     programas = cargar_lista_programas()
@@ -1095,7 +1108,8 @@ def menu_programas(hw, cfg):
         user_progs = [p for p in programas if len(p) > 5 and p[5] == "programa"]
 
         opciones = []
-        # 1. Utilidades integradas nativas de Windows
+        # 1. Sesión de escritorio y utilidades integradas nativas de Windows
+        opciones.append(("W", "🪟 Iniciar Escritorio Windows Completo (Sistema Doble Multiventana)"))
         opciones.append(("E", "📁 Explorador de Archivos (Windows Explorer)"))
         opciones.append(("C", "⚙️  Panel de Control y Configuración de Wine (Winecfg)"))
         opciones.append(("N", "📝 Bloc de Notas de Windows (Notepad)"))
@@ -1125,6 +1139,8 @@ def menu_programas(hw, cfg):
         eleccion = submenu_interactivo("💼  Programas y Utilidades de Windows", opciones, hw, cfg, info_lines=info_lines)
         if eleccion == "0":
             break
+        elif eleccion in ("W", "w"):
+            iniciar_escritorio_windows_completo(hw, cfg)
         elif eleccion in ("E", "e"):
             ejecutar_herramienta_windows("explorer.exe", "Explorador de Archivos de Windows")
         elif eleccion in ("C", "c"):
@@ -2077,6 +2093,7 @@ def menu_herramientas(hw, cfg):
     """Submenú 4: Herramientas de Windows y Reparación."""
     while True:
         opciones = [
+            ("W", "🪟 Iniciar Escritorio Windows Completo (Modo Sistema Doble)"),
             ("1", "🍷 Configuración de Wine (winecfg)"),
             ("2", "📝 Editor del Registro de Windows (regedit)"),
             ("3", "📈 Administrador de Tareas de Windows (taskmgr)"),
@@ -2094,6 +2111,8 @@ def menu_herramientas(hw, cfg):
         sel = submenu_interactivo("🔧  Herramientas de Windows y Reparación", opciones, hw, cfg)
         if sel == "0":
             break
+        elif sel in ("W", "w"):
+            iniciar_escritorio_windows_completo(hw, cfg)
         elif sel == "1":
             subprocess.run(f"WINEPREFIX='{WINEPREFIX}' wine winecfg", shell=True)
         elif sel == "2":
@@ -2730,11 +2749,13 @@ def main():
         print(f"{PURPLE}│{' ' * inner_w}│{RESET}")
 
         prompt_1 = f"  {WHITE}{BOLD}Selecciona qué deseas abrir en tu sistema:{RESET}"
-        prompt_2 = f"    {PURPLE}[1]{RESET} {WHITE}{BOLD}Juegos{RESET}     {GRAY}➔ Videojuegos 3D/2D (DirectX, Vulkan, FSR, GameMode){RESET}"
-        prompt_3 = f"    {PURPLE}[2]{RESET} {WHITE}{BOLD}Programas{RESET}  {GRAY}➔ Aplicaciones de Windows, Oficina, Utilidades y CMD{RESET}"
+        prompt_2 = f"    {PURPLE}[1]{RESET} {WHITE}{BOLD}Juegos{RESET}             {GRAY}➔ Videojuegos 3D/2D (DirectX, Vulkan, FSR, GameMode){RESET}"
+        prompt_3 = f"    {PURPLE}[2]{RESET} {WHITE}{BOLD}Programas{RESET}          {GRAY}➔ Aplicaciones de Windows, Oficina, Utilidades y CMD{RESET}"
+        prompt_4 = f"    {CYAN}[3]{RESET} {WHITE}{BOLD}Escritorio Windows{RESET} {GRAY}➔ Sistema Doble Multiventana con Escritorio Completo{RESET}"
         print(f"{PURPLE}│{RESET} {pad_visual(prompt_1, inner_w - 2)} {PURPLE}│{RESET}")
         print(f"{PURPLE}│{RESET} {pad_visual(prompt_2, inner_w - 2)} {PURPLE}│{RESET}")
         print(f"{PURPLE}│{RESET} {pad_visual(prompt_3, inner_w - 2)} {PURPLE}│{RESET}")
+        print(f"{PURPLE}│{RESET} {pad_visual(prompt_4, inner_w - 2)} {PURPLE}│{RESET}")
         print(f"{PURPLE}│{' ' * inner_w}│{RESET}")
         print(f"{PURPLE}├{'─' * inner_w}┤{RESET}")
         print(f"{PURPLE}│{' ' * inner_w}│{RESET}")
@@ -2744,8 +2765,8 @@ def main():
 
         opts = [
             ("▶   [1]  🎮  Juegos", "▶   [2]  💼  Programas"),
-            ("⚡  [3]  Smart Performance", "🔧  [4]  Herramientas de Windows"),
-            ("🔄  [5]  Actualizar", "⏻   [0]  Salir")
+            ("🪟  [3]  Escritorio Windows", "⚡  [4]  Smart Performance"),
+            ("🔧  [5]  Herramientas de Windows", "🔄  [6]  Actualizar")
         ]
 
         for row_idx, (o1, o2) in enumerate(opts):
@@ -2759,8 +2780,6 @@ def main():
 
             if cur_idx == idx2:
                 c2 = f"{BG_SELECT} {pad_visual(o2, col_w - 2)} {RESET}"
-            elif idx2 == 6:
-                c2 = f" {pad_visual(f'{RED}{o2[:5]}{RESET}{WHITE}{o2[5:]}{RESET}', col_w - 2)} "
             else:
                 c2 = f" {pad_visual(f'{WHITE}{o2}{RESET}', col_w - 2)} "
 
@@ -2769,7 +2788,7 @@ def main():
             print(f"{PURPLE}│{' ' * inner_w}│{RESET}")
 
         print(f"{PURPLE}├{'─' * inner_w}┤{RESET}")
-        prompt_call = f"  {WHITE}Selecciona opción {BOLD}{GREEN}[1]{RESET}{WHITE} (o presiona {BOLD}{PURPLE}[Enter]{RESET}{WHITE} para Juegos):{RESET}"
+        prompt_call = f"  {WHITE}Opción: {BOLD}{GREEN}[1]{RESET}{WHITE} Juegos, {BOLD}{GREEN}[2]{RESET}{WHITE} Programas, {BOLD}{CYAN}[3]{RESET}{WHITE} Escritorio {BOLD}{PURPLE}[Enter = Iniciar]{RESET}{WHITE} o {BOLD}{RED}[0]{RESET}{WHITE} Salir:{RESET}"
         print(f"{PURPLE}│{RESET} {pad_visual(prompt_call, inner_w - 2)} {PURPLE}│{RESET}")
 
         bot_bar = f"{PURPLE}╰{'─' * inner_w}╯{RESET}"
@@ -2808,15 +2827,13 @@ def main():
             elif cur_idx == 2:
                 menu_programas(hw, cfg)
             elif cur_idx == 3:
-                menu_rendimiento(hw, cfg)
+                iniciar_escritorio_windows_completo(hw, cfg)
             elif cur_idx == 4:
-                menu_herramientas(hw, cfg)
+                menu_rendimiento(hw, cfg)
             elif cur_idx == 5:
-                menu_actualizar(hw, cfg)
+                menu_herramientas(hw, cfg)
             elif cur_idx == 6:
-                os.system("clear")
-                print(f"{GREEN}¡Hasta luego! Que disfrutes tu sistema Windows.{RESET}\n")
-                sys.exit(0)
+                menu_actualizar(hw, cfg)
         elif k == '1':
             cur_idx = 1
             menu_juegos(hw, cfg)
@@ -2825,12 +2842,15 @@ def main():
             menu_programas(hw, cfg)
         elif k == '3':
             cur_idx = 3
-            menu_rendimiento(hw, cfg)
+            iniciar_escritorio_windows_completo(hw, cfg)
         elif k == '4':
             cur_idx = 4
-            menu_herramientas(hw, cfg)
+            menu_rendimiento(hw, cfg)
         elif k == '5':
             cur_idx = 5
+            menu_herramientas(hw, cfg)
+        elif k == '6':
+            cur_idx = 6
             menu_actualizar(hw, cfg)
         elif k in ('0', 'q', 'Q'):
             os.system("clear")
