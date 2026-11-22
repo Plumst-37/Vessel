@@ -33,3 +33,4 @@ config/perfil_hardware.cfg
 __pycache__/
 core/__pycache__/
 *.pyc
+/dxvk.conf

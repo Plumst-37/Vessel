@@ -203,10 +203,10 @@ if [[ "$TARGET" =~ \.([bB][aA][tT]|[cC][mM][dD])$ ]]; then
     done
 fi
 
-# Redirección inteligente de ejecutables subordinados a sus launchers requeridos (ej. GTA5.exe -> PlayGTAV.exe)
-if [[ "$(basename "$TARGET")" =~ ^(GTA5\.exe|gta5\.exe)$ ]] && [ -f "$(dirname "$TARGET")/PlayGTAV.exe" ]; then
-    echo "[+] Launcher nativo detectado: PlayGTAV.exe (requerido para túnel IPC/pipe de GTA V, priorizado sobre GTA5.exe)"
-    TARGET="$(dirname "$TARGET")/PlayGTAV.exe"
+# Priorización inteligente de ejecutables directos (evitar launchers intermediarios propensos a fallo en Wine)
+if [[ "$(basename "$TARGET")" =~ ^(PlayGTAV\.exe|playgtav\.exe)$ ]] && [ -f "$(dirname "$TARGET")/GTA5.exe" ]; then
+    echo "[+] Ejecutable directo de GTA V detectado: GTA5.exe (priorizado para ejecución nativa en Wine sin dependencia de launcher)"
+    TARGET="$(dirname "$TARGET")/GTA5.exe"
 fi
 
 # 4. Definir la ruta del WINEPREFIX (Soporte Dual: Prefijo Compartido o Prefijo Aislado por Juego)
@@ -1224,7 +1224,8 @@ EOF_SXML
                     crear_respaldo_seguro "$sxml"
                     sed -i "s/<ScreenWidth value=\"[0-9]*\"/<ScreenWidth value=\"${gta_w}\"/" "$sxml" 2>/dev/null || true
                     sed -i "s/<ScreenHeight value=\"[0-9]*\"/<ScreenHeight value=\"${gta_h}\"/" "$sxml" 2>/dev/null || true
-                    sed -i 's/<Windowed value="[0-9]*"/<Windowed value="0"/' "$sxml" 2>/dev/null || true
+                    # Modo Pantalla Completa sin Bordes (Windowed 2): 100% pantalla completa estable en GPUs híbridas PRIME sin fallo de swapchain
+                    sed -i 's/<Windowed value="[0-9]*"/<Windowed value="2"/' "$sxml" 2>/dev/null || true
                     sed -i 's/<VSync value="[0-9]*"/<VSync value="1"/' "$sxml" 2>/dev/null || true
                     sed -i 's/<ShadowQuality value="[0-9]*"/<ShadowQuality value="1"/' "$sxml" 2>/dev/null || true
                     sed -i 's/<GrassQuality value="[0-9]*"/<GrassQuality value="1"/' "$sxml" 2>/dev/null || true
@@ -1276,7 +1277,8 @@ EOF_SXML
             cat <<EOF > "$gta_cmdline"
 -width ${gta_w}
 -height ${gta_h}
--fullscreen
+-windowed
+-borderless
 -mouseRawInput
 -scOfflineOnly
 -ignoreDifferentVideoCard
@@ -1326,7 +1328,7 @@ EOF_DLC
             fi
 
             # Overrides específicos de DirectX 11, Bink Video, Social Club y ASI Loader
-            export WINEDLLOVERRIDES="bink2w64=n,b;asiloader=n,b;dinput8=n,b;d3dcompiler_46=n,b;d3dcompiler_43=n,b;d3dcsx_46=n,b;socialclub=n,b;steam_api64=n,b;dxgi=n,b;d3d11=n,b;d3d9=n,b;${WINEDLLOVERRIDES}"
+            export WINEDLLOVERRIDES="bink2w64=n,b;asiloader=n,b;dinput8=n,b;d3dcompiler_47=n,b;d3dcompiler_46=n,b;d3dcompiler_43=n,b;d3dcsx_46=n,b;socialclub=n,b;steam_api64=n,b;dxgi=n,b;d3d11=n,b;d3d9=n,b;${WINEDLLOVERRIDES}"
             ;;
 
         rockstar_gtasa)
