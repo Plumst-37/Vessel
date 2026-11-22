@@ -34,3 +34,12 @@ __pycache__/
 core/__pycache__/
 *.pyc
 /dxvk.conf
+
+# Dependencias binarias de terceros y ejecutables descargados dinámicamente (Cumplimiento GPLv3)
+datos/GameRanger/
+datos/GameRangerSetup.exe
+GameRangerSetup.exe
+*.exe
+*.dll
+*.asi
+*.msi
