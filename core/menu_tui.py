@@ -38,9 +38,29 @@ if DIR not in sys.path:
     sys.path.insert(0, DIR)
 
 # Rutas de base de datos
-DB_FILE = os.path.join(DATOS_DIR, "programas.db") if os.path.exists(os.path.join(DATOS_DIR, "programas.db")) else os.path.join(DIR, "programas.db")
-DB_USER = os.path.join(DATOS_DIR, "programas_usuario.db") if os.path.exists(os.path.join(DATOS_DIR, "programas_usuario.db")) else os.path.join(DIR, "programas_usuario.db")
-DB_BAK = os.path.join(DATOS_DIR, "programas.db.bak") if os.path.exists(os.path.join(DATOS_DIR, "programas.db.bak")) else os.path.join(DIR, "programas.db.bak")
+DB_FILE = os.path.join(DATOS_DIR, "programas.db")
+DB_USER = os.path.join(DATOS_DIR, "programas_usuario.db")
+DB_BAK = os.path.join(DATOS_DIR, "programas.db.bak")
+
+# Migración transparente de rutas heredadas
+if not os.path.exists(DB_FILE) or os.path.getsize(DB_FILE) == 0:
+    for legacy_db in [os.path.join(DATOS_DIR, "programas_usuario.db"), os.path.join(DIR, "programas_usuario.db"), os.path.join(DIR, "programas.db")]:
+        if os.path.exists(legacy_db) and os.path.getsize(legacy_db) > 0:
+            try:
+                shutil.copyfile(legacy_db, DB_FILE)
+                break
+            except Exception:
+                pass
+    if not os.path.exists(DB_FILE) or os.path.getsize(DB_FILE) == 0:
+        example_db = os.path.join(DATOS_DIR, "programas.db.example")
+        if os.path.exists(example_db):
+            try:
+                with open(example_db, "r", encoding="utf-8") as fin, open(DB_FILE, "w", encoding="utf-8") as fout:
+                    for l in fin:
+                        if l.strip() and not l.startswith("#"):
+                            fout.write(l)
+            except Exception:
+                pass
 
 # Rutas de scripts y configuración
 LAUNCHER = os.path.join(CORE_DIR, "launch-win-app.sh") if os.path.exists(os.path.join(CORE_DIR, "launch-win-app.sh")) else os.path.join(DIR, "launch-win-app.sh")
@@ -2668,7 +2688,7 @@ def verificar_actualizacion_automatica_github(mostrar_notif=True, cfg=None):
 
             # Limpiar cualquier conflicto y sincronizar limpiamente con origin/main
             subprocess.run(
-                f"cd '{DIR}' && git checkout HEAD -- datos/programas.db config/config_rendimiento.cfg config/dxvk.conf programas.db config_rendimiento.cfg dxvk.conf 2>/dev/null || true",
+                f"cd '{DIR}' && git checkout HEAD -- config/config_rendimiento.cfg config/dxvk.conf 2>/dev/null || true",
                 shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
             )
             subprocess.run(

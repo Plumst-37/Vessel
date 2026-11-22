@@ -2036,6 +2036,18 @@ limpiar_procesos_al_interrumpir() {
 }
 trap limpiar_procesos_al_interrumpir INT TERM
 
+# Optimizaciones de baja latencia del Kernel Linux para eliminar micro-stuttering (1% lows)
+if [ -w /proc/sys/kernel/split_lock_mitigate ]; then
+    echo 0 > /proc/sys/kernel/split_lock_mitigate 2>/dev/null || true
+fi
+if [ -w /proc/sys/vm/compaction_proactiveness ]; then
+    echo 0 > /proc/sys/vm/compaction_proactiveness 2>/dev/null || true
+fi
+CURRENT_MAPS=$(cat /proc/sys/vm/max_map_count 2>/dev/null || echo 65530)
+if [ "$CURRENT_MAPS" -lt 1048576 ] && [ -w /proc/sys/vm/max_map_count ]; then
+    echo 1048576 > /proc/sys/vm/max_map_count 2>/dev/null || true
+fi
+
 # Sincronizar buffers de disco y optimizar prioridad de proceso
 sync 2>/dev/null || true
 if [ "$IS_PROGRAM" -eq 1 ]; then
@@ -2056,51 +2068,58 @@ fi
 TEMP_GAME_LOG=$(mktemp "${TMPDIR:-/tmp}/vessel_run_XXXXXX.log" 2>/dev/null || echo "/tmp/vessel_run_$$.log")
 touch "$TEMP_GAME_LOG" 2>/dev/null || true
 
+# Construir comando final de forma segura con arrays de Bash para evitar problemas de quoting
+FINAL_CMD=()
+
+# 1. Capa Gamescope (solo para juegos estándar, no utilidades/scripts/GameRanger)
+if [[ ! "$TARGET_FILE" =~ \.([mM][sS][iI]|[rR][eE][gG]|[vV][bB][sS]|[jJ][sS]|[pP][sS]1|[lL][nN][kK]|[iI][nN][kK]|[bB][aA][tT]|[cC][mM][dD])$ ]] && [[ ! "$TARGET_FILE" =~ [Gg]ame[Rr]anger ]] && [ -n "$GAMESCOPE_PREFIX" ]; then
+    read -r -a GS_OPTS <<< "$GAMESCOPE_PREFIX"
+    FINAL_CMD+=("${GS_OPTS[@]}")
+fi
+
+# 2. GameMode
+if [ -n "$GAMEMODE" ] && command -v "$GAMEMODE" &>/dev/null && [[ ! "$TARGET_FILE" =~ \.([rR][eE][gG]|[vV][bB][sS]|[jJ][sS])$ ]]; then
+    FINAL_CMD+=("$GAMEMODE")
+fi
+
+# 3. Binario principal de Wine
+FINAL_CMD+=("$WINE_CMD")
+
+# 4. Prefijo de escritorio virtual (si aplica y no es GameRanger o reg)
+if [ -n "$RUN_PREFIX" ] && [[ ! "$TARGET_FILE" =~ [Gg]ame[Rr]anger ]] && [[ ! "$TARGET_FILE" =~ \.([rR][eE][gG]|[vV][bB][sS]|[jJ][sS]|[pP][sS]1)$ ]]; then
+    read -r -a RUN_OPTS <<< "$RUN_PREFIX"
+    FINAL_CMD+=("${RUN_OPTS[@]}")
+fi
+
+# 5. Parámetros según el tipo de ejecutable o script
 if [[ "$TARGET_FILE" =~ \.(msi|MSI)$ ]]; then
-    $GAMEMODE "$WINE_CMD" msiexec /i "$TARGET_FILE" "$@" 2>&1 | tee "$TEMP_GAME_LOG"
-    EXIT_STATUS="${PIPESTATUS[0]}"
+    FINAL_CMD+=("msiexec" "/i" "$TARGET_FILE" "$@")
 elif [[ "$TARGET_FILE" =~ \.(reg|REG)$ ]]; then
     echo "[+] Importando archivo de registro en Wine: $TARGET_FILE"
-    "$WINE_CMD" regedit /s "$TARGET_FILE" 2>&1 | tee "$TEMP_GAME_LOG"
-    EXIT_STATUS="${PIPESTATUS[0]}"
+    FINAL_CMD+=("regedit" "/s" "$TARGET_FILE")
 elif [[ "$TARGET_FILE" =~ \.([vV][bB][sS]|[jJ][sS])$ ]]; then
     echo "[+] Ejecutando script de Windows ($TARGET_FILE)..."
-    "$WINE_CMD" wscript.exe "$TARGET_FILE" "$@" 2>&1 | tee "$TEMP_GAME_LOG"
-    EXIT_STATUS="${PIPESTATUS[0]}"
+    FINAL_CMD+=("wscript.exe" "$TARGET_FILE" "$@")
 elif [[ "$TARGET_FILE" =~ \.([pP][sS]1)$ ]]; then
     echo "[+] Ejecutando script PowerShell de Windows ($TARGET_FILE)..."
-    "$WINE_CMD" powershell.exe -ExecutionPolicy Bypass -File "$TARGET_FILE" "$@" 2>&1 | tee "$TEMP_GAME_LOG"
-    EXIT_STATUS="${PIPESTATUS[0]}"
+    FINAL_CMD+=("powershell.exe" "-ExecutionPolicy" "Bypass" "-File" "$TARGET_FILE" "$@")
 elif [[ "$TARGET_FILE" =~ \.(lnk|ink|LNK|INK)$ ]]; then
-    if [ -n "$RUN_PREFIX" ]; then
-        $GAMEMODE "$WINE_CMD" $RUN_PREFIX start /unix "$TARGET" "$@" 2>&1 | tee "$TEMP_GAME_LOG"
-        EXIT_STATUS="${PIPESTATUS[0]}"
-    else
-        $GAMEMODE "$WINE_CMD" start /unix "$TARGET" "$@" 2>&1 | tee "$TEMP_GAME_LOG"
-        EXIT_STATUS="${PIPESTATUS[0]}"
-    fi
+    FINAL_CMD+=("start" "/unix" "$TARGET" "$@")
 elif [[ "$TARGET_FILE" =~ \.([bB][aA][tT]|[cC][mM][dD])$ ]]; then
-    if [ -n "$RUN_PREFIX" ]; then
-        $GAMEMODE "$WINE_CMD" $RUN_PREFIX cmd /c "$TARGET_FILE" "$@" 2>&1 | tee "$TEMP_GAME_LOG"
-        EXIT_STATUS="${PIPESTATUS[0]}"
-    else
-        $GAMEMODE "$WINE_CMD" cmd /c "$TARGET_FILE" "$@" 2>&1 | tee "$TEMP_GAME_LOG"
-        EXIT_STATUS="${PIPESTATUS[0]}"
-    fi
-elif [[ "$TARGET_FILE" =~ [Gg]ame[Rr]anger ]]; then
-    # GameRanger: Se ejecuta en MODO VENTANA NATIVA de escritorio (NUNCA en pantalla completa)
-    # sin contenedor virtual para que flote en el escritorio como cualquier aplicación estándar
-    "$WINE_CMD" "$TARGET_FILE" "$@" $EXTRA_APP_ARGS 2>&1 | tee "$TEMP_GAME_LOG"
-    EXIT_STATUS="${PIPESTATUS[0]}"
+    FINAL_CMD+=("cmd" "/c" "$TARGET_FILE" "$@")
 else
-    if [ -n "$RUN_PREFIX" ]; then
-        $GAMESCOPE_PREFIX $GAMEMODE "$WINE_CMD" $RUN_PREFIX "$TARGET_FILE" "$@" $EXTRA_APP_ARGS 2>&1 | tee "$TEMP_GAME_LOG"
-        EXIT_STATUS="${PIPESTATUS[0]}"
-    else
-        $GAMESCOPE_PREFIX $GAMEMODE "$WINE_CMD" "$TARGET_FILE" "$@" $EXTRA_APP_ARGS 2>&1 | tee "$TEMP_GAME_LOG"
-        EXIT_STATUS="${PIPESTATUS[0]}"
-    fi
+    FINAL_CMD+=("$TARGET_FILE" "$@")
 fi
+
+# 6. Argumentos extras del motor / juego
+if [ -n "$EXTRA_APP_ARGS" ] && [[ ! "$TARGET_FILE" =~ \.([rR][eE][gG]|[vV][bB][sS]|[jJ][sS]|[pP][sS]1)$ ]]; then
+    read -r -a EXTRA_OPTS <<< "$EXTRA_APP_ARGS"
+    FINAL_CMD+=("${EXTRA_OPTS[@]}")
+fi
+
+# 7. Ejecución con captura en tiempo real
+"${FINAL_CMD[@]}" 2>&1 | tee "$TEMP_GAME_LOG"
+EXIT_STATUS="${PIPESTATUS[0]}"
 
 # Restaurar perfil de energía previo del CPU
 if [ -n "$PREV_POWER_PROFILE" ] && command -v powerprofilesctl &>/dev/null; then

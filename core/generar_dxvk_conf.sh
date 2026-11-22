@@ -48,6 +48,27 @@ case "$LIMITE_FPS" in
     *) FPS_VAL="0" ;;
 esac
 
+# Calibración de sincronización y latencia (VSync y Buffers)
+VSYNC_ENABLED="${VSYNC_MODE:-1}"
+if [ "$VSYNC_ENABLED" = "0" ]; then
+    TEAR_FREE="False"
+    SYNC_INT="0"
+    NUM_BUFFERS="2"
+    FRAME_LATENCY="1"
+else
+    TEAR_FREE="True"
+    SYNC_INT="1"
+    NUM_BUFFERS="3"
+    FRAME_LATENCY="2"
+fi
+
+# Calibración de chunks y memoria según hardware
+if [ "$IS_LOW_SPEC_GPU" = "true" ] || [ "${RAM_TOTAL_MB:-8192}" -le 4608 ]; then
+    MAX_CHUNK_SIZE="32"
+else
+    MAX_CHUNK_SIZE="128"
+fi
+
 # Calibración de memoria según RAM (Ahorro <= 4GB, Equilibrado 8GB-12GB, Extremo 16GB+)
 D3D9_MEM="2048"
 if [ -n "$RAM_TOTAL_MB" ]; then
@@ -76,6 +97,7 @@ d3d9.maxFrameRate = ${FPS_VAL}
 # Reducción drástica de tirones y stuttering (Graphics Pipeline Library - Carga sincrónica sin pérdida de mallas)
 dxvk.enableAsync = False
 dxvk.gpl = True
+dxvk.enableGraphicsPipelineLibrary = True
 
 # Modo Pantalla Completa: False para compatibilidad universal (evita fallos de EDID/swapchains en Wayland/PRIME)
 dxvk.allowFse = False
@@ -94,19 +116,18 @@ d3d11.relaxedBarriers = False
 d3d9.lenientClear = True
 d3d9.maxAvailableMemory = ${D3D9_MEM}
 
-# Presentación Fluida sin Caídas Bruscas de FPS (Triple Buffering Tear-Free / Mailbox)
-# Mantiene 60 FPS estables sin desgarro de imagen al girar la cámara
-dxvk.tearFree = True
-dxgi.syncInterval = 1
-d3d9.presentInterval = 1
-dxgi.numBackBuffers = 3
-d3d9.numBackBuffers = 3
-d3d9.maxFrameLatency = 2
-dxgi.maxFrameLatency = 2
+# Presentación y latencia de fotogramas (Adaptado dinámicamente)
+dxvk.tearFree = ${TEAR_FREE}
+dxgi.syncInterval = ${SYNC_INT}
+d3d9.presentInterval = ${SYNC_INT}
+dxgi.numBackBuffers = ${NUM_BUFFERS}
+d3d9.numBackBuffers = ${NUM_BUFFERS}
+d3d9.maxFrameLatency = ${FRAME_LATENCY}
+dxgi.maxFrameLatency = ${FRAME_LATENCY}
 
-# Optimizaciones de pipelines DXVK y memoria (Ultra-bajo consumo de RAM)
+# Optimizaciones de pipelines DXVK y memoria (Control adaptativo de RAM)
 dxvk.trackPipelineLifetime = False
-dxvk.maxChunkSize = 32
+dxvk.maxChunkSize = ${MAX_CHUNK_SIZE}
 d3d9.memoryTrackTest = False
 dxvk.enableNvapi = True
 

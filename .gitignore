@@ -8,6 +8,8 @@ librerias/
 librerias_cache/
 
 # Base de datos personal de juegos del usuario (no se sobreescribe al actualizar)
+programas.db
+datos/programas.db
 programas_usuario.db
 datos/programas_usuario.db
 .gameranger_prefs_backup/

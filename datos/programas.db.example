@@ -1,4 +1,3 @@
 # Base de datos de juegos y programas de Windows (Plantilla)
-# Formato: Nombre del Programa|/ruta/al/ejecutable.exe|tipo_de_prefijo
-# GameRanger viene incluido como cliente multijugador base portable:
-GameRanger|GameRanger.exe|compartido
+# Formato: Nombre|Ruta|Prefijo|WinVer|FSR|Tipo
+GameRanger|GameRanger.exe|compartido|win7|off|juego

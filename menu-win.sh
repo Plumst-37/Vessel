@@ -59,6 +59,16 @@ fi
 
 # Asegurar que la base de datos de programas y el prefijo de Wine existan
 mkdir -p "${DATOS_DIR}" "${CONFIG_DIR}" "${DIR}/wineprefix" 2>/dev/null || true
+if [ ! -s "$DB_FILE" ]; then
+    if [ -f "${DATOS_DIR}/programas_usuario.db" ] && [ -s "${DATOS_DIR}/programas_usuario.db" ]; then
+        cp -f "${DATOS_DIR}/programas_usuario.db" "$DB_FILE"
+    elif [ -f "${DIR}/programas_usuario.db" ] && [ -s "${DIR}/programas_usuario.db" ]; then
+        cp -f "${DIR}/programas_usuario.db" "$DB_FILE"
+    elif [ -f "${DATOS_DIR}/programas.db.example" ]; then
+        grep -v '^#' "${DATOS_DIR}/programas.db.example" | grep -v '^$' > "$DB_FILE" 2>/dev/null || true
+    fi
+    [ ! -s "$DB_FILE" ] && echo "GameRanger|GameRanger.exe|compartido|win7|off|juego" > "$DB_FILE"
+fi
 touch "$DB_FILE"
 
 # ==============================================================================
@@ -121,7 +131,17 @@ verificar_actualizacion_github() {
         ya_configurado=1
     fi
 
-    # Fetch con timeout de 7 segundos
+    # Proteger contra bucles infinitos de reinicio tras actualización
+if [ "${_VESSEL_JUST_UPDATED:-0}" = "1" ]; then
+    return 0
+fi
+
+# Deshacer cualquier estado de conflicto previo de Git (needs merge)
+git -C "${DIR}" merge --abort 2>/dev/null || true
+git -C "${DIR}" rebase --abort 2>/dev/null || true
+git -C "${DIR}" reset --merge 2>/dev/null || true
+
+# Fetch con timeout de 7 segundos
     if timeout 7 git -C "${DIR}" fetch origin main --quiet 2>/dev/null || timeout 7 git -C "${DIR}" fetch origin --quiet 2>/dev/null; then
         local local_hash
         local remote_hash
@@ -132,7 +152,7 @@ verificar_actualizacion_github() {
             echo ""
             echo -e "  ${C_YELLOW}${C_BOLD}⚡ ¡Nueva versión encontrada en GitHub!${C_RESET}"
             echo -e "  ${C_WHITE}Descargando e instalando los últimos parches y mejoras...${C_RESET}"
-            git -C "${DIR}" checkout HEAD -- datos/programas.db config/config_rendimiento.cfg config/dxvk.conf programas.db config_rendimiento.cfg dxvk.conf 2>/dev/null || true
+            git -C "${DIR}" checkout HEAD -- config/config_rendimiento.cfg config/dxvk.conf 2>/dev/null || true
             if git -C "${DIR}" reset --hard origin/main 2>/dev/null || git -C "${DIR}" pull --quiet origin main 2>/dev/null; then
                 # Restaurar base de datos y configuración
                 mkdir -p "${DATOS_DIR}" "${CONFIG_DIR}" 2>/dev/null || true
@@ -159,6 +179,7 @@ verificar_actualizacion_github() {
                 desplegar_gameranger_portable 2>/dev/null || true
                 echo -e "  ${C_GREEN}${C_BOLD}✔ ¡Vessel actualizado con éxito a la última versión! Reiniciando...${C_RESET}\n"
                 sleep 1.2
+                export _VESSEL_JUST_UPDATED=1
                 exec "$0" "$@"
             fi
         else
@@ -623,70 +644,116 @@ EOF
 # 1) INICIAR PROGRAMA
 # ==============================================================================
 iniciar_programa() {
-    # Desplegar y asegurar GameRanger portable listo en opción #1
+    local filtro_tipo="${1:-}"
+    # Desplegar y asegurar GameRanger portable listo en opción #1 si estamos en juegos o sin filtro
     desplegar_gameranger_portable
-    local db_user="${DIR}/programas_usuario.db"
+    local db_user="${DATOS_DIR}/programas_usuario.db"
+    [ ! -f "$db_user" ] && db_user="${DIR}/programas_usuario.db"
     if [ ! -s "$DB_FILE" ] || ! grep -qi "gameranger" "$DB_FILE" 2>/dev/null; then
         mkdir -p "$(dirname "$DB_FILE")"
         if [ -s "$DB_FILE" ]; then
-            sed -i '1i GameRanger|GameRanger.exe|compartido' "$DB_FILE" 2>/dev/null || echo "GameRanger|GameRanger.exe|compartido" >> "$DB_FILE"
+            sed -i '1i GameRanger|GameRanger.exe|compartido|win7|off|juego' "$DB_FILE" 2>/dev/null || echo "GameRanger|GameRanger.exe|compartido|win7|off|juego" >> "$DB_FILE"
         else
-            echo "GameRanger|GameRanger.exe|compartido" > "$DB_FILE"
+            echo "GameRanger|GameRanger.exe|compartido|win7|off|juego" > "$DB_FILE"
         fi
         cp -f "$DB_FILE" "${DB_FILE}.bak" 2>/dev/null || true
     fi
 
     while true; do
         mostrar_banner
-        echo -e "${C_GREEN}▶ [ INICIAR PROGRAMA O JUEGO ]${C_RESET}"
-        echo -e "${C_GRAY}Selecciona el programa que deseas ejecutar con aceleración gráfica:${C_RESET}"
+        if [ "$filtro_tipo" = "programa" ]; then
+            echo -e "${C_CYAN}▶ [ 💼 PROGRAMAS Y UTILIDADES DE WINDOWS ]${C_RESET}"
+            echo -e "${C_GRAY}Software empresarial, oficina, herramientas y utilidades de Windows:${C_RESET}"
+        else
+            echo -e "${C_GREEN}▶ [ 🎮 VIDEOJUEGOS DE WINDOWS ]${C_RESET}"
+            echo -e "${C_GRAY}Videojuegos 3D y 2D acelerados por Vulkan / DirectX con máximo rendimiento:${C_RESET}"
+        fi
         echo ""
 
         local i=1
         declare -a nombres
         declare -a rutas
+        declare -a prefijos
+        declare -a winvers
+        declare -a fsrs
+        declare -a tipos
         declare -A vistos
 
-        # GameRanger siempre como opción inicial garantizada portable
-        nombres[i]="GameRanger"
-        rutas[i]="GameRanger.exe"
-        vistos["gameranger"]=1
-        echo -e "  ${C_BOLD}${C_CYAN}[$i]${C_RESET} ${C_WHITE}GameRanger${C_RESET} ${C_GREEN}(Multijugador Online / Portable)${C_RESET}"
-        echo -e "      ${C_GRAY}↳ GameRanger.exe (Listo para jugar sin configurar nada)${C_RESET}"
-        ((i++))
+        # GameRanger siempre como opción inicial si es catálogo de juegos
+        if [ "$filtro_tipo" != "programa" ]; then
+            nombres[i]="GameRanger"
+            rutas[i]="GameRanger.exe"
+            prefijos[i]="compartido"
+            winvers[i]="win7"
+            fsrs[i]="off"
+            tipos[i]="juego"
+            vistos["gameranger"]=1
+            echo -e "  ${C_BOLD}${C_CYAN}[$i]${C_RESET} ${C_WHITE}GameRanger${C_RESET} ${C_GREEN}(Multijugador Online / Portable)${C_RESET}"
+            echo -e "      ${C_GRAY}↳ GameRanger.exe (Listo para jugar sin configurar nada)${C_RESET}"
+            ((i++))
+        fi
 
-        # Cargar juegos registrados de DB_USER y DB_FILE
+        # Cargar juegos y programas registrados de DB_USER, DB_FILE y .bak
         for db_f in "$db_user" "$DB_FILE" "${DB_FILE}.bak"; do
             if [ -f "$db_f" ]; then
-                while IFS='|' read -r nombre ruta prefijo; do
+                while IFS='|' read -r nombre ruta prefijo winver fsr tipo; do
                     [ -z "$nombre" ] && continue
                     [[ "$nombre" =~ ^# ]] && continue
                     local l_key="${nombre,,}"
-                    if [ -z "${vistos[$l_key]}" ]; then
-                        vistos["$l_key"]=1
-                        nombres[i]="$nombre"
-                        rutas[i]="$ruta"
-                        echo -e "  ${C_BOLD}${C_CYAN}[$i]${C_RESET} ${C_WHITE}${nombre}${C_RESET}"
-                        echo -e "      ${C_GRAY}↳ ${ruta}${C_RESET}"
-                        ((i++))
+                    [ -n "${vistos[$l_key]:-}" ] && continue
+
+                    # Normalizar tipo
+                    local t_norm="${tipo,,}"
+                    [ -z "$t_norm" ] && t_norm="juego"
+
+                    # Aplicar filtro si existe
+                    if [ -n "$filtro_tipo" ] && [ "$filtro_tipo" != "$t_norm" ]; then
+                        continue
                     fi
+
+                    vistos["$l_key"]=1
+                    nombres[i]="$nombre"
+                    rutas[i]="$ruta"
+                    prefijos[i]="${prefijo:-compartido}"
+                    winvers[i]="${winver:-win10}"
+                    fsrs[i]="${fsr:-off}"
+                    tipos[i]="$t_norm"
+
+                    local badge=""
+                    if [ "$t_norm" = "programa" ]; then
+                        badge="${C_BLUE}[Programa]${C_RESET}"
+                    else
+                        badge="${C_GREEN}[Juego]${C_RESET}"
+                    fi
+
+                    echo -e "  ${C_BOLD}${C_CYAN}[$i]${C_RESET} ${C_WHITE}${nombre}${C_RESET} ${badge}"
+                    echo -e "      ${C_GRAY}↳ ${ruta}${C_RESET}"
+                    ((i++))
                 done < "$db_f"
             fi
         done
 
         local total=$((i - 1))
         echo ""
+        echo -e "  ${C_BOLD}${C_CYAN}[+]${C_RESET} ${C_GREEN}Añadir nuevo ejecutable (.exe, .lnk, .bat)${C_RESET}"
         echo -e "  ${C_BOLD}${C_RED}[0]${C_RESET} ${C_YELLOW}Volver al menú principal${C_RESET}"
         echo ""
-        read -p "$(echo -e "${C_BOLD}Elegir opción (1-${total} o 0): ${C_RESET}")" seleccion
+        read -p "$(echo -e "${C_BOLD}Elegir opción (1-${total}, + o 0): ${C_RESET}")" seleccion
 
         if [ "$seleccion" = "0" ] || [ -z "$seleccion" ]; then
             return
+        elif [ "$seleccion" = "+" ]; then
+            agregar_programa_portable
+            continue
         fi
 
         if [[ "$seleccion" =~ ^[0-9]+$ ]] && [ "$seleccion" -ge 1 ] && [ "$seleccion" -le "$total" ]; then
             local prog_nombre="${nombres[$seleccion]}"
             local prog_ruta="${rutas[$seleccion]}"
+            local prog_prefijo="${prefijos[$seleccion]}"
+            local prog_winver="${winvers[$seleccion]}"
+            local prog_fsr="${fsrs[$seleccion]}"
+            local prog_tipo="${tipos[$seleccion]}"
 
             # Normalizar ruta si es relativa dentro del proyecto
             if [[ "$prog_ruta" != /* ]] && [ -f "${DIR}/${prog_ruta}" ]; then
@@ -696,10 +763,19 @@ iniciar_programa() {
             echo ""
             echo -e "${C_GREEN}🚀 Iniciando: ${C_BOLD}${prog_nombre}${C_RESET}..."
             echo -e "${C_GRAY}Optimizando para tu ${DETECTED_GPU}...${C_RESET}"
-            sleep 1
+            sleep 0.8
 
-            if [ -x "$LAUNCHER" ]; then
-                "$LAUNCHER" "$prog_ruta"
+            local cmd_args=()
+            [ "$prog_tipo" = "programa" ] && cmd_args+=("--program")
+            [ "$prog_prefijo" = "aislado" ] && cmd_args+=("--isolated")
+            [ -n "$prog_winver" ] && cmd_args+=("--winver" "$prog_winver")
+            [ -n "$prog_fsr" ] && [ "$prog_fsr" != "off" ] && cmd_args+=("--fsr" "$prog_fsr")
+            cmd_args+=("$prog_ruta")
+
+            if [ -f "${DIR}/herramientas/ejecutar_y_volver.sh" ]; then
+                bash "${DIR}/herramientas/ejecutar_y_volver.sh" "${cmd_args[@]}"
+            elif [ -x "$LAUNCHER" ]; then
+                "$LAUNCHER" "${cmd_args[@]}"
             else
                 echo -e "${C_RED}❌ Error: No se encontró el lanzador en ${LAUNCHER}${C_RESET}"
             fi
@@ -2606,8 +2682,8 @@ render_menu_principal() {
     echo -e "${C_PURPLE}╭─ 🎮  Menú Principal ─────────────────────────────────────────────────────────────────╮${C_RESET}"
     echo -e "${C_PURPLE}│${C_RESET}                                                                                      ${C_PURPLE}│${C_RESET}"
 
-    local o1="▶   [1]  Iniciar programa o juego      "
-    local o2="⚙️   [2]  Configurar Programa Win      "
+    local o1="▶   [1]  🎮  Juegos                    "
+    local o2="▶   [2]  💼  Programas                 "
     local o3="⚡  [3]  Smart Performance (Ajustes)   "
     local o4="🔧  [4]  Herramientas de Windows       "
     local o5="🔄  [5]  Actualizar                    "
@@ -2704,8 +2780,8 @@ if [ "${BASH_SOURCE[0]}" = "$0" ]; then
                 ;;
             ""|$'\n') # Enter -> Ejecutar la opción actualmente resaltada
                 case "$sel_idx" in
-                    1) iniciar_programa ;;
-                    2) configurar_programa_win ;;
+                    1) iniciar_programa "juego" ;;
+                    2) iniciar_programa "programa" ;;
                     3) menu_configuracion ;;
                     4) menu_herramientas_windows ;;
                     5) instalar_recursos_actualizar ;;
@@ -2718,11 +2794,11 @@ if [ "${BASH_SOURCE[0]}" = "$0" ]; then
                 ;;
             1)
                 sel_idx=1
-                iniciar_programa
+                iniciar_programa "juego"
                 ;;
             2)
                 sel_idx=2
-                configurar_programa_win
+                iniciar_programa "programa"
                 ;;
             3)
                 sel_idx=3
