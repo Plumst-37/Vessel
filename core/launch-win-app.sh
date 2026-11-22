@@ -1271,7 +1271,7 @@ EOF_SXML
                 fi
             done
 
-            # 3. Optimización en commandline.txt (priorizando estabilidad geométrica 3D, frame pacing y offline mode)
+            # 3. Optimización en commandline.txt (priorizando estabilidad geométrica 3D y frame pacing)
             local gta_cmdline="${TARGET_DIR}/commandline.txt"
             [ -f "$gta_cmdline" ] && crear_respaldo_seguro "$gta_cmdline"
             cat <<EOF > "$gta_cmdline"
@@ -1280,7 +1280,6 @@ EOF_SXML
 -windowed
 -borderless
 -mouseRawInput
--scOfflineOnly
 -ignoreDifferentVideoCard
 -Tessellation 0
 -noInGameDOF
@@ -1315,17 +1314,9 @@ EOF_DLC
                 [ ! -f "${TARGET_DIR}/steam_appid.txt" ] && echo "271590" > "${TARGET_DIR}/steam_appid.txt"
             fi
 
-            # Auto-vincular partida guardada base si el prefijo no tiene partidas para evitar bucles de carga en prólogo
+            # Asegurar directorio limpio de guardado para emulador Goldberg
             local gta_save_dir="${WINEPREFIX}/drive_c/users/${USER}/AppData/Roaming/Goldberg SocialClub Emu Saves/GTA V/0F74F4C4"
             mkdir -p "$gta_save_dir"
-            if ! ls "$gta_save_dir"/SGTA* >/dev/null 2>&1; then
-                local cand_save
-                cand_save=$(find "${TARGET_DIR}/.." -maxdepth 4 -iname "SGTA50015" 2>/dev/null | head -n 1)
-                if [ -n "$cand_save" ] && [ -f "$cand_save" ]; then
-                    echo "[+] Partida guardada base detectada e instalada para carga inmediata sin bucle de prólogo."
-                    cp -n "$(dirname "$cand_save")"/SGTA* "$gta_save_dir/" 2>/dev/null || true
-                fi
-            fi
 
             # Overrides específicos de DirectX 11, Bink Video, Social Club y ASI Loader
             export WINEDLLOVERRIDES="bink2w64=n,b;asiloader=n,b;dinput8=n,b;d3dcompiler_47=n,b;d3dcompiler_46=n,b;d3dcompiler_43=n,b;d3dcsx_46=n,b;socialclub=n,b;steam_api64=n,b;dxgi=n,b;d3d11=n,b;d3d9=n,b;${WINEDLLOVERRIDES}"
@@ -1833,10 +1824,10 @@ fi
 
 echo ""
 if [ "$IS_PROGRAM" -eq 1 ]; then
-    echo "[+] Ejecutando Programa de Windows [Modo Ventana Nativa - ClearType HD] (Vessel v1.0)..."
+    echo "[+] Ejecutando Programa de Windows [Modo Ventana Nativa - ClearType HD] (Vessel v2.0)..."
     echo "    - CPU: ${CPU_MODEL} (${CPU_CORES} Hilos)"
     echo "    - GPU: ${DETECTED_GPU}"
-    echo "    - Versión de Vessel: v1.0 (Producción)"
+    echo "    - Versión de Vessel: v2.0 (Producción)"
     echo "    - Modo de Ejecución: Ventana Nativa X11 / Wayland (Redimensionable)"
     echo "    - Renderizado de Texto: ClearType HD Subpixel Antialiasing"
     echo "    - Consumo de Recursos: Mínimo (~25-40 MB RAM, 0% CPU adicional)"
@@ -1848,10 +1839,10 @@ if [ "$IS_PROGRAM" -eq 1 ]; then
     echo "    - Prefijo Wine: ${WINEPREFIX}"
     echo "    - Productividad: RichEdit, MSXML, GDI+ y DirectWrite habilitados"
 else
-    echo "[+] Ejecutando con Perfil [${perf_label}] (Vessel v1.0)..."
+    echo "[+] Ejecutando con Perfil [${perf_label}] (Vessel v2.0)..."
     echo "    - CPU: ${CPU_MODEL} (${CPU_CORES} Hilos)"
     echo "    - GPU: ${DETECTED_GPU}"
-    echo "    - Versión de Vessel: v1.0 (Producción)"
+    echo "    - Versión de Vessel: v2.0 (Producción)"
     echo "    - Renderizador: ${RENDERER_IN_USE:-DXVK (Vulkan)}"
     echo "    - Consumo RAM / CPU: Ultra-Liviano (WINEDEBUG silenciado, Pipelines dinámicos)"
     echo "    - Fidelidad 3D & Shaders: Filtrado Anisotrópico 16x | D3D8to9 Vulkan | NVAPI: ${NVAPI_ACTIVO}"

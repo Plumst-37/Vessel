@@ -7,7 +7,7 @@
 [![Linux](https://img.shields.io/badge/Platform-GNU%2FLinux-3b82f6.svg?style=for-the-badge&logo=linux)](https://github.com/Plumst-37/Vessel)
 [![Bash Core](https://img.shields.io/badge/Core-Native%20Bash-10b981.svg?style=for-the-badge&logo=gnubash)](https://github.com/Plumst-37/Vessel)
 [![Vulkan](https://img.shields.io/badge/Graphics-Vulkan%20%7C%20DXVK%202.x-e11d48.svg?style=for-the-badge&logo=vulkan)](https://github.com/Plumst-37/Vessel)
-[![License](https://img.shields.io/badge/License-MIT-f59e0b.svg?style=for-the-badge)](LICENSE)
+[![License](https://img.shields.io/badge/License-GPLv3-blue.svg?style=for-the-badge)](LICENSE)
 
 <br/>
 
@@ -250,7 +250,7 @@ Tus juegos se guardan de forma segura en <code>datos/programas.db</code> (ignora
 
 ## 📄 Licencia
 
-Este proyecto está licenciado bajo los términos de la Licencia **MIT**. Consulta el archivo `LICENSE` para más detalles.
+Este proyecto es software libre y de código abierto, licenciado bajo los términos de la Licencia **GNU General Public License v3.0 (GPL-3.0)**. Consulta el archivo [LICENSE](LICENSE) para más detalles.
 
 ---
 

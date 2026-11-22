@@ -29,6 +29,13 @@ echo " - Aceleración GPU: ${DETECTED_GPU:-GPU Detectada}"
 echo " - Salida de compilación: ${DIR}/wine-tkg-build"
 echo "=========================================================="
 
+if [ ! -d "${BUILD_DIR}" ]; then
+    echo "[-] Error: No se encontró el árbol fuente de Wine-TKG en: ${BUILD_DIR}"
+    echo "    Clona el repositorio antes de compilar:"
+    echo "    git clone https://github.com/Frogging-Family/wine-tkg-git.git \"${DIR}/wine-tkg-git\""
+    exit 1
+fi
+
 cd "${BUILD_DIR}"
 
 # Ejecutar el script no-makepkg (para Debian / distros no-Arch)
