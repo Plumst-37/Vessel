@@ -2588,7 +2588,11 @@ def verificar_actualizacion_automatica_github(mostrar_notif=True, cfg=None):
             shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
         )
 
-    # 0. Respetar modo desarrollador para evitar sobreescribir código en desarrollo
+    # 0. Evitar bucles de reinicio infinito si ya se actualizó en esta sesión
+    if os.environ.get("_VESSEL_JUST_UPDATED") == "1":
+        return False
+
+    # 0.1 Respetar modo desarrollador para evitar sobreescribir código en desarrollo
     if os.environ.get("VESSEL_DEV_MODE") == "1" or cfg.get("AUTO_ACTUALIZAR_GITHUB") == "0" or os.path.exists(os.path.join(DIR, ".git_dev")):
         if mostrar_notif:
             print(f"  {CYAN}🛠️  Modo desarrollador activo: omitiendo actualización automática para proteger código local.{RESET}\n")
@@ -2615,7 +2619,13 @@ def verificar_actualizacion_automatica_github(mostrar_notif=True, cfg=None):
         # Recordar si el usuario ya tenía configurado el sistema
         ya_configurado = os.path.exists(INSTALADO_MARKER) or (os.path.exists(VERSION_FILE) and os.path.getsize(VERSION_FILE) > 0)
 
-        # 2. Comprobar actualizaciones remotas con timeout de 7 segundos
+        # 2. Deshacer cualquier estado de conflicto previo de Git (needs merge)
+        subprocess.run(
+            f"cd '{DIR}' && (git merge --abort 2>/dev/null; git rebase --abort 2>/dev/null; git reset --merge 2>/dev/null) || true",
+            shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
+        )
+
+        # 3. Comprobar actualizaciones remotas con timeout de 7 segundos
         res = subprocess.run(
             f"cd '{DIR}' && git fetch origin main --quiet",
             shell=True, timeout=7, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
@@ -2625,39 +2635,32 @@ def verificar_actualizacion_automatica_github(mostrar_notif=True, cfg=None):
             time.sleep(0.8)
             return False
 
-        # 3. Comparar commit local vs remoto
+        # 4. Comparar commit local vs remoto
         local_hash = subprocess.check_output(f"cd '{DIR}' && git rev-parse HEAD", shell=True, text=True).strip()
         remote_hash = subprocess.check_output(f"cd '{DIR}' && git rev-parse origin/main", shell=True, text=True).strip()
 
         if local_hash and remote_hash and local_hash != remote_hash:
-            # Comprobar si hay cambios locales sin confirmar para proteger el código
-            status_out = subprocess.run(
-                f"cd '{DIR}' && git status --porcelain",
-                shell=True, capture_output=True, text=True
-            ).stdout.strip()
-
-            lineas_cambios = [
-                l for l in status_out.splitlines()
-                if any(ext in l for ext in ['.py', '.sh', '.conf', '.cfg']) and not any(ign in l for ign in ['programas', 'config_rendimiento.cfg', '.bak', 'version.txt'])
-            ]
-            hay_cambios_locales = len(lineas_cambios) > 0
-
             print(f"\n  {YELLOW}{BOLD}⚡ ¡Nueva actualización encontrada en GitHub!{RESET}")
-            if hay_cambios_locales:
-                print(f"  {CYAN}Detectados cambios locales de desarrollo. Protegiendo archivos con git stash...{RESET}")
-                subprocess.run(f"cd '{DIR}' && git stash", shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-                pull_res = subprocess.run(f"cd '{DIR}' && git pull --ff-only origin main", shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-                if pull_res.returncode != 0:
-                    subprocess.run(f"cd '{DIR}' && git rebase origin/main 2>/dev/null || true", shell=True)
-                subprocess.run(f"cd '{DIR}' && git stash pop 2>/dev/null || true", shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-            else:
-                print(f"  {WHITE}Descargando e instalando los últimos parches y mejoras para tus juegos...{RESET}")
-                subprocess.run(
-                    f"cd '{DIR}' && git pull --ff-only origin main 2>/dev/null || git reset --hard origin/main",
-                    shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=25
-                )
+            print(f"  {WHITE}Descargando e instalando los últimos parches y mejoras para tus juegos...{RESET}")
 
-            # Restaurar bases de datos y configuraciones
+            # Limpiar cualquier conflicto y sincronizar limpiamente con origin/main
+            subprocess.run(
+                f"cd '{DIR}' && git checkout HEAD -- programas.db config_rendimiento.cfg dxvk.conf 2>/dev/null || true",
+                shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
+            )
+            subprocess.run(
+                f"cd '{DIR}' && git reset --hard origin/main",
+                shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=25
+            )
+
+            # Verificar si realmente se actualizó al hash remoto para evitar falsos reinicios
+            new_local_hash = subprocess.check_output(f"cd '{DIR}' && git rev-parse HEAD", shell=True, text=True).strip()
+            if new_local_hash != remote_hash:
+                print(f"  {YELLOW}⚠️  Aviso: Continuando en modo local para proteger archivos...{RESET}\n")
+                time.sleep(1)
+                return False
+
+            # Restaurar bases de datos y configuraciones del usuario
             if os.path.exists(DB_USER):
                 try:
                     progs = cargar_lista_programas()
@@ -2689,11 +2692,13 @@ def verificar_actualizacion_automatica_github(mostrar_notif=True, cfg=None):
             desplegar_gameranger_portable()
 
             print(f"\n  {GREEN}{BOLD}✔ ¡Vessel se ha actualizado con éxito a la versión {VERSION_ACTUAL}!{RESET}")
-            print(f"  {CYAN}Reiniciando la aplicación con los nuevos cambios...{RESET}\n")
-            time.sleep(1.2)
+            print(f"  {CYAN}Iniciando la aplicación con los nuevos cambios...{RESET}\n")
+            time.sleep(1.0)
 
-            # Reiniciar el script con la versión nueva
-            os.execv(sys.executable, [sys.executable] + sys.argv)
+            # Reiniciar el script con variable protectora anti-bucles
+            new_env = os.environ.copy()
+            new_env["_VESSEL_JUST_UPDATED"] = "1"
+            os.execvpe(sys.executable, [sys.executable] + sys.argv, new_env)
             return True
         else:
             if mostrar_notif:
@@ -2703,6 +2708,8 @@ def verificar_actualizacion_automatica_github(mostrar_notif=True, cfg=None):
             return False
     except Exception as e:
         print(f"  {YELLOW}⚠️  Aviso: Continuando en modo local ({e})...{RESET}\n")
+        time.sleep(0.8)
+        return False
         time.sleep(0.8)
         return False
 
