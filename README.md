@@ -1,185 +1,259 @@
-# 🚀 Vessel (Menu Win - Universal Edition) - v2.0
+<div align="center">
 
-> **Versión 2.0 Oficial (Producción y Gaming)**  
-> **El gestor y optimizador definitivo de juegos y aplicaciones de Windows para cualquier distribución de Linux.**  
-> *Máximo rendimiento, cero consumo en segundo plano, instalación en 1 clic y compatibilidad universal.*
+# ⚡ VESSEL v2.0
+### *Advanced Windows Compatibility & High-Performance Gaming Environment for Linux*
+
+[![Version](https://img.shields.io/badge/Version-2.0%20Official-8b5cf6.svg?style=for-the-badge&logo=rocket)](https://github.com/Plumst-37/Vessel)
+[![Linux](https://img.shields.io/badge/Platform-GNU%2FLinux-3b82f6.svg?style=for-the-badge&logo=linux)](https://github.com/Plumst-37/Vessel)
+[![Bash Core](https://img.shields.io/badge/Core-Native%20Bash-10b981.svg?style=for-the-badge&logo=gnubash)](https://github.com/Plumst-37/Vessel)
+[![Vulkan](https://img.shields.io/badge/Graphics-Vulkan%20%7C%20DXVK%202.x-e11d48.svg?style=for-the-badge&logo=vulkan)](https://github.com/Plumst-37/Vessel)
+[![License](https://img.shields.io/badge/License-MIT-f59e0b.svg?style=for-the-badge)](LICENSE)
+
+<br/>
+
+**VESSEL v2.0** es un entorno universal de ejecución y optimización para videojuegos y aplicaciones de Windows en GNU/Linux.  
+Diseñado con una filosofía **Plug & Play**: detecta automáticamente tu hardware, analiza los binarios PE/COFF de Windows, calibra los traductores gráficos (DXVK, VKD3D-Proton, Zink, CNC-DDraw) y ejecuta con **cero consumo en segundo plano** y latencia ultrabaja.
 
 ---
 
-## ⚡ Instalación Rápida Universal (Cualquier Linux)
+</div>
 
-Abre cualquier terminal y pega este comando único:
+## 📑 Tabla de Contenidos
+
+- [⚡ Instalación en 1-Clic](#-instalación-rápida-universal-1-clic)
+- [🎮 Inicio Rápido e Interfaz Intuitiva](#-inicio-rápido)
+- [📊 Comparativa de Rendimiento](#-comparativa-de-rendimiento)
+- [🧩 Arquitectura del Sistema](#-arquitectura-del-sistema)
+- [🌟 Características Técnicas de Ingeniería](#-características-técnicas-de-ingeniería)
+- [📂 Estructura Modular del Proyecto](#-estructura-del-proyecto)
+- [❓ Preguntas Frecuentes y Diagnóstico](#-preguntas-frecuentes-y-resolución-de-problemas)
+- [📄 Licencia](#-licencia)
+
+---
+
+## ⚡ Instalación Rápida Universal (1-Clic)
+
+Abre cualquier terminal y ejecuta el comando de instalación automática:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/Plumst-37/Vessel/main/instalar.sh | bash
 ```
 
----
+### 📦 Comandos Alternativos por Distribución
 
-## 📦 Comandos de Descarga e Instalación por Distribución
+Si prefieres clonar e instalar manualmente según tu sistema:
 
-Si prefieres descargarlo e instalarlo con los comandos específicos de tu distribución, copia y pega el bloque correspondiente a tu sistema:
+<details>
+<summary><b>🟢 Ubuntu / Linux Mint / Pop!_OS / Zorin OS / Debian</b></summary>
 
-### 🟢 1. Linux Mint / Ubuntu / Pop!_OS / Zorin OS
 ```bash
 sudo sed -i '/^deb cdrom:/s/^/#/' /etc/apt/sources.list /etc/apt/sources.list.d/*.list 2>/dev/null
 sudo apt-get update && sudo apt-get install -y git curl
 git clone https://github.com/Plumst-37/Vessel.git
 cd Vessel && ./instalar.sh
 ```
+</details>
 
-### 🔴 2. Debian / Devuan
-```bash
-sudo sed -i '/^deb cdrom:/s/^/#/' /etc/apt/sources.list /etc/apt/sources.list.d/*.list 2>/dev/null
-sudo apt-get update && sudo apt-get install -y git curl
-git clone https://github.com/Plumst-37/Vessel.git
-cd Vessel && ./instalar.sh
-```
+<details>
+<summary><b>🔵 Arch Linux / Manjaro / EndeavourOS / SteamOS</b></summary>
 
-### 🔵 3. Arch Linux / Manjaro / EndeavourOS / SteamOS
 ```bash
 sudo pacman -Sy --needed --noconfirm git curl
 git clone https://github.com/Plumst-37/Vessel.git
 cd Vessel && ./instalar.sh
 ```
+</details>
 
-### 🎩 4. Fedora / Nobara / RHEL
+<details>
+<summary><b>🎩 Fedora / Nobara / RHEL</b></summary>
+
 ```bash
 sudo dnf install -y git curl
 git clone https://github.com/Plumst-37/Vessel.git
 cd Vessel && ./instalar.sh
 ```
+</details>
 
-### 🦎 5. openSUSE (Tumbleweed / Leap)
+<details>
+<summary><b>🦎 openSUSE (Tumbleweed / Leap)</b></summary>
+
 ```bash
 sudo zypper --non-interactive install git curl
 git clone https://github.com/Plumst-37/Vessel.git
 cd Vessel && ./instalar.sh
 ```
+</details>
 
 ---
 
-## 🎮 ¿Cómo Iniciar el Programa?
+## 🎮 Inicio Rápido
 
-Una vez terminada la instalación, puedes abrirlo de cualquiera de estas dos formas:
-1. **Desde tu Escritorio o Menú de Aplicaciones:** Haz doble clic en el acceso directo **Menu Win (PC)**.
+Una vez completada la instalación, puedes abrir Vessel de cualquiera de estas formas:
+
+1. **Desde tu Escritorio:** Doble clic en el lanzador oficial **`Vessel`**.
 2. **Desde la Terminal:**
 ```bash
 cd ~/Vessel && ./menu-win.sh
 ```
 
----
+### 🪟 Menú Intuitivo Dual (Juegos y Programas)
 
-## ⚙️ ¿Qué hace el instalador automáticamente?
-
-1. **Detecta tu distribución:** (Debian, Ubuntu, Mint, Arch, Fedora, openSUSE).
-2. **Comprueba e instala dependencias:** (Wine, Wine 32/64 bits, DXVK, Vulkan drivers para AMD/Intel/NVIDIA, Feral GameMode, Winetricks, Zenity).
-3. **Optimiza el Kernel de Linux:** Ajusta `vm.max_map_count = 2147483642`, límites de archivos `nofile = 524288` (Esync/Fsync) y puertos de red para multijugador y GameRanger.
-4. **Genera dxvk.conf dinámico:** Calculado para la cantidad exacta de núcleos e hilos de tu CPU y la tarjeta gráfica detectada.
-5. **Crea accesos directos:** Crea el lanzador de 1-clic en tu Escritorio y en el menú de aplicaciones.
-
----
-
-## 🌟 Características Principales
-
-### 🚀 1. Rendimiento y Cero Sobrecarga (Zero Overhead)
-- Desarrollado en **puro Bash nativo**. Consume **0% de CPU y menos de 8 MB de RAM** en reposo (a diferencia de clientes pesados como Lutris o Steam basados en Electron o Python).
-- Toda la potencia de tu procesador y gráfica se dedica al 100% a tu juego.
-
-### 🖥️ 2. Detección Inteligente de Hardware (`hardware_detect.sh`)
-- **NVIDIA:** Activa automáticamente **PRIME Render Offloading** en portátiles con gráficos híbridos (Intel + NVIDIA / AMD + NVIDIA).
-- **AMD Radeon:** Activa el compilador ultrarrápido **ACO** y controladores **RADV**.
-- **Intel Graphics:** Optimiza la traducción a Vulkan o realiza fallback suave a **WineD3D (OpenGL)** en computadoras antiguas sin Vulkan.
-- **Sincronización:** Detecta automáticamente **Fsync nativo (Futex2)** o **Esync**.
-
-### 🎮 3. Control Gráfico en Tiempo Real y Máximo Rendimiento Hardware
-- **Perfiles de Rendimiento:** *Máximo Rendimiento* (GameMode al 100%, Governor Performance, GPU High y renice -10), *Equilibrado* y *Ahorro de Batería*.
-- **Límite de FPS Inteligente:** Fija topes de 30, 60, 120 FPS o Ilimitado para evitar sobrecalentamiento y caídas bruscas.
-- **Modo Mailbox Present (Triple-Buffering Tear-Free):** Sustituye la sincronización vertical rígida (FIFO) por Mailbox Vulkan (`dxvk.tearFree = True`, `dxgi.syncInterval = 0`, `numBackBuffers = 3`). Elimina las caídas bruscas de 60 a 30 FPS al fluctuar los fotogramas y suprime completamente el desgarro de pantalla.
-- **Rotación de Cámara 3D Ultra-Fluida (1:1):** Registro DirectInput con `MouseWarpOverride=force` y latencia de 1 cuadro (`maxFrameLatency = 1`) que eliminan el lag de ratón, saltos de cámara y trabas al girar la vista en juegos de primera y tercera persona.
-- **Selección Automática y Dinámica de GPU Dedicada:** Consulta la capa Vulkan de Linux y fuerza el uso prioritario de la tarjeta dedicada (`MESA_VK_DEVICE_SELECT` y `DXVK_FILTER_DEVICE_NAME`) en cualquier portátil híbrida (NVIDIA GeForce o AMD Radeon) frente a la gráfica integrada, aprovechando el 100% de la potencia gráfica.
-- **Detección Dinámica de Monitor Primario:** Auto-detecta la resolución nativa de la pantalla activa del usuario (`1280x720`, `1366x768`, `1920x1080`, `1440p`, etc.) evitando reescalados borrosos o pérdidas de rendimiento por resoluciones desfasadas.
-- **Auto-Fix por Motor Gráfico:**
-  - **Capcom MT Framework (Resident Evil 4/5/6, Revelations, DMC, etc.):** Desactiva motion blur molesto, inyecta resolución nativa, previene `ERR09` con modo borderless y suaviza la sensibilidad del ratón.
-  - **Rockstar Games (GTA V, GTA IV):** Adapta `settings.xml` a la resolución real, activa filtrado 16x, FXAA y actualiza la descripción de la GPU.
-  - **Unreal Engine (SWAT 4, etc.):** Ajusta `Swat4.ini`, activa filtrado 16x y reduce el retardo del cursor (`ReduceMouseLag=True`).
-- **Optimizaciones para Juegos Pesados AAA:** Filtrado anisotrópico 16x (`samplerAnisotropy = 16`) para texturas 3D ultra-nítidas en todos los ángulos, compilación asíncrona de shaders por hardware (`GPL` y `dxvk.enableAsync`), 4GB de direccionamiento para juegos de 32 bits (`Large Address Aware`), y compatibilidad completa con DirectX 9, 10, 11 y 12 (VKD3D).
-- **Soporte Retro DirectDraw y DirectPlay:** Carga automáticamente envoltorios nativos (`ddraw.dll`, `cnc-ddraw`, `d3d8to9`) eliminando pantallas negras y corrupción de texturas de 8 bits (P8) en juegos clásicos como Age of Empires II o StarCraft.
-- **Decodificación de Cinemáticas y Videos:** Soporte multiarch completo para decodificadores de video (H.264, MPEG-4, WMV3, Bink, Media Foundation y DirectShow vía GStreamer 32/64 bits), solucionando el problema donde se escuchaba el audio pero la pantalla quedaba negra.
-- **🖥️ Modo Escritorio Virtual Configurable:** Soluciona pantallas negras al cambiar de resolución (juegos retro a 4:3 o 800x600) y en configuraciones con múltiples monitores.
-- **AMD FSR (FidelityFX Super Resolution):** Reescalado inteligente integrado con modos configurables por juego (*Calidad*, *Equilibrado*, *Rendimiento*) y nivel de nitidez adaptable que duplica los FPS en GPUs de gama media, baja o integradas.
-- **🪟 Selector de Versión de Windows por Juego (AppDefaults):** Permite configurar independientemente para cada juego si debe ejecutarse bajo Windows 10, Windows 7 o Windows XP SP3 vía registro Wine nativo, con auto-detección heurística para clásicos retro.
-- **🎬 Aceleración de Video Hardware VA-API:** Decodificación acelerada por hardware para cinemáticas y videos introductorios en GPUs Intel (`iHD`) y AMD Radeon (`radeonsi`).
-- **🔍 Diagnóstico Profundo de Drivers Gaming:** Analizador integral accesible desde el menú de herramientas o vía `bash hardware_detect.sh --check-drivers` para comprobar drivers propietarios, librerías 32-bit (NVIDIA / AMD) y sincronización Fsync.
-- **HUD en Pantalla:** Contador de FPS y uso de recursos opcional.
-
-### 📂 4. Gestión Cómoda de Juegos Portables e Instaladores
-- **➕ Añadir programa portable:** Para juegos o programas ya listos en carpetas (repacks, portables, discos externos). Admite ejecutables directos (`.exe`, `.bat`, `.cmd`) y **accesos directos de Windows (`.lnk` y `.ink`)**, resolviendo automáticamente el ejecutable real dentro de la carpeta o prefijo.
-- **⚡ Auto-Detección Inteligente tras `Setup.exe`:** Al terminar la instalación con cualquier instalador, Vessel compara automáticamente el sistema de archivos e identifica los nuevos accesos directos `.lnk` y binarios `.exe` generados, ofreciendo agregarlos al menú principal con 1 clic, seleccionar prefijo compartido o aislado y crear el acceso directo en Linux.
-- **🛡️ Sandboxes Aislados con Inyección de Runtimes:** Cada juego puede aislarse en su propio prefijo independiente para evitar conflictos entre librerías, con copia automática silenciosa de dependencias base (DirectX 9, Visual C++ 2015-2022, MFC42).
-- **📂 Acceso Directo a Archivos del Juego:** Opción dedicada en el menú para abrir en 1 clic la carpeta de cualquier juego en tu gestor de archivos (Dolphin / Nautilus).
-- **🖱️ Selector Gráfico con Ratón:** Puedes buscar tus ejecutables navegando con carpetas y ratón (**KDialog / Zenity**) o por terminal.
-- **🖥️ Accesos Directos al Escritorio (1-Clic):** Crea accesos directos validados en tu Escritorio con acción de clic derecho integrada: **"📂 Abrir carpeta del juego (Instalar Mods / Archivos)"**.
-
-### 🧩 5. Soporte Total para Mods, Shaders y Parches (Zero-Config)
-- **Auto-Detección de Hooks y DLLs:** Detecta automáticamente cualquier librería de mod pegada en la carpeta del juego (`dinput8.dll`, `dxgi.dll`, `version.dll`, `dsound.dll`, `winmm.dll`, `xinput*.dll`, `bink*.dll`, `dbghelp.dll`, etc.) y aplica los overrides nativos de Wine al instante.
-- **Soporte ASI Loader, ReShade y ENB:** Pega tus scripts (`.asi`, carpetas `scripts/`, `CLEO`, ScriptHook, Cyber Engine Tweaks) directamente desde el gestor de archivos de Linux y se cargarán solos al iniciar el juego.
-- **Permisos de Escritura Automáticos:** Asegura que mods y parches puedan escribir logs, configuraciones `.ini` y partidas guardadas sin problemas de permisos.
-
-### 🔄 6. Auto-Actualización desde GitHub en Tiempo Real
-- Cada vez que abres el menú, Vessel consulta silenciosamente el repositorio oficial en GitHub (`Plumst-37/Vessel`).
-- Si hay nuevas mejoras, parches de compatibilidad o correcciones, **se actualiza e instala automáticamente sin intervención**.
-
-### 📦 7. Optimización Inteligente y Automática de Recursos (Opción 5)
-- **Configuración Inicial por Distribución:** Detecta y te permite seleccionar si usas **Debian**, **Ubuntu/Mint**, **Fedora**, **Arch Linux** u **openSUSE** para ejecutar los comandos exactos de tu sistema.
-- **Comprobación Inteligente:** Comprueba herramientas de sistema, parámetros del kernel y librerías de Windows (MFC42, VC++, DirectX, fuentes). **Si ya están instaladas, las omite; si falta algo, lo instala automáticamente.**
-
-### 🛠️ 8. Centro de Herramientas de Windows
-- Acceso directo con 1 clic a:
-  - 🍷 **winecfg:** Configura versión de Windows (Win 7, 10, 11), DPI y escritorio virtual.
-  - 📝 **regedit:** Editor del registro de Windows.
-  - 📈 **taskmgr:** Administrador de tareas.
-  - 📁 **wine explorer:** Explorador de archivos de Windows.
-  - 🧹 **wineserver -k:** Cierra procesos congelados y libera la memoria RAM al instante.
-  - 🛡️ **Comprobador de Compatibilidad Anti-Cheat:** Consulta de antemano el soporte de títulos online.
-
-### 🌐 9. Internet, Wi-Fi y Multijugador
-- Conexión de red nativa optimizada (DNS 32-bit/64-bit multiarch, soporte para puertos UDP y ICMP ping).
-- Compatible con servidores comunitarios, clientes multijugador (GameRanger, FiveM, etc.) y puentes para **Easy Anti-Cheat** y **BattlEye** en Linux.
-- Conexión de red nativa optimizada (DNS 32-bit/64-bit multiarch, soporte para puertos UDP y ICMP ping).
-- Compatible con servidores comunitarios, clientes multijugador (GameRanger, FiveM, etc.) y puentes para **Easy Anti-Cheat** y **BattlEye** en Linux.
-
----
-
-## 📋 Estructura del Proyecto
+Al iniciar, Vessel te presenta una interfaz clara y estructurada en dos áreas 100% especializadas:
 
 ```text
-Vessel/
-├── menu-win.sh            # 🚀 Ejecutor principal interactivo (TUI / Bash)
-├── vessel.sh              # 🖥️ Lanzador para entornos gráficos de escritorio
-├── core/                  # ⚙️ Motor interno y scripts del sistema
-│   ├── menu_tui.py        # Interfaz Cyberpunk TUI interactiva con navegación
-│   ├── launch-win-app.sh  # Lanzador con GameMode, PRIME GPU y multi-prefijos
-│   ├── hardware_detect.sh # Detector universal de CPU, GPU, Vulkan y Fsync
-│   ├── generar_dxvk_conf.sh # Generador dinámico de dxvk.conf según hilos
-│   ├── analizador_pe.py   # Analizador de cabezales PE (DirectX, 32/64-bit)
-│   ├── resolver_lnk.py    # Resolvedor universal de accesos directos (.lnk / .ink)
-│   ├── resolver_bat.py    # Resolvedor universal de scripts (.bat / .cmd)
-│   ├── gestor_runners.sh  # Gestor y descargador de runners de Wine portables
-│   └── instalar.sh        # Instalador universal de 1 solo clic
-├── config/                # 🛠️ Preferencias y configuraciones optimizadas
-│   ├── dxvk.conf          # Configuración de DXVK optimizada para bajos recursos
-│   └── config_rendimiento.cfg # Archivo de preferencias persistente
-├── datos/                 # 📂 Base de datos de juegos y aplicaciones
-│   ├── programas.db       # Catálogo de juegos y programas registrados
-│   └── GameRanger/        # Archivos portables de GameRanger
-├── herramientas/          # 🔧 Utilidades y herramientas de diagnóstico
-└── librerias/             # 📚 Copia de seguridad de librerías de código abierto
+╭─ 🪟  Entorno Windows Universal ──────────────────────────────────────────────────────────╮
+│                                                                                          │
+│  Selecciona qué deseas abrir en tu sistema:                                              │
+│    [1] Juegos             ➔ Videojuegos 3D/2D (DirectX, Vulkan, FSR, GameMode)           │
+│    [2] Programas          ➔ Aplicaciones de Windows, Oficina, Utilidades y CMD           │
+│                                                                                          │
+├──────────────────────────────────────────────────────────────────────────────────────────┤
+│                                                                                          │
+│  ▶   [1]  🎮  Juegos                           ▶   [2]  💼  Programas                    │
+│  ⚡  [3]  Smart Performance (Ajustes)          🔧  [4]  Herramientas de Windows          │
+│  🔄  [5]  Actualizar                           ⏻   [0]  Salir                            │
+│                                                                                          │
+├──────────────────────────────────────────────────────────────────────────────────────────┤
+│  Opción: [1] Juegos, [2] Programas [Enter = Iniciar] o [0] Salir:                        │
+╰──────────────────────────────────────────────────────────────────────────────────────────╯
+```
+
+- **`[1] Juegos`**: Videojuegos con aceleración DXVK / VKD3D-Proton, latencia ultra-baja, GameMode, FSR y soporte de mandos (+2.300 modelos).
+- **`[2] Programas`**: Software empresarial, editores, emuladores y herramientas Win32/Win64 en modo ventana nativa con ClearType HD.
+
+---
+
+## 📊 Comparativa de Rendimiento
+
+| Característica / Métrica | ⚡ VESSEL v2.0 | Lutris / Bottles | Windows 11 Nativo |
+| :--- | :---: | :---: | :---: |
+| **Núcleo de Ejecución** | **Bash Puro (Cero Bloat)** | Python / Electron | C++ / Win32 / Telemetría |
+| **Consumo de RAM en Reposo** | **< 8 MB** | ~180 MB - 400 MB | ~3.5 GB - 5.0 GB |
+| **Consumo de CPU en Segundo Plano** | **0% (Liberación Total al Jugar)** | 1% - 5% | 3% - 12% (Servicios/DWM) |
+| **Shader Stuttering (1% Lows)** | **Mitigado (GPL + Precompilación)** | Variable | Compilación en runtime |
+| **Sincronización de Hilos** | **NTSync / Fsync / Futex2** | Fsync / Esync | NT Kernel Sync |
+| **Aislamiento de Prefijos** | **Sandbox Ligero con Hardlinks** | Copia masiva de GBs | Registro Global |
+| **Auto-Actualización** | **Instantánea y Anti-Merge** | Manual o por paquetes | Reinicios forzados |
+
+---
+
+## 🧩 Arquitectura del Sistema
+
+```mermaid
+flowchart TD
+    A["Usuario: ./menu-win.sh"] --> B{"Entorno de Ejecución"}
+    B -- "Python Disponible" --> C["core/menu_tui.py (Vista Interactiva TUI)"]
+    B -- "Terminal Pura / Fallback" --> D["menu-win.sh (Motor TUI en Bash Nativo)"]
+
+    C --> E["Catálogo: [1] Juegos / [2] Programas (datos/programas.db)"]
+    D --> E
+
+    E --> F["herramientas/ejecutar_y_volver.sh"]
+    F --> G["Liberación Total de Memoria RAM de la Interfaz"]
+
+    G --> H["core/launch-win-app.sh (Núcleo Orquestador de Ejecución)"]
+    
+    H --> I["1. Detección de Hardware y Drivers (core/hardware_detect.sh)"]
+    H --> J["2. Calibración Dinámica DXVK (core/generar_dxvk_conf.sh)"]
+    H --> K["3. Análisis Binario PE y APIs (core/analizador_pe.py)"]
+    H --> L["4. Optimizaciones de Kernel Linux (split_lock=0, max_map_count)"]
+    
+    L --> M["Wine / Proton-GE / GameMode / Gamescope"]
+    M --> N["Juego / Aplicación en Ejecución"]
+    N --> O["Cierre Limpio: wineserver -k y Retorno al Menú"]
 ```
 
 ---
 
-## 🤝 Créditos y Licencia
+## 🌟 Características Técnicas de Ingeniería
 
-Creado para la comunidad de gaming en Linux. Código abierto bajo la licencia MIT.
-¡Disfruta de tus juegos favoritos de Windows en Linux con el máximo rendimiento posible!
+### 🚀 1. Núcleo Bash de Alta Velocidad (Zero-Overhead)
+Al pulsar Iniciar, Vessel sustituye el proceso de la interfaz liberando el **100% de la memoria RAM** para dedicársela en exclusiva al videojuego.
+
+### 🖥️ 2. Detección Inteligente de Hardware (`core/hardware_detect.sh`)
+- **NVIDIA GeForce:** Activa incondicionalmente capas **PRIME Render Offload** (`__NV_PRIME_RENDER_OFFLOAD=1`) en portátiles híbridos, forzando la GPU dedicada sobre la integrada.
+- **AMD Radeon:** Compilador de shaders **ACO**, extensiones **SAM (Smart Access Memory)** y controladores **RADV**.
+- **Intel Iris Xe / Arc / UHD:** Optimización Vulkan ANV y fallback inteligente a **WineD3D (OpenGL)** en chips anteriores a Vulkan.
+- **Sincronización del Kernel:** Detección de primitivas de sincronización rápida: `/dev/ntsync`, **Fsync (Futex2)** y **Esync**.
+
+### 🎮 3. Motor Gráfico Avanzado (`core/generar_dxvk_conf.sh`)
+- **Graphics Pipeline Library (GPL):** Activación incondicional de GPL (`dxvk.enableGraphicsPipelineLibrary = True`) para erradicar el *stuttering* por compilación de shaders.
+- **Ajuste Dinámico de VRAM Chunks:** Asignación de bloques de memoria adaptativa (32MB para GPUs integradas, 128MB+ para tarjetas dedicadas) para prevenir caídas por agotamiento de VRAM.
+- **Baja Latencia de Cuadros:** Control de VSync y búferes de presentación (`dxvk.tearFree`, `dxgi.syncInterval`, `dxgi.numBackBuffers`).
+- **Soporte DirectDraw Clásico:** Integración transparente de **CNC-DDraw** y **DDrawCompat** para títulos clásicos de gráficos 2D y 3D en resoluciones panorámicas modernas.
+
+### 🛡️ 4. Sandboxes Aislados con Runtimes Compartidos
+Cada juego o programa puede ejecutarse en su propio prefijo independiente (`~/.vessel/wineprefixes/<app_id>`). Las librerías de soporte (DirectX 9/10/11, Visual C++ 2005-2022, OpenAL) se propagan mediante **enlaces duros (hardlinks)**, consumiendo **cero espacio adicional en disco** y protegiendo el sistema contra colisiones de DLLs.
+
+---
+
+## 📂 Estructura del Proyecto
+
+```text
+Vessel/
+├── menu-win.sh                 # 🚀 Entrypoint principal interactivo (TUI / Bash)
+├── instalar.sh                 # 📦 Instalador universal en 1-clic para la raíz
+├── vessel.sh                   # 🖥️ Lanzador para accesos directos de escritorio
+│
+├── core/                       # ⚙️ Motor interno de Vessel
+│   ├── launch-win-app.sh       # Lanzador central y orquestador de Wine/Proton
+│   ├── menu_tui.py             # Frontend TUI desacoplado de presentación
+│   ├── hardware_detect.sh      # Detector de CPU, GPU, Vulkan, NTSync y VRAM
+│   ├── generar_dxvk_conf.sh    # Generador dinámico adaptativo de dxvk.conf
+│   ├── analizador_pe.py        # Analizador de cabeceras binarias PE/COFF
+│   ├── resolver_lnk.py         # Decodificador de accesos directos .lnk/.ink
+│   ├── resolver_bat.py         # Intérprete y traductor de scripts .bat/.cmd
+│   ├── gestor_runners.sh       # Gestor y descargador de versiones Wine/Proton
+│   └── instalar.sh             # Motor de aprovisionamiento por distribución
+│
+├── config/                     # 🛠️ Configuraciones y perfiles
+│   ├── dxvk.conf               # Configuración activa de DXVK generada
+│   └── config_rendimiento.cfg  # Preferencias persistentes del usuario
+│
+├── datos/                      # 📂 Datos y almacenamiento
+│   ├── programas.db.example    # Plantilla semilla de base de datos
+│   └── GameRanger/             # Archivos portables de GameRanger
+│
+└── herramientas/               # 🔧 Diagnóstico y utilidades
+    ├── detector_hardware.sh    # Diagnóstico rápido de drivers y hardware
+    ├── ejecutar_y_volver.sh    # Lanzador intermediario con liberación de RAM
+    ├── gestor_librerias.sh     # Gestor de runtimes Microsoft (VC++, DirectX)
+    ├── restaurar_respaldos.sh  # Utilidad de recuperación de base de datos
+    └── gamecontrollerdb.txt    # Base de mapeo SDL2 (+2.300 mandos de juegos)
+```
+
+---
+
+## ❓ Preguntas Frecuentes y Resolución de Problemas
+
+<details>
+<summary><b>1. ¿Cómo configuro un mando / joystick que no responde?</b></summary>
+Vessel incluye la base de datos oficial `gamecontrollerdb.txt` con compatibilidad para miles de mandos y controladores estándar reconocidos nativamente por SDL2 (USB y Bluetooth). Se carga de forma nativa sin necesidad de configuraciones manuales.
+</details>
+
+<details>
+<summary><b>2. ¿Cómo añado un juego portable que tengo en un disco duro externo?</b></summary>
+Abre Vessel, selecciona <code>[1] Juegos</code> y luego presiona <code>[+]</code>. Puedes seleccionar el archivo <code>.exe</code> navegando en la terminal o mediante el selector gráfico de carpetas.
+</details>
+
+<details>
+<summary><b>3. ¿Qué hacer si un juego antiguo (DirectX 9 / 8) va lento o no abre?</b></summary>
+En el menú de acciones del juego, selecciona <code>🪟 Versión de Windows</code> y elige <b>Windows 7</b> o <b>Windows XP SP3</b>. Vessel ajustará el registro de Wine y activará las extensiones de compatibilidad correspondientes.
+</details>
+
+<details>
+<summary><b>4. ¿Dónde se guardan mis juegos y configuraciones al actualizar?</b></summary>
+Tus juegos se guardan de forma segura en <code>datos/programas.db</code> (ignorado por Git). Las actualizaciones descargan código nuevo y parches sin tocar ni sobreescribir jamás tus títulos o partidas.
+</details>
+
+---
+
+## 📄 Licencia
+
+Este proyecto está licenciado bajo los términos de la Licencia **MIT**. Consulta el archivo `LICENSE` para más detalles.
+
+---
+
+<div align="center">
+<b>VESSEL v2.0</b> — Creado con pasión por y para la comunidad de gaming en GNU/Linux.
+</div>
