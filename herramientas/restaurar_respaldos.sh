@@ -39,7 +39,7 @@ RUTAS_A_BUSCAR+=("${DIR}/wineprefix")
 [ -d "$HOME/Documentos/CAPCOM" ] && RUTAS_A_BUSCAR+=("$HOME/Documentos/CAPCOM")
 
 # 3. Añadir rutas de juegos de la base de datos
-for db in "${DIR}/programas_usuario.db" "${DIR}/programas.db"; do
+for db in "${DIR}/datos/programas_usuario.db" "${DIR}/programas_usuario.db" "${DIR}/datos/programas.db" "${DIR}/programas.db"; do
     if [ -f "$db" ]; then
         while IFS='|' read -r _nom ruta _pref _win _fsr; do
             [ -z "$ruta" ] && continue

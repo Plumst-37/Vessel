@@ -155,14 +155,26 @@ cd ~/Vessel && ./menu-win.sh
 
 ```text
 Vessel/
-├── menu-win.sh            # Panel principal interactivo con paleta ANSI
-├── launch-win-app.sh      # Lanzador con GameMode, PRIME GPU y multi-prefijos
-├── resolver_lnk.py        # Resolvedor universal de accesos directos (.lnk / .ink)
-├── hardware_detect.sh     # Detector universal de CPU, GPU, Vulkan y Fsync
-├── generar_dxvk_conf.sh   # Generador dinámico de dxvk.conf según hilos de CPU
-├── config_rendimiento.cfg # Archivo de preferencias persistente
-├── instalar.sh            # Instalador universal de 1 solo clic
-└── dxvk.conf              # Configuración de DXVK optimizada
+├── menu-win.sh            # 🚀 Ejecutor principal interactivo (TUI / Bash)
+├── vessel.sh              # 🖥️ Lanzador para entornos gráficos de escritorio
+├── core/                  # ⚙️ Motor interno y scripts del sistema
+│   ├── menu_tui.py        # Interfaz Cyberpunk TUI interactiva con navegación
+│   ├── launch-win-app.sh  # Lanzador con GameMode, PRIME GPU y multi-prefijos
+│   ├── hardware_detect.sh # Detector universal de CPU, GPU, Vulkan y Fsync
+│   ├── generar_dxvk_conf.sh # Generador dinámico de dxvk.conf según hilos
+│   ├── analizador_pe.py   # Analizador de cabezales PE (DirectX, 32/64-bit)
+│   ├── resolver_lnk.py    # Resolvedor universal de accesos directos (.lnk / .ink)
+│   ├── resolver_bat.py    # Resolvedor universal de scripts (.bat / .cmd)
+│   ├── gestor_runners.sh  # Gestor y descargador de runners de Wine portables
+│   └── instalar.sh        # Instalador universal de 1 solo clic
+├── config/                # 🛠️ Preferencias y configuraciones optimizadas
+│   ├── dxvk.conf          # Configuración de DXVK optimizada para bajos recursos
+│   └── config_rendimiento.cfg # Archivo de preferencias persistente
+├── datos/                 # 📂 Base de datos de juegos y aplicaciones
+│   ├── programas.db       # Catálogo de juegos y programas registrados
+│   └── GameRanger/        # Archivos portables de GameRanger
+├── herramientas/          # 🔧 Utilidades y herramientas de diagnóstico
+└── librerias/             # 📚 Copia de seguridad de librerías de código abierto
 ```
 
 ---

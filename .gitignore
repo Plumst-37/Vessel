@@ -3,11 +3,15 @@ wineprefix/
 prefixes/
 wine-tkg-git/
 wine-tkg-build/
+runners/
+librerias/
+librerias_cache/
 
 # Base de datos personal de juegos del usuario (no se sobreescribe al actualizar)
 programas_usuario.db
+datos/programas_usuario.db
 .gameranger_prefs_backup/
-librerias_cache/
+datos/.gameranger_prefs_backup/
 .instalado
 .version_instalada
 
@@ -21,7 +25,9 @@ Subir Github/
 *.vessel_bak
 *.vessel_orig
 perfil_hardware.cfg
+config/perfil_hardware.cfg
 .smart_perf_listo
 .winver_configurados
 __pycache__/
+core/__pycache__/
 *.pyc

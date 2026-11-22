@@ -7,7 +7,8 @@
 set -u
 
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-LAUNCHER="${DIR}/launch-win-app.sh"
+LAUNCHER="${DIR}/core/launch-win-app.sh"
+[ ! -f "$LAUNCHER" ] && LAUNCHER="${DIR}/launch-win-app.sh"
 
 # Si se solicitó HUD por variable o flag
 if [ "${ENABLE_DXVK_HUD:-0}" = "1" ]; then
@@ -35,7 +36,9 @@ read -rp "Presiona [Enter] para volver al Menú Principal... " dummy 2>/dev/null
 unset ENABLE_DXVK_HUD
 
 # Reabrir el menú interactivo TUI de Vessel reemplazando el proceso actual
-if command -v python3 &>/dev/null && [ -f "${DIR}/menu_tui.py" ]; then
+if command -v python3 &>/dev/null && [ -f "${DIR}/core/menu_tui.py" ]; then
+    exec python3 "${DIR}/core/menu_tui.py"
+elif command -v python3 &>/dev/null && [ -f "${DIR}/menu_tui.py" ]; then
     exec python3 "${DIR}/menu_tui.py"
 elif [ -f "${DIR}/menu-win.sh" ]; then
     exec bash "${DIR}/menu-win.sh"

@@ -11,8 +11,22 @@ if [ -z "$BASH_VERSION" ]; then
     fi
 fi
 
-DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
-CFG_HW="${DIR}/perfil_hardware.cfg"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
+if [ -f "${SCRIPT_DIR}/../menu-win.sh" ]; then
+    DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
+else
+    DIR="$SCRIPT_DIR"
+fi
+
+CORE_DIR="${DIR}/core"
+[ ! -d "$CORE_DIR" ] && CORE_DIR="${DIR}"
+
+CONFIG_DIR="${DIR}/config"
+[ ! -d "$CONFIG_DIR" ] && CONFIG_DIR="${DIR}"
+mkdir -p "$CONFIG_DIR" 2>/dev/null || true
+
+CFG_HW="${CONFIG_DIR}/perfil_hardware.cfg"
+[ ! -f "$CFG_HW" ] && [ -f "${DIR}/perfil_hardware.cfg" ] && CFG_HW="${DIR}/perfil_hardware.cfg"
 CURRENT_HOST_ID="$(cat /etc/machine-id 2>/dev/null || hostname 2>/dev/null || echo "host_generic")"
 
 # Comprobar si el equipo físico cambió o si el perfil no existe
@@ -32,7 +46,11 @@ if [ "$RESCAN_REQUIRED" = true ]; then
     [ -x "${DIR}/herramientas/detector_hardware.sh" ] && bash "${DIR}/herramientas/detector_hardware.sh" --save 2>/dev/null || true
     [ -f "$CFG_HW" ] && source "$CFG_HW"
     # Auto-regenerar dxvk.conf para adaptarlo al nuevo procesador y memoria
-    [ -x "${DIR}/generar_dxvk_conf.sh" ] && bash "${DIR}/generar_dxvk_conf.sh" 2>/dev/null || true
+    if [ -x "${CORE_DIR}/generar_dxvk_conf.sh" ]; then
+        "${CORE_DIR}/generar_dxvk_conf.sh" 2>/dev/null || true
+    elif [ -x "${DIR}/generar_dxvk_conf.sh" ]; then
+        "${DIR}/generar_dxvk_conf.sh" 2>/dev/null || true
+    fi
 fi
 
 # Cargar perfil de hardware pre-escaneado

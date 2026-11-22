@@ -439,13 +439,16 @@ echo ""
 
 # 3. Dar permisos de ejecución a los scripts
 echo -e "${C_CYAN}[3/5] Configurando permisos de ejecución en los scripts del proyecto...${C_RESET}"
-chmod +x "${DIR}"/*.sh "${DIR}"/*.py 2>/dev/null || true
+chmod +x "${DIR}"/*.sh "${DIR}"/core/*.sh "${DIR}"/core/*.py "${DIR}"/herramientas/*.sh 2>/dev/null || true
 echo -e "${C_GREEN}✔ Scripts ejecutables configurados.${C_RESET}"
 echo ""
 
 # 4. Generar configuración DXVK adaptada al hardware de esta PC
 echo -e "${C_CYAN}[4/5] Analizando hardware de este equipo y generando configuración DXVK...${C_RESET}"
-if [ -f "${DIR}/generar_dxvk_conf.sh" ]; then
+if [ -f "${DIR}/core/generar_dxvk_conf.sh" ]; then
+    "${DIR}/core/generar_dxvk_conf.sh"
+    echo -e "${C_GREEN}✔ Archivo dxvk.conf generado a medida.${C_RESET}"
+elif [ -f "${DIR}/generar_dxvk_conf.sh" ]; then
     "${DIR}/generar_dxvk_conf.sh"
     echo -e "${C_GREEN}✔ Archivo dxvk.conf generado a medida.${C_RESET}"
 fi
@@ -611,29 +614,32 @@ WINEPREFIX="${DIR}/wineprefix" wine reg add "HKEY_CLASSES_ROOT\gameranger" /v "U
 WINEPREFIX="${DIR}/wineprefix" wine reg add "HKEY_CLASSES_ROOT\gameranger\shell\open\command" /v "" /t REG_SZ /d "\"C:\Program Files\GameRanger\GameRanger.exe\" \"%1\"" /f >/dev/null 2>&1 || true
 
 # Registrar GameRanger en programas.db de Vessel (protegiendo juegos existentes del usuario)
-if [ ! -s "${DIR}/programas.db" ] && [ -s "${DIR}/programas.db.bak" ]; then
-    cp -f "${DIR}/programas.db.bak" "${DIR}/programas.db" 2>/dev/null || true
-fi
-touch "${DIR}/programas.db"
-[ -s "${DIR}/programas.db" ] && cp -f "${DIR}/programas.db" "${DIR}/programas.db.bak" 2>/dev/null || true
-if ! grep -qi "GameRanger" "${DIR}/programas.db" 2>/dev/null; then
-    sed -i '1i GameRanger|GameRanger.exe|compartido' "${DIR}/programas.db" 2>/dev/null || echo "GameRanger|GameRanger.exe|compartido" >> "${DIR}/programas.db"
-    cp -f "${DIR}/programas.db" "${DIR}/programas.db.bak" 2>/dev/null || true
-    echo -e "${C_GREEN}✔ GameRanger registrado como programa portable en la opción 1 de Vessel.${C_RESET}"
-else
-    # Si GameRanger ya estaba registrado con ruta absoluta, normalizar a GameRanger.exe portable
-    sed -i 's/^GameRanger|.*|/GameRanger|GameRanger.exe|/' "${DIR}/programas.db" 2>/dev/null || true
-fi
-chown "$TARGET_USER:$TARGET_USER" "${DIR}/programas.db" 2>/dev/null || true
+mkdir -p "${DIR}/datos" 2>/dev/null || true
+for db_target in "${DIR}/datos/programas.db" "${DIR}/programas.db"; do
+    if [ ! -s "$db_target" ] && [ -s "${DIR}/programas.db.bak" ]; then
+        cp -f "${DIR}/programas.db.bak" "$db_target" 2>/dev/null || true
+    fi
+    touch "$db_target"
+    [ -s "$db_target" ] && cp -f "$db_target" "${db_target}.bak" 2>/dev/null || true
+    if ! grep -qi "GameRanger" "$db_target" 2>/dev/null; then
+        sed -i '1i GameRanger|GameRanger.exe|compartido' "$db_target" 2>/dev/null || echo "GameRanger|GameRanger.exe|compartido" >> "$db_target"
+        cp -f "$db_target" "${db_target}.bak" 2>/dev/null || true
+    else
+        sed -i 's/^GameRanger|.*|/GameRanger|GameRanger.exe|/' "$db_target" 2>/dev/null || true
+    fi
+    chown "$TARGET_USER:$TARGET_USER" "$db_target" 2>/dev/null || true
+done
 
 # Acceso directo en el menú de aplicaciones y escritorio
 mkdir -p "$TARGET_HOME/.local/share/applications"
+LAUNCH_EXE="${DIR}/core/launch-win-app.sh"
+[ ! -f "$LAUNCH_EXE" ] && LAUNCH_EXE="${DIR}/launch-win-app.sh"
 cat <<EOF > "$TARGET_HOME/.local/share/applications/gameranger.desktop"
 [Desktop Entry]
 Type=Application
 Name=GameRanger
 Comment=Juega con tus amigos en línea
-Exec=sh -c '"${DIR}/launch-win-app.sh" "GameRanger.exe"'
+Exec=sh -c '"${LAUNCH_EXE}" "GameRanger.exe"'
 Icon=wine
 Terminal=false
 Categories=Game;Network;

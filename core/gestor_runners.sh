@@ -7,7 +7,12 @@
 # ==============================================================================
 
 set -e
-DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
+if [ -f "${SCRIPT_DIR}/../menu-win.sh" ]; then
+    DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
+else
+    DIR="$SCRIPT_DIR"
+fi
 RUNNERS_DIR="${DIR}/runners"
 mkdir -p "$RUNNERS_DIR"
 

@@ -21,14 +21,31 @@ try:
 except ImportError:
     analizar_juego = None
 
-# Rutas principales
-DIR = os.path.dirname(os.path.abspath(__file__))
-DB_FILE = os.path.join(DIR, "programas.db")
-DB_USER = os.path.join(DIR, "programas_usuario.db")
-DB_BAK = os.path.join(DIR, "programas.db.bak")
-LAUNCHER = os.path.join(DIR, "launch-win-app.sh")
-DXVK_CONF = os.path.join(DIR, "dxvk.conf")
-CONFIG_USER = os.path.join(DIR, "config_rendimiento.cfg")
+# Rutas principales con soporte para estructura modular organizada (core, config, datos)
+_SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+if os.path.isfile(os.path.join(_SCRIPT_DIR, "..", "menu-win.sh")):
+    DIR = os.path.abspath(os.path.join(_SCRIPT_DIR, ".."))
+else:
+    DIR = _SCRIPT_DIR
+
+CORE_DIR = os.path.join(DIR, "core") if os.path.isdir(os.path.join(DIR, "core")) else DIR
+CONFIG_DIR = os.path.join(DIR, "config") if os.path.isdir(os.path.join(DIR, "config")) else DIR
+DATOS_DIR = os.path.join(DIR, "datos") if os.path.isdir(os.path.join(DIR, "datos")) else DIR
+
+if CORE_DIR not in sys.path:
+    sys.path.insert(0, CORE_DIR)
+if DIR not in sys.path:
+    sys.path.insert(0, DIR)
+
+# Rutas de base de datos
+DB_FILE = os.path.join(DATOS_DIR, "programas.db") if os.path.exists(os.path.join(DATOS_DIR, "programas.db")) else os.path.join(DIR, "programas.db")
+DB_USER = os.path.join(DATOS_DIR, "programas_usuario.db") if os.path.exists(os.path.join(DATOS_DIR, "programas_usuario.db")) else os.path.join(DIR, "programas_usuario.db")
+DB_BAK = os.path.join(DATOS_DIR, "programas.db.bak") if os.path.exists(os.path.join(DATOS_DIR, "programas.db.bak")) else os.path.join(DIR, "programas.db.bak")
+
+# Rutas de scripts y configuración
+LAUNCHER = os.path.join(CORE_DIR, "launch-win-app.sh") if os.path.exists(os.path.join(CORE_DIR, "launch-win-app.sh")) else os.path.join(DIR, "launch-win-app.sh")
+DXVK_CONF = os.path.join(CONFIG_DIR, "dxvk.conf") if os.path.exists(os.path.join(CONFIG_DIR, "dxvk.conf")) else os.path.join(DIR, "dxvk.conf")
+CONFIG_USER = os.path.join(CONFIG_DIR, "config_rendimiento.cfg") if os.path.exists(os.path.join(CONFIG_DIR, "config_rendimiento.cfg")) else os.path.join(DIR, "config_rendimiento.cfg")
 WINEPREFIX = os.path.join(DIR, "wineprefix")
 VERSION_FILE = os.path.join(DIR, "version.txt")
 INSTALADO_MARKER = os.path.join(DIR, ".instalado")
@@ -36,6 +53,11 @@ SMART_PERF_MARKER = os.path.join(DIR, ".smart_perf_listo")
 WINVER_CONF_FILE = os.path.join(DIR, ".winver_configurados")
 VERSION_ACTUAL = "1.0"
 SMART_PERF_VERSION_ACTUAL = "1.0"
+
+# Helpers de scripts internos
+SCRIPT_DXVK = os.path.join(CORE_DIR, "generar_dxvk_conf.sh") if os.path.exists(os.path.join(CORE_DIR, "generar_dxvk_conf.sh")) else os.path.join(DIR, "generar_dxvk_conf.sh")
+SCRIPT_HARDWARE = os.path.join(CORE_DIR, "hardware_detect.sh") if os.path.exists(os.path.join(CORE_DIR, "hardware_detect.sh")) else os.path.join(DIR, "hardware_detect.sh")
+SCRIPT_RUNNERS = os.path.join(CORE_DIR, "gestor_runners.sh") if os.path.exists(os.path.join(CORE_DIR, "gestor_runners.sh")) else os.path.join(DIR, "gestor_runners.sh")
 
 # Paleta de colores Neón Púrpura y Windows 11
 PURPLE = "\033[38;2;224;86;253m"
@@ -176,7 +198,7 @@ def guardar_config(k, v):
 
 def obtener_info_hardware():
     """Carga o detecta de forma ultrarrápida la información de hardware desde perfil_hardware.cfg."""
-    cfg_hw_path = os.path.join(DIR, "perfil_hardware.cfg")
+    cfg_hw_path = os.path.join(CONFIG_DIR, "perfil_hardware.cfg") if os.path.exists(os.path.join(CONFIG_DIR, "perfil_hardware.cfg")) else os.path.join(DIR, "perfil_hardware.cfg")
     current_host_id = "host_generic"
     if os.path.exists("/etc/machine-id"):
         try:
@@ -199,9 +221,8 @@ def obtener_info_hardware():
         script_det = os.path.join(DIR, "herramientas", "detector_hardware.sh")
         if os.path.exists(script_det):
             subprocess.run(["bash", script_det, "--save"], stderr=subprocess.DEVNULL)
-        script_dxvk = os.path.join(DIR, "generar_dxvk_conf.sh")
-        if os.path.exists(script_dxvk):
-            subprocess.run(["bash", script_dxvk], stderr=subprocess.DEVNULL)
+        if os.path.exists(SCRIPT_DXVK):
+            subprocess.run(["bash", SCRIPT_DXVK], stderr=subprocess.DEVNULL)
 
     hw = {}
     if os.path.exists(cfg_hw_path):
@@ -730,14 +751,26 @@ StartupNotify=true
     return True
 
 def cargar_lista_programas():
-    """Carga y unifica la lista de juegos y programas de DB_FILE, DB_USER y .bak."""
+    """Carga y unifica la lista de juegos y programas de DB_FILE, DB_USER y .bak tanto en datos/ como en la raíz."""
     desplegar_gameranger_portable()
     programas = []
     vistos = set()
 
+    db_candidates = [
+        os.path.join(DATOS_DIR, "programas_usuario.db"),
+        os.path.join(DIR, "programas_usuario.db"),
+        DB_USER,
+        os.path.join(DATOS_DIR, "programas.db"),
+        os.path.join(DIR, "programas.db"),
+        DB_FILE,
+        os.path.join(DATOS_DIR, "programas.db.bak"),
+        os.path.join(DIR, "programas.db.bak"),
+        DB_BAK
+    ]
+
     # Comprobar si existe alguna base de datos previa configurada
     hay_db = False
-    for db_path in [DB_USER, DB_FILE, DB_FILE + ".bak"]:
+    for db_path in db_candidates:
         if os.path.exists(db_path) and os.path.getsize(db_path) > 0:
             hay_db = True
             break
@@ -749,8 +782,8 @@ def cargar_lista_programas():
         guardar_lista_programas(programas)
         return programas
 
-    # Cargar juegos del usuario desde DB_USER, DB_FILE y DB_FILE.bak respetando sus decisiones
-    for db_path in [DB_USER, DB_FILE, DB_FILE + ".bak"]:
+    # Cargar juegos del usuario desde todas las ubicaciones posibles respetando sus decisiones
+    for db_path in db_candidates:
         if os.path.exists(db_path) and os.path.getsize(db_path) > 0:
             try:
                 with open(db_path, "r", encoding="utf-8", errors="ignore") as f:
@@ -828,14 +861,26 @@ def guardar_lista_programas(programas):
         f = item[4] if len(item) > 4 and item[4] else "off"
         t = item[5] if len(item) > 5 and item[5] else "juego"
         lineas.append(f"{n}|{r}|{p}|{w}|{f}|{t}\n")
-    for db_path in [DB_FILE, DB_USER]:
+
+    os.makedirs(DATOS_DIR, exist_ok=True)
+    rutas_a_guardar = set([
+        DB_FILE,
+        DB_USER,
+        os.path.join(DATOS_DIR, "programas.db"),
+        os.path.join(DATOS_DIR, "programas_usuario.db"),
+        os.path.join(DIR, "programas.db"),
+        os.path.join(DIR, "programas_usuario.db")
+    ])
+    for db_path in rutas_a_guardar:
         try:
             with open(db_path, "w", encoding="utf-8") as file_out:
                 file_out.writelines(lineas)
         except Exception:
             pass
     try:
-        shutil.copyfile(DB_FILE, DB_FILE + ".bak")
+        shutil.copyfile(DB_FILE, os.path.join(DATOS_DIR, "programas.db.bak"))
+        if DATOS_DIR != DIR:
+            shutil.copyfile(DB_FILE, os.path.join(DIR, "programas.db.bak"))
     except Exception:
         pass
 
@@ -848,22 +893,6 @@ def ejecutar_herramienta_windows(tool_exe, label):
     os.system("clear")
     print(f"{GREEN}🚀 Abriendo {label}...{RESET}\n")
     ejecutar_juego_y_liberar_ram(["--program", tool_exe], con_hud=False)
-
-def iniciar_escritorio_windows_completo(hw, cfg):
-    """Inicia una sesión de Escritorio Virtual Windows completa (Sistema Doble Multiventana)."""
-    script_desk = os.path.join(DIR, "escritorio_windows.py")
-    if os.path.exists(script_desk):
-        os.system("clear")
-        print(f"\n{BOLD}{CYAN}╔══════════════════════════════════════════════════════════════════════╗{RESET}")
-        print(f"{BOLD}{CYAN}║     🪟 INICIANDO ESCRITORIO VIRTUAL WINDOWS (SISTEMA DOBLE)         ║{RESET}")
-        print(f"{BOLD}{CYAN}╚══════════════════════════════════════════════════════════════════════╝{RESET}\n")
-        print(f"  {WHITE}Cargando entorno de escritorio Windows 10 Pro completo...{RESET}")
-        print(f"  {GRAY}• Multiventana: Ejecuta múltiples juegos y programas a la vez.{RESET}")
-        print(f"  {GRAY}• Iconos interactivos, Menú Inicio y Barra de Tareas.{RESET}\n")
-        time.sleep(0.5)
-        subprocess.run(["python3", script_desk])
-    else:
-        ejecutar_juego_y_liberar_ram(["--desktop"], con_hud=False)
 
 def gestionar_o_iniciar_juego(item, hw, cfg):
     """Acciones completas para el videojuego seleccionado (jugar, telemetría, mods, winver, fsr)."""
@@ -1111,8 +1140,7 @@ def menu_programas(hw, cfg):
         user_progs = [p for p in programas if len(p) > 5 and p[5] == "programa"]
 
         opciones = []
-        # 1. Sesión de escritorio y utilidades integradas nativas de Windows
-        opciones.append(("W", "🪟 Iniciar Escritorio Windows Completo (Sistema Doble Multiventana)"))
+        # 1. Utilidades integradas nativas de Windows
         opciones.append(("E", "📁 Explorador de Archivos (Windows Explorer)"))
         opciones.append(("C", "⚙️  Panel de Control y Configuración de Wine (Winecfg)"))
         opciones.append(("N", "📝 Bloc de Notas de Windows (Notepad)"))
@@ -1142,8 +1170,6 @@ def menu_programas(hw, cfg):
         eleccion = submenu_interactivo("💼  Programas y Utilidades de Windows", opciones, hw, cfg, info_lines=info_lines)
         if eleccion == "0":
             break
-        elif eleccion in ("W", "w"):
-            iniciar_escritorio_windows_completo(hw, cfg)
         elif eleccion in ("E", "e"):
             ejecutar_herramienta_windows("explorer.exe", "Explorador de Archivos de Windows")
         elif eleccion in ("C", "c"):
@@ -2096,7 +2122,6 @@ def menu_herramientas(hw, cfg):
     """Submenú 4: Herramientas de Windows y Reparación."""
     while True:
         opciones = [
-            ("W", "🪟 Iniciar Escritorio Windows Completo (Modo Sistema Doble)"),
             ("1", "🍷 Configuración de Wine (winecfg)"),
             ("2", "📝 Editor del Registro de Windows (regedit)"),
             ("3", "📈 Administrador de Tareas de Windows (taskmgr)"),
@@ -2114,8 +2139,6 @@ def menu_herramientas(hw, cfg):
         sel = submenu_interactivo("🔧  Herramientas de Windows y Reparación", opciones, hw, cfg)
         if sel == "0":
             break
-        elif sel in ("W", "w"):
-            iniciar_escritorio_windows_completo(hw, cfg)
         elif sel == "1":
             subprocess.run(f"WINEPREFIX='{WINEPREFIX}' wine winecfg", shell=True)
         elif sel == "2":
@@ -2645,7 +2668,7 @@ def verificar_actualizacion_automatica_github(mostrar_notif=True, cfg=None):
 
             # Limpiar cualquier conflicto y sincronizar limpiamente con origin/main
             subprocess.run(
-                f"cd '{DIR}' && git checkout HEAD -- programas.db config_rendimiento.cfg dxvk.conf 2>/dev/null || true",
+                f"cd '{DIR}' && git checkout HEAD -- datos/programas.db config/config_rendimiento.cfg config/dxvk.conf programas.db config_rendimiento.cfg dxvk.conf 2>/dev/null || true",
                 shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
             )
             subprocess.run(
@@ -2688,7 +2711,7 @@ def verificar_actualizacion_automatica_github(mostrar_notif=True, cfg=None):
                 pass
 
             # Restaurar permisos y desplegar componentes
-            subprocess.run(f"chmod +x '{DIR}'/*.sh '{DIR}'/*.py 2>/dev/null", shell=True)
+            subprocess.run(f"chmod +x '{DIR}'/*.sh '{DIR}'/core/*.sh '{DIR}'/core/*.py '{DIR}'/herramientas/*.sh 2>/dev/null", shell=True)
             desplegar_gameranger_portable()
 
             print(f"\n  {GREEN}{BOLD}✔ ¡Vessel se ha actualizado con éxito a la versión {VERSION_ACTUAL}!{RESET}")
@@ -2761,11 +2784,9 @@ def main():
         prompt_1 = f"  {WHITE}{BOLD}Selecciona qué deseas abrir en tu sistema:{RESET}"
         prompt_2 = f"    {PURPLE}[1]{RESET} {WHITE}{BOLD}Juegos{RESET}             {GRAY}➔ Videojuegos 3D/2D (DirectX, Vulkan, FSR, GameMode){RESET}"
         prompt_3 = f"    {PURPLE}[2]{RESET} {WHITE}{BOLD}Programas{RESET}          {GRAY}➔ Aplicaciones de Windows, Oficina, Utilidades y CMD{RESET}"
-        prompt_4 = f"    {CYAN}[3]{RESET} {WHITE}{BOLD}Escritorio Windows{RESET} {GRAY}➔ Sistema Doble Multiventana con Escritorio Completo{RESET}"
         print(f"{PURPLE}│{RESET} {pad_visual(prompt_1, inner_w - 2)} {PURPLE}│{RESET}")
         print(f"{PURPLE}│{RESET} {pad_visual(prompt_2, inner_w - 2)} {PURPLE}│{RESET}")
         print(f"{PURPLE}│{RESET} {pad_visual(prompt_3, inner_w - 2)} {PURPLE}│{RESET}")
-        print(f"{PURPLE}│{RESET} {pad_visual(prompt_4, inner_w - 2)} {PURPLE}│{RESET}")
         print(f"{PURPLE}│{' ' * inner_w}│{RESET}")
         print(f"{PURPLE}├{'─' * inner_w}┤{RESET}")
         print(f"{PURPLE}│{' ' * inner_w}│{RESET}")
@@ -2775,8 +2796,8 @@ def main():
 
         opts = [
             ("▶   [1]  🎮  Juegos", "▶   [2]  💼  Programas"),
-            ("🪟  [3]  Escritorio Windows", "⚡  [4]  Smart Performance"),
-            ("🔧  [5]  Herramientas de Windows", "🔄  [6]  Actualizar")
+            ("⚡  [3]  Smart Performance", "🔧  [4]  Herramientas de Windows"),
+            ("🔄  [5]  Actualizar", "⏻   [0]  Salir")
         ]
 
         for row_idx, (o1, o2) in enumerate(opts):
@@ -2798,7 +2819,7 @@ def main():
             print(f"{PURPLE}│{' ' * inner_w}│{RESET}")
 
         print(f"{PURPLE}├{'─' * inner_w}┤{RESET}")
-        prompt_call = f"  {WHITE}Opción: {BOLD}{GREEN}[1]{RESET}{WHITE} Juegos, {BOLD}{GREEN}[2]{RESET}{WHITE} Programas, {BOLD}{CYAN}[3]{RESET}{WHITE} Escritorio {BOLD}{PURPLE}[Enter = Iniciar]{RESET}{WHITE} o {BOLD}{RED}[0]{RESET}{WHITE} Salir:{RESET}"
+        prompt_call = f"  {WHITE}Opción: {BOLD}{GREEN}[1]{RESET}{WHITE} Juegos, {BOLD}{GREEN}[2]{RESET}{WHITE} Programas {BOLD}{PURPLE}[Enter = Iniciar]{RESET}{WHITE} o {BOLD}{RED}[0]{RESET}{WHITE} Salir:{RESET}"
         print(f"{PURPLE}│{RESET} {pad_visual(prompt_call, inner_w - 2)} {PURPLE}│{RESET}")
 
         bot_bar = f"{PURPLE}╰{'─' * inner_w}╯{RESET}"
@@ -2837,13 +2858,15 @@ def main():
             elif cur_idx == 2:
                 menu_programas(hw, cfg)
             elif cur_idx == 3:
-                iniciar_escritorio_windows_completo(hw, cfg)
-            elif cur_idx == 4:
                 menu_rendimiento(hw, cfg)
-            elif cur_idx == 5:
+            elif cur_idx == 4:
                 menu_herramientas(hw, cfg)
-            elif cur_idx == 6:
+            elif cur_idx == 5:
                 menu_actualizar(hw, cfg)
+            elif cur_idx == 6:
+                os.system("clear")
+                print(f"{GREEN}¡Hasta luego! Que disfrutes tu sistema Windows.{RESET}\n")
+                sys.exit(0)
         elif k == '1':
             cur_idx = 1
             menu_juegos(hw, cfg)
@@ -2852,17 +2875,14 @@ def main():
             menu_programas(hw, cfg)
         elif k == '3':
             cur_idx = 3
-            iniciar_escritorio_windows_completo(hw, cfg)
+            menu_rendimiento(hw, cfg)
         elif k == '4':
             cur_idx = 4
-            menu_rendimiento(hw, cfg)
+            menu_herramientas(hw, cfg)
         elif k == '5':
             cur_idx = 5
-            menu_herramientas(hw, cfg)
-        elif k == '6':
-            cur_idx = 6
             menu_actualizar(hw, cfg)
-        elif k in ('0', 'q', 'Q'):
+        elif k in ('0', '6', 'q', 'Q'):
             os.system("clear")
             print(f"{GREEN}¡Hasta luego! Que disfrutes tu sistema Windows.{RESET}\n")
             sys.exit(0)

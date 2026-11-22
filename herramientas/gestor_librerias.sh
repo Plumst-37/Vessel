@@ -15,7 +15,8 @@
 set -euo pipefail
 
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-CACHE_DIR="${DIR}/librerias_cache"
+CACHE_DIR="${DIR}/librerias"
+[ ! -d "$CACHE_DIR" ] && CACHE_DIR="${DIR}/librerias_cache"
 HERRAMIENTAS_DIR="${DIR}/herramientas"
 
 RED='\033[0;31m'

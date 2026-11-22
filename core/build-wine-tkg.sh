@@ -5,10 +5,19 @@
 
 set -e
 
-DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+if [ -f "${SCRIPT_DIR}/../menu-win.sh" ]; then
+    DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
+else
+    DIR="$SCRIPT_DIR"
+fi
 BUILD_DIR="${DIR}/wine-tkg-git/wine-tkg-git"
 
-source "${DIR}/hardware_detect.sh" 2>/dev/null || true
+if [ -f "${DIR}/core/hardware_detect.sh" ]; then
+    source "${DIR}/core/hardware_detect.sh" 2>/dev/null || true
+else
+    source "${DIR}/hardware_detect.sh" 2>/dev/null || true
+fi
 
 echo "=========================================================="
 echo "   Iniciando Compilación Optimizada de Wine-TKG"

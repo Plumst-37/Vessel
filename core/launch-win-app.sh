@@ -22,24 +22,61 @@ set -e
 # Ampliar límite de descriptores de archivos para juegos pesados (GTA V, RE4, etc.)
 ulimit -n 1048576 2>/dev/null || ulimit -n 65535 2>/dev/null || true
 
-DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
-DB_FILE="${DIR}/programas.db"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
+if [ -f "${SCRIPT_DIR}/../menu-win.sh" ]; then
+    DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
+else
+    DIR="$SCRIPT_DIR"
+fi
+
+CORE_DIR="${DIR}/core"
+[ ! -d "$CORE_DIR" ] && CORE_DIR="${DIR}"
+
+CONFIG_DIR="${DIR}/config"
+[ ! -d "$CONFIG_DIR" ] && CONFIG_DIR="${DIR}"
+
+DATOS_DIR="${DIR}/datos"
+[ ! -d "$DATOS_DIR" ] && DATOS_DIR="${DIR}"
+
+DB_FILE="${DATOS_DIR}/programas.db"
+[ ! -f "$DB_FILE" ] && DB_FILE="${DIR}/programas.db"
 
 # 1. Cargar preferencias del usuario y detección de hardware universal
+[ -f "${CONFIG_DIR}/config_rendimiento.cfg" ] && source "${CONFIG_DIR}/config_rendimiento.cfg"
 [ -f "${DIR}/config_rendimiento.cfg" ] && source "${DIR}/config_rendimiento.cfg"
-source "${DIR}/hardware_detect.sh"
+
+if [ -f "${CORE_DIR}/hardware_detect.sh" ]; then
+    source "${CORE_DIR}/hardware_detect.sh"
+else
+    source "${DIR}/hardware_detect.sh"
+fi
+
+# Helpers y resolvedores modulares
+RESOLVER_LNK="${CORE_DIR}/resolver_lnk.py"
+[ ! -f "$RESOLVER_LNK" ] && RESOLVER_LNK="${DIR}/resolver_lnk.py"
+
+RESOLVER_BAT="${CORE_DIR}/resolver_bat.py"
+[ ! -f "$RESOLVER_BAT" ] && RESOLVER_BAT="${DIR}/resolver_bat.py"
+
+ANALIZADOR_PE="${CORE_DIR}/analizador_pe.py"
+[ ! -f "$ANALIZADOR_PE" ] && ANALIZADOR_PE="${DIR}/analizador_pe.py"
+
+GENERAR_DXVK="${CORE_DIR}/generar_dxvk_conf.sh"
+[ ! -f "$GENERAR_DXVK" ] && GENERAR_DXVK="${DIR}/generar_dxvk_conf.sh"
+
+DXVK_CONF="${CONFIG_DIR}/dxvk.conf"
+[ ! -f "$DXVK_CONF" ] && DXVK_CONF="${DIR}/dxvk.conf"
 
 # 2. Aplicar optimizaciones dinámicas para el hardware real del equipo
 aplicar_entorno_hardware
 
-# 3. Procesar banderas opcionales (prefijo dedicado, modo aislado, runner custom, versión de Windows, AMD FSR, modo programa y sesión de escritorio)
+# 3. Procesar banderas opcionales (prefijo dedicado, modo aislado, runner custom, versión de Windows, AMD FSR y modo programa)
 CUSTOM_PREFIX=""
 FORCE_ISOLATED=0
 CUSTOM_RUNNER=""
 CUSTOM_WINVER=""
 CUSTOM_FSR=""
 IS_PROGRAM=0
-ENABLE_DESKTOP_SESSION=0
 while [ $# -gt 0 ]; do
     case "$1" in
         --prefix)
@@ -66,11 +103,6 @@ while [ $# -gt 0 ]; do
             IS_PROGRAM=1
             shift
             ;;
-        --desktop)
-            ENABLE_DESKTOP_SESSION=1
-            IS_PROGRAM=1
-            shift
-            ;;
         *)
             break
             ;;
@@ -78,24 +110,15 @@ while [ $# -gt 0 ]; do
 done
 
 if [ $# -eq 0 ]; then
-    if [ "$ENABLE_DESKTOP_SESSION" -eq 1 ]; then
-        TARGET="desktop"
-    else
-        echo "Uso: $0 [--prefix /ruta/al/prefijo] [--isolated] [--runner /ruta/a/wine] [--winver win10|win7|winxp] [--fsr off|quality|performance] [--program] [--desktop] [/ruta/al/programa.exe] [argumentos]"
-        exit 1
-    fi
+    echo "Uso: $0 [--prefix /ruta/al/prefijo] [--isolated] [--runner /ruta/a/wine] [--winver win10|win7|winxp] [--fsr off|quality|performance] [--program] [/ruta/al/programa.exe] [argumentos]"
+    exit 1
 else
     TARGET="$1"
     shift || true
 fi
 
-if [ "$TARGET" = "desktop" ] || [ "$TARGET" = "escritorio" ]; then
-    ENABLE_DESKTOP_SESSION=1
-    IS_PROGRAM=1
-fi
-
 # 4.0 Auto-reparación transparente de rutas inexistentes o movidas (ej. carpetas ZIP extraídas)
-if [ "$ENABLE_DESKTOP_SESSION" -eq 0 ] && [ ! -f "$TARGET" ] && [[ ! "$TARGET" =~ [Gg]ame[Rr]anger ]]; then
+if [ ! -f "$TARGET" ] && [[ ! "$TARGET" =~ [Gg]ame[Rr]anger ]]; then
     CANDIDATE_PATH=""
     # 1. Probar eliminando /ZIP/ o /zip/ de la ruta
     NO_ZIP=$(echo "$TARGET" | sed -E 's|/[zZ][iI][pP]/|/|g')
@@ -119,7 +142,7 @@ if [ "$ENABLE_DESKTOP_SESSION" -eq 0 ] && [ ! -f "$TARGET" ] && [[ ! "$TARGET" =
         echo "[+] Ruta de juego reparada automáticamente:"
         echo "    - Anterior: $TARGET"
         echo "    - Nueva   : $CANDIDATE_PATH"
-        for db in "${DIR}/programas_usuario.db" "${DIR}/programas.db"; do
+        for db in "${DATOS_DIR}/programas_usuario.db" "${DIR}/programas_usuario.db" "${DATOS_DIR}/programas.db" "${DIR}/programas.db"; do
             if [ -f "$db" ]; then
                 sed -i "s|${TARGET}|${CANDIDATE_PATH}|g" "$db" 2>/dev/null || true
             fi
@@ -136,8 +159,8 @@ fi
 # 4.1 Resolver accesos directos de Windows (.lnk o .ink) al ejecutable real
 if [[ "$TARGET" =~ \.([lL][nN][kK]|[iI][nN][kK])$ ]] && [ -f "$TARGET" ]; then
     echo "[*] Acceso directo detectado: $(basename "$TARGET"). Resolviendo ejecutable real..."
-    if [ -f "${DIR}/resolver_lnk.py" ]; then
-        RESOLVED_RES=$(python3 "${DIR}/resolver_lnk.py" "$TARGET" "${WINEPREFIX:-${DIR}/wineprefix}" 2>/dev/null || true)
+    if [ -f "$RESOLVER_LNK" ]; then
+        RESOLVED_RES=$(python3 "$RESOLVER_LNK" "$TARGET" "${WINEPREFIX:-${DIR}/wineprefix}" 2>/dev/null || true)
         RESOLVED_STATUS=$(echo "$RESOLVED_RES" | grep '^STATUS=' | cut -d= -f2-)
         RESOLVED_PATH=$(echo "$RESOLVED_RES" | grep '^RESOLVED_PATH=' | cut -d= -f2-)
         if [ "$RESOLVED_STATUS" = "RESOLVED" ] && [ -f "$RESOLVED_PATH" ]; then
@@ -155,8 +178,8 @@ fi
 ORIGINAL_TARGET="$TARGET"
 if [[ "$TARGET" =~ \.([bB][aA][tT]|[cC][mM][dD])$ ]] && [ -f "$TARGET" ]; then
     echo "[*] Script por lotes (.bat/.cmd) detectado: $(basename "$TARGET")."
-    if [ -f "${DIR}/resolver_bat.py" ]; then
-        RESOLVED_BAT=$(python3 "${DIR}/resolver_bat.py" "$TARGET" 2>/dev/null || true)
+    if [ -f "$RESOLVER_BAT" ]; then
+        RESOLVED_BAT=$(python3 "$RESOLVER_BAT" "$TARGET" 2>/dev/null || true)
         BAT_STATUS=$(echo "$RESOLVED_BAT" | grep '^STATUS=' | cut -d= -f2-)
         BAT_PATH=$(echo "$RESOLVED_BAT" | grep '^RESOLVED_PATH=' | cut -d= -f2-)
         if [ "$BAT_STATUS" = "RESOLVED" ] && [ -f "$BAT_PATH" ]; then
@@ -194,7 +217,7 @@ else
     PREF_TYPE="compartido"
     GAME_WINVER="${CUSTOM_WINVER:-}"
     GAME_FSR="${CUSTOM_FSR:-}"
-    for db in "${DIR}/programas_usuario.db" "${DIR}/programas.db"; do
+    for db in "${DATOS_DIR}/programas_usuario.db" "${DIR}/programas_usuario.db" "${DATOS_DIR}/programas.db" "${DIR}/programas.db"; do
         if [ -f "$db" ]; then
             matched_line=$(grep -F "$TARGET" "$db" 2>/dev/null | head -n 1)
             [ -z "$matched_line" ] && [ -n "$ORIGINAL_TARGET" ] && matched_line=$(grep -F "$ORIGINAL_TARGET" "$db" 2>/dev/null | head -n 1)
@@ -228,8 +251,8 @@ else
     PE_HAS_DX11="0"
     PE_HAS_DDRAW="0"
 
-    if [ -f "${DIR}/analizador_pe.py" ] && [ -f "$TARGET" ]; then
-        pe_eval=$(python3 "${DIR}/analizador_pe.py" --bash "$TARGET" 2>/dev/null || true)
+    if [ -f "$ANALIZADOR_PE" ] && [ -f "$TARGET" ]; then
+        pe_eval=$(python3 "$ANALIZADOR_PE" --bash "$TARGET" 2>/dev/null || true)
         if [ -n "$pe_eval" ]; then
             eval "$pe_eval"
             # Si se resolvió un binario .exe real desde un script .bat/.lnk, actualizar TARGET si aún no lo estaba
@@ -387,6 +410,9 @@ for sf in files:
 
         if [ -n "$FOUND_GR" ] && [ -f "$FOUND_GR" ]; then
             TARGET="$FOUND_GR"
+        elif [ -f "${DATOS_DIR}/GameRangerSetup.exe" ]; then
+            echo "[*] Instalando GameRanger oficial en el entorno..."
+            WINEPREFIX="${WINEPREFIX}" WINEDLLOVERRIDES="winemenubuilder.exe=d;dxgi=b;d3d11=b;d3d10core=b;d3d9=b;" wine "${DATOS_DIR}/GameRangerSetup.exe" 2>/dev/null || true
         elif [ -f "${DIR}/GameRangerSetup.exe" ]; then
             echo "[*] Instalando GameRanger oficial en el entorno..."
             WINEPREFIX="${WINEPREFIX}" WINEDLLOVERRIDES="winemenubuilder.exe=d;dxgi=b;d3d11=b;d3d10core=b;d3d9=b;" wine "${DIR}/GameRangerSetup.exe" 2>/dev/null || true
@@ -406,13 +432,8 @@ fi
 
 
 # 4.3 Obtener directorio y nombre base del archivo objetivo de ejecución
-if [ "$ENABLE_DESKTOP_SESSION" -eq 1 ]; then
-    TARGET_DIR="${DIR}"
-    TARGET_FILE="explorer.exe"
-else
-    TARGET_DIR="$(cd "$(dirname "$TARGET")" 2>/dev/null && pwd || dirname "$TARGET")"
-    TARGET_FILE="$(basename "$TARGET")"
-fi
+TARGET_DIR="$(cd "$(dirname "$TARGET")" 2>/dev/null && pwd || dirname "$TARGET")"
+TARGET_FILE="$(basename "$TARGET")"
 
 # 5. Detección de entorno gráfico: Wayland vs X11
 IS_WAYLAND=0
@@ -665,84 +686,6 @@ EOF
     touch "${WINEPREFIX}/.vessel_win_full_v1" 2>/dev/null || true
 }
 
-# ==============================================================================
-# SINCRONIZACIÓN DE ACCESOS DIRECTOS EN ESCRITORIO VIRTUAL WINDOWS
-# ==============================================================================
-sincronizar_escritorio_virtual_windows() {
-    local desk_dir="${WINEPREFIX}/drive_c/users/Public/Desktop"
-    mkdir -p "$desk_dir" 2>/dev/null || true
-
-    # 1. Utilidades estándar de Windows
-    cat << 'EOF' > "${desk_dir}/Explorador de Archivos.bat"
-@echo off
-start explorer.exe
-EOF
-    cat << 'EOF' > "${desk_dir}/Panel de Control.bat"
-@echo off
-start winecfg.exe
-EOF
-    cat << 'EOF' > "${desk_dir}/Bloc de Notas.bat"
-@echo off
-start notepad.exe
-EOF
-    cat << 'EOF' > "${desk_dir}/Simbolo del Sistema.bat"
-@echo off
-start cmd.exe
-EOF
-    cat << 'EOF' > "${desk_dir}/Editor del Registro.bat"
-@echo off
-start regedit.exe
-EOF
-    cat << 'EOF' > "${desk_dir}/Administrador de Tareas.bat"
-@echo off
-start taskmgr.exe
-EOF
-
-    # 2. Sincronizar catálogo registrado de juegos y programas
-    local db_sources=("${DIR}/programas.db" "${DIR}/programas_usuario.db")
-    for db in "${db_sources[@]}"; do
-        if [ -f "$db" ]; then
-            while IFS='|' read -r nombre ruta modo_p win_v fsr_v tipo_item resto || [ -n "$nombre" ]; do
-                [[ "$nombre" =~ ^[[:space:]]*# ]] && continue
-                [ -z "$nombre" ] && continue
-                [ -z "$ruta" ] && continue
-                local bat_name
-                bat_name=$(echo "$nombre" | tr -cd '[:alnum:] _-')
-                [ -z "$bat_name" ] && bat_name="App"
-                local bat_file="${desk_dir}/${bat_name}.bat"
-
-                local win_target=""
-                local win_workdir=""
-                if [[ "$ruta" =~ ^[a-zA-Z]:\\ ]]; then
-                    win_target="$ruta"
-                elif [ -f "$ruta" ]; then
-                    win_target=$("$WINE_CMD" winepath -w "$ruta" 2>/dev/null || echo "Z:${ruta//\//\\}")
-                    win_workdir=$("$WINE_CMD" winepath -w "$(dirname "$ruta")" 2>/dev/null || echo "Z:${ruta%/*}")
-                elif [ -f "${DIR}/${ruta}" ]; then
-                    win_target=$("$WINE_CMD" winepath -w "${DIR}/${ruta}" 2>/dev/null || echo "Z:${DIR//\//\\}\\${ruta}")
-                    win_workdir=$("$WINE_CMD" winepath -w "$DIR" 2>/dev/null || echo "Z:${DIR//\//\\}")
-                else
-                    win_target="$ruta"
-                fi
-
-                if [ -n "$win_workdir" ]; then
-                    cat << EOF > "$bat_file"
-@echo off
-rem Acceso directo generado por Vessel
-cd /d "${win_workdir}"
-start "" "${win_target}"
-EOF
-                else
-                    cat << EOF > "$bat_file"
-@echo off
-rem Acceso directo generado por Vessel
-start "" "${win_target}"
-EOF
-                fi
-            done < "$db"
-        fi
-    done
-}
 
 # 8. Configuración de pantalla completa universal, ratón ultra-fluido, estabilidad 3D y supresión de crash dialogs
 optimizar_entorno_windows_completo
@@ -769,9 +712,11 @@ fi
 
 # 9. Generar archivo DXVK optimizado según la CPU y límite de FPS configurado
 if [ "$RENDERER_IN_USE" != "WineD3D (OpenGL Compatibilidad)" ]; then
-    export DXVK_CONFIG_FILE="${DIR}/dxvk.conf"
-    if [ -x "${DIR}/generar_dxvk_conf.sh" ]; then
-        "${DIR}/generar_dxvk_conf.sh"
+    export DXVK_CONFIG_FILE="$DXVK_CONF"
+    if [ -x "$GENERAR_DXVK" ]; then
+        "$GENERAR_DXVK"
+    elif [ -f "$GENERAR_DXVK" ]; then
+        bash "$GENERAR_DXVK"
     fi
 else
     unset DXVK_CONFIG_FILE
@@ -831,13 +776,8 @@ if [ "$IS_PROGRAM" -ne 1 ] && [ "$PERFIL_RENDIMIENTO" != "ahorro" ]; then
 fi
 
 # 11. Obtener directorio y nombre del archivo
-if [ "$ENABLE_DESKTOP_SESSION" -eq 1 ]; then
-    TARGET_DIR="${DIR}"
-    TARGET_FILE="explorer.exe"
-else
-    TARGET_DIR="$(cd "$(dirname "$TARGET")" 2>/dev/null && pwd || dirname "$TARGET")"
-    TARGET_FILE="$(basename "$TARGET")"
-fi
+TARGET_DIR="$(cd "$(dirname "$TARGET")" 2>/dev/null && pwd || dirname "$TARGET")"
+TARGET_FILE="$(basename "$TARGET")"
 
 # ==============================================================================
 # OPTIMIZACIÓN UNIVERSAL DE RED Y MULTIJUGADOR PARA WINE
@@ -918,7 +858,7 @@ if [[ "$TARGET_FILE" =~ [Gg]ame[Rr]anger ]]; then
     unset DXVK_GPLASYNCCACHE
 
     # Auto-optimizar pantalla completa y resolución nativa para todos los juegos de la biblioteca de GameRanger
-    for db in "${DIR}/programas_usuario.db" "${DIR}/programas.db"; do
+    for db in "${DATOS_DIR}/programas_usuario.db" "${DIR}/programas_usuario.db" "${DATOS_DIR}/programas.db" "${DIR}/programas.db"; do
         if [ -f "$db" ]; then
             while IFS='|' read -r _pname ppath _rest; do
                 [ -z "$ppath" ] && continue
@@ -1890,18 +1830,7 @@ else
 fi
 
 echo ""
-if [ "$ENABLE_DESKTOP_SESSION" -eq 1 ]; then
-    echo "[+] Iniciando Escritorio Windows Completo [Sistema Doble Multiventana] (Vessel v1.0)..."
-    echo "    - CPU: ${CPU_MODEL} (${CPU_CORES} Hilos)"
-    echo "    - GPU: ${DETECTED_GPU}"
-    echo "    - Versión de Vessel: v1.0 (Producción)"
-    echo "    - Modo de Ejecución: Escritorio Virtual Multiventana Integrado"
-    echo "    - Identidad del SO: Windows 10 Pro 22H2 (Build 19045.3826)"
-    echo "    - Renderizado: Direct2D 1.1 + Direct3D FBO + ClearType HD"
-    echo "    - Multitarea: Soporta múltiples programas y juegos simultáneos"
-    echo "    - Runner Wine: ${RUNNER_LABEL}"
-    echo "    - Prefijo Wine: ${WINEPREFIX}"
-elif [ "$IS_PROGRAM" -eq 1 ]; then
+if [ "$IS_PROGRAM" -eq 1 ]; then
     echo "[+] Ejecutando Programa de Windows [Modo Ventana Nativa - ClearType HD] (Vessel v1.0)..."
     echo "    - CPU: ${CPU_MODEL} (${CPU_CORES} Hilos)"
     echo "    - GPU: ${DETECTED_GPU}"
@@ -2127,20 +2056,7 @@ fi
 TEMP_GAME_LOG=$(mktemp "${TMPDIR:-/tmp}/vessel_run_XXXXXX.log" 2>/dev/null || echo "/tmp/vessel_run_$$.log")
 touch "$TEMP_GAME_LOG" 2>/dev/null || true
 
-if [ "$ENABLE_DESKTOP_SESSION" -eq 1 ]; then
-    sincronizar_escritorio_virtual_windows
-    echo "[+] Iniciando Sesión de Escritorio Windows Completo (Vessel Sistema Doble)..."
-    if [ -f "${DIR}/escritorio_windows.py" ] && command -v python3 &>/dev/null; then
-        python3 "${DIR}/escritorio_windows.py" 2>&1 | tee "$TEMP_GAME_LOG"
-        EXIT_STATUS="${PIPESTATUS[0]}"
-    else
-        detectar_pantalla_activa
-        best_w="${ACTIVE_MON_W:-1280}"
-        best_h="${ACTIVE_MON_H:-720}"
-        "$WINE_CMD" explorer "/desktop=Windows_Vessel,${best_w}x${best_h}" winefile.exe 2>&1 | tee "$TEMP_GAME_LOG"
-        EXIT_STATUS="${PIPESTATUS[0]}"
-    fi
-elif [[ "$TARGET_FILE" =~ \.(msi|MSI)$ ]]; then
+if [[ "$TARGET_FILE" =~ \.(msi|MSI)$ ]]; then
     $GAMEMODE "$WINE_CMD" msiexec /i "$TARGET_FILE" "$@" 2>&1 | tee "$TEMP_GAME_LOG"
     EXIT_STATUS="${PIPESTATUS[0]}"
 elif [[ "$TARGET_FILE" =~ \.(reg|REG)$ ]]; then

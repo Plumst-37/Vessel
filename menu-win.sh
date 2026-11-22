@@ -13,15 +13,36 @@ fi
 
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
 
+CORE_DIR="${DIR}/core"
+[ ! -d "$CORE_DIR" ] && CORE_DIR="${DIR}"
+
+CONFIG_DIR="${DIR}/config"
+[ ! -d "$CONFIG_DIR" ] && CONFIG_DIR="${DIR}"
+
+DATOS_DIR="${DIR}/datos"
+[ ! -d "$DATOS_DIR" ] && DATOS_DIR="${DIR}"
+
 # Lanzar interfaz TUI interactiva avanzada en Python si se ejecuta como script directo
-if [ "${BASH_SOURCE[0]}" = "$0" ] && [ -z "$MENU_WIN_BASH_ONLY" ] && command -v python3 &>/dev/null && [ -f "${DIR}/menu_tui.py" ]; then
-    exec python3 "${DIR}/menu_tui.py" "$@"
+if [ "${BASH_SOURCE[0]}" = "$0" ] && [ -z "$MENU_WIN_BASH_ONLY" ] && command -v python3 &>/dev/null; then
+    if [ -f "${CORE_DIR}/menu_tui.py" ]; then
+        exec python3 "${CORE_DIR}/menu_tui.py" "$@"
+    elif [ -f "${DIR}/menu_tui.py" ]; then
+        exec python3 "${DIR}/menu_tui.py" "$@"
+    fi
 fi
 
-DB_FILE="${DIR}/programas.db"
-LAUNCHER="${DIR}/launch-win-app.sh"
-DXVK_CONF="${DIR}/dxvk.conf"
-CONFIG_USER="${DIR}/config_rendimiento.cfg"
+DB_FILE="${DATOS_DIR}/programas.db"
+[ ! -f "$DB_FILE" ] && DB_FILE="${DIR}/programas.db"
+
+LAUNCHER="${CORE_DIR}/launch-win-app.sh"
+[ ! -f "$LAUNCHER" ] && LAUNCHER="${DIR}/launch-win-app.sh"
+
+DXVK_CONF="${CONFIG_DIR}/dxvk.conf"
+[ ! -f "$DXVK_CONF" ] && DXVK_CONF="${DIR}/dxvk.conf"
+
+CONFIG_USER="${CONFIG_DIR}/config_rendimiento.cfg"
+[ ! -f "$CONFIG_USER" ] && CONFIG_USER="${DIR}/config_rendimiento.cfg"
+
 VERSION_FILE="${DIR}/version.txt"
 VERSION_ACTUAL="1.0"
 
@@ -30,11 +51,15 @@ VERSION_ACTUAL="1.0"
 
 # Cargar preferencias y módulo de hardware
 [ -f "$CONFIG_USER" ] && source "$CONFIG_USER"
-source "${DIR}/hardware_detect.sh"
+if [ -f "${CORE_DIR}/hardware_detect.sh" ]; then
+    source "${CORE_DIR}/hardware_detect.sh"
+else
+    source "${DIR}/hardware_detect.sh"
+fi
 
 # Asegurar que la base de datos de programas y el prefijo de Wine existan
+mkdir -p "${DATOS_DIR}" "${CONFIG_DIR}" "${DIR}/wineprefix" 2>/dev/null || true
 touch "$DB_FILE"
-mkdir -p "${DIR}/wineprefix"
 
 # ==============================================================================
 # PALETA DE COLORES ANSI Y TEMA VIOLETA NEÓN
@@ -82,12 +107,14 @@ verificar_actualizacion_github() {
     fi
 
     # Proteger base de datos de juegos y configuración del usuario antes de actualizar
-    local db_user="${DIR}/programas_usuario.db"
-    if [ ! -f "$db_user" ] && [ -f "${DIR}/programas.db" ]; then
-        cp -f "${DIR}/programas.db" "$db_user" 2>/dev/null || true
+    mkdir -p "${DATOS_DIR}" "${CONFIG_DIR}" 2>/dev/null || true
+    local db_user="${DATOS_DIR}/programas_usuario.db"
+    [ ! -f "$db_user" ] && [ -f "${DIR}/programas_usuario.db" ] && cp -f "${DIR}/programas_usuario.db" "$db_user" 2>/dev/null || true
+    if [ ! -f "$db_user" ] && [ -f "$DB_FILE" ]; then
+        cp -f "$DB_FILE" "$db_user" 2>/dev/null || true
     fi
-    [ -f "${DIR}/programas.db" ] && cp -f "${DIR}/programas.db" "${DIR}/programas.db.bak" 2>/dev/null || true
-    [ -f "${DIR}/config_rendimiento.cfg" ] && cp -f "${DIR}/config_rendimiento.cfg" "${DIR}/config_rendimiento.cfg.bak" 2>/dev/null || true
+    [ -f "$DB_FILE" ] && cp -f "$DB_FILE" "${DB_FILE}.bak" 2>/dev/null || true
+    [ -f "$CONFIG_USER" ] && cp -f "$CONFIG_USER" "${CONFIG_USER}.bak" 2>/dev/null || true
 
     local ya_configurado=0
     if [ -f "${DIR}/.instalado" ] || [ -s "${DIR}/version.txt" ]; then
@@ -105,22 +132,30 @@ verificar_actualizacion_github() {
             echo ""
             echo -e "  ${C_YELLOW}${C_BOLD}⚡ ¡Nueva versión encontrada en GitHub!${C_RESET}"
             echo -e "  ${C_WHITE}Descargando e instalando los últimos parches y mejoras...${C_RESET}"
+            git -C "${DIR}" checkout HEAD -- datos/programas.db config/config_rendimiento.cfg config/dxvk.conf programas.db config_rendimiento.cfg dxvk.conf 2>/dev/null || true
             if git -C "${DIR}" reset --hard origin/main 2>/dev/null || git -C "${DIR}" pull --quiet origin main 2>/dev/null; then
                 # Restaurar base de datos y configuración
-                if [ -s "${DIR}/programas_usuario.db" ]; then
-                    cat "${DIR}/programas_usuario.db" >> "${DIR}/programas.db" 2>/dev/null || true
-                    sort -u "${DIR}/programas.db" -o "${DIR}/programas.db" 2>/dev/null || true
-                elif [ -s "${DIR}/programas.db.bak" ]; then
-                    cp -f "${DIR}/programas.db.bak" "${DIR}/programas.db" 2>/dev/null || true
-                fi
-                if [ -s "${DIR}/config_rendimiento.cfg.bak" ]; then
-                    cp -f "${DIR}/config_rendimiento.cfg.bak" "${DIR}/config_rendimiento.cfg" 2>/dev/null || true
+                mkdir -p "${DATOS_DIR}" "${CONFIG_DIR}" 2>/dev/null || true
+                for udb in "${DATOS_DIR}/programas_usuario.db" "${DIR}/programas_usuario.db"; do
+                    if [ -s "$udb" ]; then
+                        cat "$udb" >> "$DB_FILE" 2>/dev/null || true
+                        sort -u "$DB_FILE" -o "$DB_FILE" 2>/dev/null || true
+                        [ -f "${DIR}/programas.db" ] && cp -f "$DB_FILE" "${DIR}/programas.db" 2>/dev/null || true
+                        break
+                    elif [ -s "${DB_FILE}.bak" ]; then
+                        cp -f "${DB_FILE}.bak" "$DB_FILE" 2>/dev/null || true
+                        [ -f "${DIR}/programas.db" ] && cp -f "$DB_FILE" "${DIR}/programas.db" 2>/dev/null || true
+                    fi
+                done
+                if [ -s "${CONFIG_USER}.bak" ]; then
+                    cp -f "${CONFIG_USER}.bak" "$CONFIG_USER" 2>/dev/null || true
+                    [ -f "${DIR}/config_rendimiento.cfg" ] && cp -f "$CONFIG_USER" "${DIR}/config_rendimiento.cfg" 2>/dev/null || true
                 fi
                 if [ "$ya_configurado" -eq 1 ]; then
                     echo "$VERSION_ACTUAL" > "${DIR}/.instalado" 2>/dev/null || true
                     > "${DIR}/version.txt" 2>/dev/null || true
                 fi
-                chmod +x "${DIR}"/*.sh "${DIR}"/*.py 2>/dev/null || true
+                chmod +x "${DIR}"/*.sh "${DIR}"/core/*.sh "${DIR}"/core/*.py "${DIR}"/herramientas/*.sh 2>/dev/null || true
                 desplegar_gameranger_portable 2>/dev/null || true
                 echo -e "  ${C_GREEN}${C_BOLD}✔ ¡Vessel actualizado con éxito a la última versión! Reiniciando...${C_RESET}\n"
                 sleep 1.2
@@ -2359,23 +2394,35 @@ EOF
     mkdir -p "$gr_progfiles" "$gr_roaming"
 
     # Si no está localmente, descargarlo automáticamente de la fuente oficial
-    if [ ! -f "${DIR}/GameRanger/GameRanger.exe" ] && [ ! -f "${DIR}/GameRangerSetup.exe" ]; then
+    local gr_exe_src=""
+    for cand in "${DATOS_DIR}/GameRanger/GameRanger.exe" "${DIR}/GameRanger/GameRanger.exe"; do
+        [ -f "$cand" ] && gr_exe_src="$cand" && break
+    done
+    local gr_setup_src=""
+    for cand in "${DATOS_DIR}/GameRangerSetup.exe" "${DIR}/GameRangerSetup.exe"; do
+        [ -f "$cand" ] && gr_setup_src="$cand" && break
+    done
+
+    if [ -z "$gr_exe_src" ] && [ -z "$gr_setup_src" ]; then
         echo -e "${C_YELLOW}      Descargando instalador oficial de GameRanger...${C_RESET}"
-        curl -fsSL https://www.gameranger.com/download/GameRangerSetup.exe -o "${DIR}/GameRangerSetup.exe" 2>/dev/null || wget -q https://www.gameranger.com/download/GameRangerSetup.exe -O "${DIR}/GameRangerSetup.exe" 2>/dev/null || true
+        curl -fsSL https://www.gameranger.com/download/GameRangerSetup.exe -o "${DATOS_DIR}/GameRangerSetup.exe" 2>/dev/null || wget -q https://www.gameranger.com/download/GameRangerSetup.exe -O "${DATOS_DIR}/GameRangerSetup.exe" 2>/dev/null || true
+        [ -f "${DATOS_DIR}/GameRangerSetup.exe" ] && gr_setup_src="${DATOS_DIR}/GameRangerSetup.exe"
     fi
 
-    if [ -f "${DIR}/GameRanger/GameRanger.exe" ]; then
+    if [ -n "$gr_exe_src" ]; then
+        local gr_src_dir
+        gr_src_dir=$(dirname "$gr_exe_src")
         mkdir -p "$gr_progfiles" "$gr_roaming" "${gr_roaming}/../GameRanger Prefs"
-        cp -r "${DIR}/GameRanger"/* "$gr_progfiles/" 2>/dev/null || true
-        cp -r "${DIR}/GameRanger"/* "$gr_roaming/" 2>/dev/null || true
+        cp -r "$gr_src_dir"/* "$gr_progfiles/" 2>/dev/null || true
+        cp -r "$gr_src_dir"/* "$gr_roaming/" 2>/dev/null || true
 
         # Restaurar sesión de GameRanger si existe backup previo
         if [ -d "${DIR}/.gameranger_prefs_backup" ]; then
             cp -ru "${DIR}/.gameranger_prefs_backup"/* "${gr_roaming}/../GameRanger Prefs/" 2>/dev/null || true
         fi
         gr_found="${gr_roaming}/GameRanger.exe"
-    elif [ -f "${DIR}/GameRangerSetup.exe" ]; then
-        WINEPREFIX="${DIR}/wineprefix" WINEDLLOVERRIDES="dxgi=b;d3d11=b;d3d10core=b;d3d9=b;" wine "${DIR}/GameRangerSetup.exe" 2>/dev/null || true
+    elif [ -n "$gr_setup_src" ]; then
+        WINEPREFIX="${DIR}/wineprefix" WINEDLLOVERRIDES="dxgi=b;d3d11=b;d3d10core=b;d3d9=b;" wine "$gr_setup_src" 2>/dev/null || true
         gr_found=$(find "${DIR}/wineprefix/drive_c/users" -name "GameRanger.exe" 2>/dev/null | head -n 1)
         [ -z "$gr_found" ] && gr_found=$(find "${DIR}/wineprefix/drive_c" -name "GameRanger.exe" 2>/dev/null | head -n 1)
     fi

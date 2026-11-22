@@ -10,7 +10,10 @@ if [ -z "$BASH_VERSION" ]; then
 fi
 
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")/.." && pwd)"
-CFG_FILE="${DIR}/perfil_hardware.cfg"
+CONFIG_DIR="${DIR}/config"
+mkdir -p "$CONFIG_DIR" 2>/dev/null || true
+CFG_FILE="${CONFIG_DIR}/perfil_hardware.cfg"
+[ ! -f "$CFG_FILE" ] && [ -f "${DIR}/perfil_hardware.cfg" ] && CFG_FILE="${DIR}/perfil_hardware.cfg"
 
 FLAG="${1:-}"
 
@@ -177,6 +180,8 @@ HAS_GAMEMODE=${HAS_GAMEMODE}
 HAS_GAMESCOPE=${HAS_GAMESCOPE}
 HAS_PIPEWIRE=${HAS_PIPEWIRE}
 EOF
+    [ -d "${DIR}/config" ] && cp -f "$CFG_FILE" "${DIR}/config/perfil_hardware.cfg" 2>/dev/null || true
+    cp -f "$CFG_FILE" "${DIR}/perfil_hardware.cfg" 2>/dev/null || true
 fi
 
 # 9. Formatos de Salida

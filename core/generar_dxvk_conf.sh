@@ -13,13 +13,31 @@ if [ -z "$BASH_VERSION" ]; then
     fi
 fi
 
-DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
-CONF_FILE="${DIR}/dxvk.conf"
-CONFIG_USER="${DIR}/config_rendimiento.cfg"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
+if [ -f "${SCRIPT_DIR}/../menu-win.sh" ]; then
+    DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
+else
+    DIR="$SCRIPT_DIR"
+fi
+
+CORE_DIR="${DIR}/core"
+[ ! -d "$CORE_DIR" ] && CORE_DIR="${DIR}"
+
+CONFIG_DIR="${DIR}/config"
+[ ! -d "$CONFIG_DIR" ] && CONFIG_DIR="${DIR}"
+mkdir -p "$CONFIG_DIR" 2>/dev/null || true
+
+CONF_FILE="${CONFIG_DIR}/dxvk.conf"
+CONFIG_USER="${CONFIG_DIR}/config_rendimiento.cfg"
+[ ! -f "$CONFIG_USER" ] && CONFIG_USER="${DIR}/config_rendimiento.cfg"
 
 # Cargar preferencias
 [ -f "$CONFIG_USER" ] && source "$CONFIG_USER"
-source "${DIR}/hardware_detect.sh"
+if [ -f "${CORE_DIR}/hardware_detect.sh" ]; then
+    source "${CORE_DIR}/hardware_detect.sh"
+else
+    source "${DIR}/hardware_detect.sh"
+fi
 
 # Definir límite de FPS
 FPS_VAL="0"
@@ -257,4 +275,9 @@ EOF
 # Si el HUD de FPS está activado
 if [ "$MOSTRAR_HUD_FPS" = "1" ]; then
     echo "dxvk.hud = fps,frametimes,drawcalls" >> "$CONF_FILE"
+fi
+
+# Copia de compatibilidad en la raíz
+if [ "$CONF_FILE" != "${DIR}/dxvk.conf" ]; then
+    cp -f "$CONF_FILE" "${DIR}/dxvk.conf" 2>/dev/null || true
 fi
