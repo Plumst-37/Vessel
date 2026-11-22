@@ -2167,7 +2167,7 @@ if [ "$HUBO_ERROR" -eq 1 ]; then
 
     {
         echo "================================================================================"
-        echo "VESSEL v1.0 - INFORME DETALLADO DE ERROR / CIERRE INESPERADO"
+        echo "VESSEL v2.0 - INFORME DETALLADO DE ERROR / CIERRE INESPERADO"
         echo "================================================================================"
         echo "Fecha y Hora          : $(date '+%Y-%m-%d %H:%M:%S')"
         echo "Juego / Ejecutable    : ${TARGET_FILE}"

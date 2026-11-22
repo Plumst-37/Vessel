@@ -44,7 +44,7 @@ CONFIG_USER="${CONFIG_DIR}/config_rendimiento.cfg"
 [ ! -f "$CONFIG_USER" ] && CONFIG_USER="${DIR}/config_rendimiento.cfg"
 
 VERSION_FILE="${DIR}/version.txt"
-VERSION_ACTUAL="1.0"
+VERSION_ACTUAL="2.0"
 
 # Asegurar que version.txt exista
 [ ! -f "$VERSION_FILE" ] && touch "$VERSION_FILE" 2>/dev/null || true
