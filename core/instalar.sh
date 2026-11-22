@@ -459,9 +459,11 @@ elif [ -f "${DIR}/generar_dxvk_conf.sh" ]; then
 fi
 
 # 4.1 Asegurar paquete maestro de DLLs y runtimes esenciales (DirectX 9/10/11, VC++ 2005-2022 AIO, Corefonts, DirectPlay, OpenAL)
-if [ -f "${DIR}/herramientas/gestor_librerias.sh" ]; then
+local_gestor="${DIR}/core/gestor_librerias.sh"
+[ ! -f "$local_gestor" ] && local_gestor="${DIR}/herramientas/gestor_librerias.sh"
+if [ -f "$local_gestor" ]; then
     echo -e "${C_CYAN}      Instalando paquete maestro de DLLs y runtimes para juegos...${C_RESET}"
-    bash "${DIR}/herramientas/gestor_librerias.sh" paquete_maestro "${DIR}/wineprefix" >/dev/null 2>&1 || true
+    bash "$local_gestor" paquete_maestro "${DIR}/wineprefix" || true
     echo -e "${C_GREEN}✔ Entorno base optimizado con todas las librerías nativas para juegos.${C_RESET}"
 fi
 

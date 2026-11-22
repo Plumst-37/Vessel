@@ -2177,7 +2177,7 @@ def menu_herramientas(hw, cfg):
             print(f"\n{GREEN}✔ Memoria RAM liberada y procesos cerrados correctamente.{RESET}")
             pausar()
         elif sel == "6":
-            script_lib = os.path.join(DIR, "herramientas", "gestor_librerias.sh")
+            script_lib = os.path.join(CORE_DIR, "gestor_librerias.sh") if os.path.exists(os.path.join(CORE_DIR, "gestor_librerias.sh")) else os.path.join(DIR, "herramientas", "gestor_librerias.sh")
             sub_winetricks = [
                 ("1", "🚀 Instalar Paquete Maestro de DLLs para Todos los Juegos (Recomendado)\n• DirectX 9/10/11 (+100 DLLs), VC++ 2005-2022 AIO, D3D8to9, NVAPI, OpenAL 3D, DirectPlay y Corefonts"),
                 ("2", "🎮 DirectX 9, 10 y 11 Completo (+100 DLLs oficiales de Microsoft)\n• D3DX9/10/11, D3DCompiler 33-47, XInput 1.1-1.4, XAudio2 y XACT"),
@@ -2258,11 +2258,12 @@ def menu_herramientas(hw, cfg):
             pausar()
         elif sel == "9":
             os.system("clear")
-            subprocess.run(["bash", os.path.join(DIR, "hardware_detect.sh"), "--check-drivers"])
+            hw_diag_script = os.path.join(CORE_DIR, "hardware_detect.sh") if os.path.exists(os.path.join(CORE_DIR, "hardware_detect.sh")) else os.path.join(DIR, "hardware_detect.sh")
+            subprocess.run(["bash", hw_diag_script, "--check-drivers"])
             pausar()
         elif sel == "10":
             os.system("clear")
-            script_lib = os.path.join(DIR, "herramientas", "gestor_librerias.sh")
+            script_lib = os.path.join(CORE_DIR, "gestor_librerias.sh") if os.path.exists(os.path.join(CORE_DIR, "gestor_librerias.sh")) else os.path.join(DIR, "herramientas", "gestor_librerias.sh")
             if os.path.exists(script_lib):
                 subprocess.run(["bash", script_lib, "menu"])
             else:

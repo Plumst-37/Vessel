@@ -620,7 +620,7 @@ Version=1.0
 Type=Application
 Name=GameRanger
 Comment=Juega con tus amigos en línea
-Exec=bash "${DIR}/launch-win-app.sh" "GameRanger.exe"
+Exec=bash "${LAUNCHER}" "GameRanger.exe"
 Icon=wine
 Terminal=false
 Categories=Game;Network;
@@ -2528,7 +2528,7 @@ EOF
 Type=Application
 Name=GameRanger
 Comment=Juega con tus amigos en línea
-Exec=sh -c '"${DIR}/launch-win-app.sh" "GameRanger.exe"'
+Exec=bash "${LAUNCHER}" "GameRanger.exe"
 Icon=wine
 Terminal=false
 Categories=Game;Network;
@@ -2559,9 +2559,17 @@ EOF
 
     # 4. Afinación de DXVK y Shaders para el Hardware de esa Computadora
     echo -e "${C_BOLD}[4/5] Optimizando motor DXVK y shaders según el hardware detectado...${C_RESET}"
-    source "${DIR}/hardware_detect.sh"
+    if [ -f "${CORE_DIR}/hardware_detect.sh" ]; then
+        source "${CORE_DIR}/hardware_detect.sh"
+    elif [ -f "${DIR}/hardware_detect.sh" ]; then
+        source "${DIR}/hardware_detect.sh"
+    fi
     aplicar_entorno_hardware
-    if [ -f "${DIR}/generar_dxvk_conf.sh" ]; then
+    if [ -f "${CORE_DIR}/generar_dxvk_conf.sh" ]; then
+        chmod +x "${CORE_DIR}/generar_dxvk_conf.sh" 2>/dev/null || true
+        bash "${CORE_DIR}/generar_dxvk_conf.sh"
+        echo -e "${C_GREEN}  ✔ Configuración dxvk.conf generada para ${CPU_CORES} hilos y GPU (${DETECTED_GPU}).${C_RESET}"
+    elif [ -f "${DIR}/generar_dxvk_conf.sh" ]; then
         chmod +x "${DIR}/generar_dxvk_conf.sh" 2>/dev/null || true
         bash "${DIR}/generar_dxvk_conf.sh"
         echo -e "${C_GREEN}  ✔ Configuración dxvk.conf generada para ${CPU_CORES} hilos y GPU (${DETECTED_GPU}).${C_RESET}"

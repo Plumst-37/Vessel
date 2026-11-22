@@ -542,25 +542,35 @@ if [ ! -f "${WINEPREFIX}/system.reg" ]; then
     [ ! -e "${WINEPREFIX}/dosdevices/z:" ] && ln -s / "${WINEPREFIX}/dosdevices/z:" 2>/dev/null || true
 fi
 
-# 7.1 Auto-verificación e integración de DXVK (DirectX 9/10/11 -> Vulkan) en el prefijo activo
+# 7.1 Auto-verificación e integración de DXVK (DirectX 8/9/10/11 -> Vulkan) en el prefijo activo
 if [ "$RENDERER_IN_USE" != "WineD3D (OpenGL Compatibilidad)" ]; then
-    if [ ! -L "${WINEPREFIX}/drive_c/windows/system32/d3d11.dll" ] && [ -d "${WINEPREFIX}/drive_c/windows/system32" ]; then
-        if command -v dxvk-setup &>/dev/null; then
-            echo "[*] Instalando y vinculando librerías DXVK (DirectX -> Vulkan) en el prefijo..."
-            WINEPREFIX="$WINEPREFIX" dxvk-setup install -y >/dev/null 2>&1 || true
-        elif [ -d "/usr/lib/dxvk/wine64" ]; then
-            for dll in d3d11 d3d10core d3d9 dxgi; do
+    if [ -d "${WINEPREFIX}/drive_c/windows/system32" ]; then
+        if [ -d "/usr/lib/dxvk/wine64" ]; then
+            for dll in d3d11 d3d10core d3d9 d3d8 dxgi; do
                 [ -f "/usr/lib/dxvk/wine64/${dll}.dll.so" ] && ln -sf "/usr/lib/dxvk/wine64/${dll}.dll.so" "${WINEPREFIX}/drive_c/windows/system32/${dll}.dll" 2>/dev/null || true
                 [ -f "/usr/lib/dxvk/wine32/${dll}.dll.so" ] && ln -sf "/usr/lib/dxvk/wine32/${dll}.dll.so" "${WINEPREFIX}/drive_c/windows/syswow64/${dll}.dll" 2>/dev/null || true
             done
+        elif command -v dxvk-setup &>/dev/null; then
+            if [ ! -L "${WINEPREFIX}/drive_c/windows/system32/d3d11.dll" ]; then
+                echo "[*] Instalando y vinculando librerías DXVK (DirectX -> Vulkan) en el prefijo..."
+                WINEPREFIX="$WINEPREFIX" dxvk-setup install -y >/dev/null 2>&1 || true
+            fi
         fi
     fi
 fi
 
-# 7.2 Inyección silenciosa y propagación de runtimes esenciales (DirectX, Visual C++, OpenAL, Fuentes) a prefijos aislados
-if [ -d "${DIR}/wineprefix/drive_c/windows" ] && [ "$WINEPREFIX" != "${DIR}/wineprefix" ]; then
-    if [ -f "${DIR}/herramientas/gestor_librerias.sh" ]; then
-        bash "${DIR}/herramientas/gestor_librerias.sh" propagar "$WINEPREFIX" >/dev/null 2>&1 || true
+# 7.2 Inyección inteligente y verificación de runtimes esenciales (DirectX 9/10/11, Visual C++, OpenAL)
+local_gestor_lib="${CORE_DIR}/gestor_librerias.sh"
+[ ! -f "$local_gestor_lib" ] && local_gestor_lib="${DIR}/herramientas/gestor_librerias.sh"
+if [ -f "$local_gestor_lib" ] && [ -d "${WINEPREFIX}/drive_c/windows" ]; then
+    if [ ! -f "${WINEPREFIX}/drive_c/windows/syswow64/d3dx9_43.dll" ] || [ ! -f "${WINEPREFIX}/drive_c/windows/syswow64/msvcp140.dll" ]; then
+        echo "[*] Sincronizando librerías esenciales (DirectX nativo y Visual C++)..."
+        bash "$local_gestor_lib" instalar_directx "$WINEPREFIX" >/dev/null 2>&1 || true
+        bash "$local_gestor_lib" instalar_vcredist "$WINEPREFIX" >/dev/null 2>&1 || true
+        bash "$local_gestor_lib" configurar_overrides "$WINEPREFIX" >/dev/null 2>&1 || true
+    fi
+    if [ -d "${DIR}/wineprefix/drive_c/windows" ] && [ "$WINEPREFIX" != "${DIR}/wineprefix" ]; then
+        bash "$local_gestor_lib" propagar "$WINEPREFIX" >/dev/null 2>&1 || true
     fi
 fi
 
@@ -1325,13 +1335,13 @@ EOF_DLC
         rockstar_gtasa)
             echo "[+] Perfil Activo: Rockstar Games (GTA San Andreas / Trilogy) [Aislado]"
             limpiar_zombies_juego "gta_sa\.exe"
-            # Desactivar ventana forzada de mods para garantizar pantalla completa nativa
+            # Restaurar mod WindowedMode si estaba desactivado y asegurar modo sin bordes
+            find "$TARGET_DIR" -iname "III.VC.SA.WindowedMode.asi.disabled" 2>/dev/null | while read -r wm_dis; do
+                mv -f "$wm_dis" "${wm_dis%.disabled}" 2>/dev/null || true
+            done
             find "$TARGET_DIR" -iname "III.VC.SA.WindowedMode.ini" 2>/dev/null | while read -r wm_ini; do
                 crear_respaldo_seguro "$wm_ini"
                 sed -i "s/^ShowBorder = .*/ShowBorder = 0/" "$wm_ini" 2>/dev/null || true
-            done
-            find "$TARGET_DIR" -iname "III.VC.SA.WindowedMode.asi" 2>/dev/null | while read -r wm_asi; do
-                mv "$wm_asi" "${wm_asi}.disabled" 2>/dev/null || true
             done
             # Configurar Widescreen Fix
             find "$TARGET_DIR" -maxdepth 3 -iname "*widescreen*.ini" 2>/dev/null | while read -r wf_ini; do
@@ -1779,20 +1789,26 @@ if os.path.exists(user_reg):
 aplicar_perfil_aislado_juego
 
 # ==============================================================================
-# AUTO-ACTIVACIÓN DE MODS, ASI LOADERS, RESHADE, ENB Y TRADUCCIONES
-# Detecta automáticamente librerías de mods locales y activa el override nativo (n,b)
-# para que funcionen inmediatamente sin tocar winecfg
+# AUTO-ACTIVACIÓN DINÁMICA DE MODS, ASI LOADERS, ENB, RESHADE Y TRADUCCIONES
+# Detecta automáticamente TODAS las librerías DLL y plugins ASI locales
+# y activa el override nativo (n,b) en Wine para que carguen de forma transparente.
 # ==============================================================================
-MOD_HOOKS=("ddraw" "d3d8" "d3d9" "d3d11" "d3d12" "dxgi" "dinput8" "dinput" "dsound" "dplayx" "dpnet" "version" "winmm" "vorbisfile" "vorbishooked" "vorbis" "ogg" "bass" "eax" "xinput1_3" "xinput1_4" "xinput9_1_0" "x3daudio1_7" "xaudio2_7" "binkw32" "binkw64" "bink2w64" "dbghelp" "msimg32" "opengl32" "d3dcompiler_43" "d3dcompiler_46" "d3dcompiler_47" "d3dcsx_46" "socialclub" "libcurl")
+DLL_EXCLUIDAS_CORE="^(ntdll|kernel32|kernelbase|user32|gdi32|advapi32|rpcrt4|ws2_32|iphlpapi)$"
 MODS_ACTIVADOS=()
+declare -A VISTAS_DLL=()
 
-for hook in "${MOD_HOOKS[@]}"; do
-    found_hook=$(find . -maxdepth 2 -iname "${hook}.dll" 2>/dev/null | head -n 1)
-    if [ -n "$found_hook" ]; then
-        export WINEDLLOVERRIDES="${hook}=n,b;${WINEDLLOVERRIDES}"
-        MODS_ACTIVADOS+=("$(basename "$found_hook")")
+while IFS= read -r found_dll; do
+    [ -z "$found_dll" ] && continue
+    raw_bname="$(basename "$found_dll")"
+    raw_name="${raw_bname%.*}"
+    dll_low="$(echo "$raw_name" | tr '[:upper:]' '[:lower:]')"
+    
+    if [ -z "${VISTAS_DLL[$dll_low]:-}" ] && ! echo "$dll_low" | grep -qiE "$DLL_EXCLUIDAS_CORE"; then
+        VISTAS_DLL["$dll_low"]=1
+        export WINEDLLOVERRIDES="${dll_low}=n,b;${WINEDLLOVERRIDES}"
+        MODS_ACTIVADOS+=("$raw_bname")
     fi
-done
+done < <(find . -maxdepth 3 -type f \( -iname "*.dll" -o -iname "*.asi" \) 2>/dev/null || true)
 
 CANT_ASI=$(ls -1 *.asi scripts/*.asi plugins/*.asi 2>/dev/null | wc -l)
 
@@ -2111,8 +2127,30 @@ if [ -n "$EXTRA_APP_ARGS" ] && [[ ! "$TARGET_FILE" =~ \.([rR][eE][gG]|[vV][bB][s
 fi
 
 # 7. Ejecución con captura en tiempo real
+EXEC_START_TIME=$(date +%s)
 "${FINAL_CMD[@]}" 2>&1 | tee "$TEMP_GAME_LOG"
 EXIT_STATUS="${PIPESTATUS[0]}"
+EXEC_DURATION=$(( $(date +%s) - EXEC_START_TIME ))
+
+# Sincronización activa de subprocesos de Windows:
+# Si el ejecutable lanzó procesos secundarios (lanzadores, instaladores, subprocesses de juegos),
+# mantenemos la sesión activa mientras existan procesos de juego en el WINEPREFIX.
+if [ -n "$WINEPREFIX" ] && [ -d "$WINEPREFIX" ]; then
+    while true; do
+        active_children=$(pgrep -f "$WINEPREFIX" 2>/dev/null | while read -r c_pid; do
+            [ "$c_pid" -eq "$$" ] && continue
+            [ "$c_pid" -eq "$PPID" ] && continue
+            local cmdline
+            cmdline=$(cat /proc/"$c_pid"/cmdline 2>/dev/null | tr '\0' ' ' || true)
+            if echo "$cmdline" | grep -qiE '\.exe' && \
+               ! echo "$cmdline" | grep -qiE 'services\.exe|winedevice\.exe|plugplay\.exe|explorer\.exe|rpcss\.exe|conhost\.exe'; then
+                echo "$c_pid"
+            fi
+        done || true)
+        [ -z "$active_children" ] && break
+        sleep 1
+    done
+fi
 
 # Restaurar perfil de energía previo del CPU
 if [ -n "$PREV_POWER_PROFILE" ] && command -v powerprofilesctl &>/dev/null; then
@@ -2138,15 +2176,21 @@ fi
 
 # ==============================================================================
 # SISTEMA DE DIAGNÓSTICO INTELIGENTE Y REGISTRO DE ERRORES / CRASHES
-# - Si el juego se cierra limpiamente: NO deja ningún archivo residual (cero basura).
-# - Si el juego colapsa o reporta error: Genera un reporte detallado para aislar y resolver la falla.
+# - Distingue salidas limpias voluntarias (código 0, código 58 GTA SA, SIGINT 130, SIGTERM 143)
+#   de excepciones críticas y fallos tempranos.
 # ==============================================================================
 HUBO_ERROR=0
-if [ "$EXIT_STATUS" -ne 0 ] && [ "$EXIT_STATUS" -ne 130 ] && [ "$EXIT_STATUS" -ne 143 ]; then
+# 1. Señales fatales del sistema (SIGSEGV=139, SIGABRT=134, SIGBUS=135, SIGFPE=136, SIGILL=132)
+if [[ "$EXIT_STATUS" =~ ^(132|134|135|136|139)$ ]]; then
     HUBO_ERROR=1
-elif [ -s "$TEMP_GAME_LOG" ]; then
-    # Verificar si hubo una excepción crítica de Wine / DirectX / Vulkan / SDL no capturada
-    if grep -qiE 'Unhandled exception: [0-9a-fA-F]|wine: Unhandled|page fault on (read|write)|0xc0000005|Assertion failed|Segmentation fault|Fatal error|Failed to create SDL|Sys_Error|VK_ERROR_DEVICE_LOST|DXGI_ERROR_DEVICE_RESET' "$TEMP_GAME_LOG" 2>/dev/null; then
+# 2. Excepción crítica explícita en el registro de Wine o Vulkan
+elif [ -s "$TEMP_GAME_LOG" ] && grep -qiE 'Unhandled exception: [0-9a-fA-F]|wine: Unhandled|page fault on (read|write)|0xc0000005|Assertion failed|Segmentation fault|Fatal error|Failed to create SDL|Sys_Error|VK_ERROR_DEVICE_LOST|DXGI_ERROR_DEVICE_RESET' "$TEMP_GAME_LOG" 2>/dev/null; then
+    HUBO_ERROR=1
+# 3. Código de salida de error temprano (< 4 segundos de ejecución) excluyendo salidas voluntarias conocidas (0, 58, 130, 143)
+elif [ "$EXIT_STATUS" -ne 0 ] && [ "$EXIT_STATUS" -ne 58 ] && [ "$EXIT_STATUS" -ne 130 ] && [ "$EXIT_STATUS" -ne 143 ]; then
+    if [ "$EXEC_DURATION" -lt 4 ]; then
+        HUBO_ERROR=1
+    elif [ -s "$TEMP_GAME_LOG" ] && grep -qiE 'err:|error:' "$TEMP_GAME_LOG" 2>/dev/null; then
         HUBO_ERROR=1
     fi
 fi
@@ -2225,8 +2269,9 @@ if [ "$HUBO_ERROR" -eq 1 ]; then
     echo "================================================================================"
     echo ""
 else
-    # Si el juego cerró correctamente, limpiar archivo residual de fallos previos en la carpeta del juego
+    # Si el juego cerró correctamente, limpiar archivo residual de fallos previos en la carpeta del juego y normalizar estado
     [ -f "${TARGET_DIR}/vessel_error.log" ] && rm -f "${TARGET_DIR}/vessel_error.log" 2>/dev/null || true
+    EXIT_STATUS=0
 fi
 
 # Eliminar archivo temporal de captura en cualquier caso
