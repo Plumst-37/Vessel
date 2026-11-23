@@ -435,6 +435,21 @@ fi
 TARGET_DIR="$(cd "$(dirname "$TARGET")" 2>/dev/null && pwd || dirname "$TARGET")"
 TARGET_FILE="$(basename "$TARGET")"
 
+# Redirección inteligente de lanzadores para juegos con ejecutables wrapper obligatorios
+if [[ "$TARGET_FILE" =~ ^[Gg][Tt][Aa]5\.exe$ ]]; then
+    if [ -f "${TARGET_DIR}/PlayGTAV.exe" ]; then
+        echo "[+] Detectado ejecutable de motor GTA5.exe: Redirigiendo a PlayGTAV.exe para inicializar Social Club y emulador..."
+        TARGET="${TARGET_DIR}/PlayGTAV.exe"
+        TARGET_DIR="$(cd "$(dirname "$TARGET")" 2>/dev/null && pwd || dirname "$TARGET")"
+        TARGET_FILE="$(basename "$TARGET")"
+    elif [ -f "$(dirname "$TARGET_DIR")/PlayGTAV.exe" ]; then
+        echo "[+] Detectado ejecutable de motor GTA5.exe: Redirigiendo a $(dirname "$TARGET_DIR")/PlayGTAV.exe..."
+        TARGET="$(dirname "$TARGET_DIR")/PlayGTAV.exe"
+        TARGET_DIR="$(cd "$(dirname "$TARGET")" 2>/dev/null && pwd || dirname "$TARGET")"
+        TARGET_FILE="$(basename "$TARGET")"
+    fi
+fi
+
 # 5. Detección de entorno gráfico: Wayland vs X11
 IS_WAYLAND=0
 if [ "${XDG_SESSION_TYPE:-}" = "wayland" ] || [ -n "${WAYLAND_DISPLAY:-}" ]; then
@@ -1324,14 +1339,34 @@ EOF_SXML
 
             # 3. Optimización en commandline.txt (priorizando estabilidad geométrica 3D y frame pacing)
             local gta_cmdline="${TARGET_DIR}/commandline.txt"
-            [ -f "$gta_cmdline" ] && crear_respaldo_seguro "$gta_cmdline"
-            cat <<EOF > "$gta_cmdline"
+            if [ -f "$gta_cmdline" ]; then
+                crear_respaldo_seguro "$gta_cmdline"
+                # Asegurar flags esenciales de emulador y compatibilidad sin destruir ajustes del usuario
+                grep -qi -- "-scOfflineOnly" "$gta_cmdline" || echo "-scOfflineOnly" >> "$gta_cmdline"
+                grep -qi -- "-ignoreDifferentVideoCard" "$gta_cmdline" || echo "-ignoreDifferentVideoCard" >> "$gta_cmdline"
+                grep -qi -- "-Tessellation" "$gta_cmdline" || echo "-Tessellation 0" >> "$gta_cmdline"
+                grep -qi -- "-mouseRawInput" "$gta_cmdline" || echo "-mouseRawInput" >> "$gta_cmdline"
+                if grep -qi -- "-width" "$gta_cmdline"; then
+                    sed -i "s/^-width .*/-width ${gta_w}/I" "$gta_cmdline" 2>/dev/null || true
+                else
+                    echo "-width ${gta_w}" >> "$gta_cmdline"
+                fi
+                if grep -qi -- "-height" "$gta_cmdline"; then
+                    sed -i "s/^-height .*/-height ${gta_h}/I" "$gta_cmdline" 2>/dev/null || true
+                else
+                    echo "-height ${gta_h}" >> "$gta_cmdline"
+                fi
+                grep -qi -- "-windowed" "$gta_cmdline" || echo "-windowed" >> "$gta_cmdline"
+                grep -qi -- "-borderless" "$gta_cmdline" || echo "-borderless" >> "$gta_cmdline"
+            else
+                cat <<EOF > "$gta_cmdline"
 -width ${gta_w}
 -height ${gta_h}
 -windowed
 -borderless
 -mouseRawInput
 -ignoreDifferentVideoCard
+-scOfflineOnly
 -Tessellation 0
 -noInGameDOF
 -disableD3D11Dof
@@ -1339,7 +1374,8 @@ EOF_SXML
 -frameLimit 1
 -shadowSoftness 1
 EOF
-            echo "[+] GTA V optimizado: Geometría 3D calibrada (Teselación 0, sin deformación ni vertex explosion, frame pacing 60 FPS)."
+            fi
+            echo "[+] GTA V optimizado: Geometría 3D calibrada (Teselación 0, sin deformación ni vertex explosion, frame pacing 60 FPS, Social Club offline activado)."
 
             # Garantizar steam_settings completo para emulador Goldberg (evita bloqueos de red e inicialización de perfil)
             if [ ! -d "${TARGET_DIR}/steam_settings" ]; then
@@ -1858,10 +1894,11 @@ aplicar_perfil_aislado_juego
 
 # ==============================================================================
 # AUTO-ACTIVACIÓN DINÁMICA DE MODS, ASI LOADERS, ENB, RESHADE Y TRADUCCIONES
-# Detecta automáticamente TODAS las librerías DLL y plugins ASI locales
+# Detecta automáticamente librerías DLL de mods y plugins ASI locales
 # y activa el override nativo (n,b) en Wine para que carguen de forma transparente.
+# Filtra estrictamente librerías de sistema, runtime CRT y forwarders api-ms-win.
 # ==============================================================================
-DLL_EXCLUIDAS_CORE="^(ntdll|kernel32|kernelbase|user32|gdi32|advapi32|rpcrt4|ws2_32|iphlpapi)$"
+DLL_EXCLUIDAS_CORE="^(ntdll|kernel32|kernelbase|user32|gdi32|gdiplus|advapi32|rpcrt4|ws2_32|wsock32|iphlpapi|shell32|shlwapi|shcore|ole32|oleaut32|combase|comctl32|comdlg32|version|imm32|winmm|crypt32|cryptbase|secur32|bcrypt|ncrypt|sspicli|wldp|uxtheme|dwmapi|setupapi|cfgmgr32|winhttp|wininet|urlmon|mpr|netapi32|dnsapi|normaliz|imagehlp|dbghelp|psapi|api-ms-win-.*|ext-ms-win-.*|ucrtbase|vcruntime.*|msvcp.*|msvcr.*|concrt.*|vcomp.*|msvcrt|dxgi|d3d11|d3d12|d3d10.*|d3d9|d3d8|ddraw|vulkan-1|winevulkan|opengl32|glu32|winegstreamer|orig_socialclub|launc)$"
 MODS_ACTIVADOS=()
 declare -A VISTAS_DLL=()
 
@@ -1876,7 +1913,7 @@ while IFS= read -r found_dll; do
         export WINEDLLOVERRIDES="${dll_low}=n,b;${WINEDLLOVERRIDES}"
         MODS_ACTIVADOS+=("$raw_bname")
     fi
-done < <(find . -maxdepth 3 -type f \( -iname "*.dll" -o -iname "*.asi" \) 2>/dev/null || true)
+done < <({ find . -maxdepth 1 \( -iname "*.dll" -o -iname "*.asi" \) 2>/dev/null; find scripts plugins asi mods -maxdepth 1 \( -iname "*.dll" -o -iname "*.asi" \) 2>/dev/null || true; })
 
 CANT_ASI=$(ls -1 *.asi scripts/*.asi plugins/*.asi 2>/dev/null | wc -l)
 

@@ -191,7 +191,6 @@ dxvk.enableNvapi = True
 # Perfiles específicos por ejecutable para máxima fidelidad 3D, estabilidad y rendimiento
 [GTA5.exe]
 dxgi.maxFrameLatency = 2
-dxgi.deferSurfaceCreation = True
 dxgi.hideNvidiaGpu = False
 d3d11.disableMsaa = True
 d3d11.clampNegativeLodBias = True
@@ -209,7 +208,6 @@ dxgi.syncInterval = 1
 
 [PlayGTAV.exe]
 dxgi.maxFrameLatency = 2
-dxgi.deferSurfaceCreation = True
 dxgi.hideNvidiaGpu = False
 d3d11.disableMsaa = True
 d3d11.clampNegativeLodBias = True
