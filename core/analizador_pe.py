@@ -27,7 +27,9 @@ PROGRAM_NAMES = {
     "acroord32.exe", "audacity.exe", "blender.exe", "gimp.exe", "inkscape.exe",
     "photoshop.exe", "illustrator.exe", "indesign.exe", "fl64.exe", "fl.exe", "reaper.exe",
     "chrome.exe", "brave.exe", "firefox.exe", "msedge.exe", "opera.exe", "discord.exe",
-    "telegram.exe", "slack.exe", "zoom.exe", "skype.exe", "thunderbird.exe"
+    "telegram.exe", "slack.exe", "zoom.exe", "skype.exe", "thunderbird.exe",
+    "uninstaller.exe", "setup.exe", "installer.exe", "updater.exe", "patcher.exe",
+    "cheatengine.exe", "cheatengine-x86_64.exe", "fomod.exe", "vortex.exe", "modorganizer.exe"
 }
 
 def resolve_target_file(target_path):
@@ -100,6 +102,18 @@ def analizar_juego(exe_path):
         bn = os.path.basename(exe_path or "").lower()
         if bn in PROGRAM_NAMES:
             res["category"] = "programa"
+        elif any(k in bn for k in ("gta5", "playgtav")):
+            res["engine"] = "rockstar_gta5"
+            res["has_d3d11"] = True
+            res["api"] = "dx11"
+        elif any(k in bn for k in ("gta_sa", "gtasa", "gta-sa")):
+            res["engine"] = "rockstar_gtasa"
+            res["has_d3d9"] = True
+            res["api"] = "d3d9"
+        elif any(k in bn for k in ("tesv", "skyrim", "fallout3", "falloutnv", "fallout4", "oblivion", "starfield")):
+            res["engine"] = "bethesda_creation"
+            res["has_d3d11"] = True
+            res["api"] = "dx11"
         return res
 
     game_dir = os.path.dirname(os.path.abspath(real_path))
@@ -211,7 +225,38 @@ def analizar_juego(exe_path):
         engine = "classic_directdraw"
         has_ddraw = True
 
-    # J) Desambiguaciones Adicionales Remake vs Clásico por Arquitectura PE:
+    # J) Bethesda Creation Engine / Gamebryo (Skyrim, Fallout 3/NV/4, Oblivion, Starfield)
+    elif any(k in file_name for k in ("tesv", "skyrim", "fallout3", "falloutnv", "fallout4", "oblivion", "starfield")) or any(f.endswith(".esm") for f in all_files):
+        engine = "bethesda_creation"
+        if "starfield" in file_name:
+            has_d3d12 = True
+        elif is_64 or "fallout4" in file_name or "skyrimse" in file_name:
+            has_d3d11 = True
+        else:
+            has_d3d9 = True
+
+    # K) Godot Engine (Juegos Indie modernos)
+    elif any(f.endswith(".pck") for f in root_files) or "godot" in file_name:
+        engine = "godot_engine"
+        has_vulkan = True if is_64 else False
+
+    # L) Crytek CryEngine (Crysis, Far Cry, Kingdom Come, Prey)
+    elif any(k in file_name for k in ("crysis", "farcry", "kingdomcome", "prey")) or any("crysystem" in f or "cryrender" in f for f in all_files):
+        engine = "cryengine"
+        if is_64:
+            has_d3d11 = True
+        else:
+            has_d3d9 = True
+
+    # M) id Tech Engine (DOOM, Quake, Wolfenstein, RAGE)
+    elif any(k in file_name for k in ("doom", "wolfenstein", "quake", "rage")) or any(f.endswith(".wad") or f.endswith(".pk4") for f in all_files):
+        engine = "id_tech"
+        if is_64:
+            has_vulkan = True
+        else:
+            has_d3d9 = True
+
+    # N) Desambiguaciones Adicionales Remake vs Clásico por Arquitectura PE:
     # Dead Space: 64-bit = Remake 2023 (DX12) | 32-bit = Clásico 2008 (DX9)
     if "deadspace.exe" in file_name:
         if is_64:
@@ -250,8 +295,8 @@ def analizar_juego(exe_path):
     # REGLA 3: Juegos DirectDraw clásicos (2D / paleta 8 bits) -> Windows XP (evita pantalla negra en Wine)
     elif engine == "classic_directdraw" or (has_ddraw and not has_d3d9 and not has_d3d11):
         winver = "winxp"
-    # REGLA 4: Motores 3D modernos (Capcom MT Framework / RE6 / RE5, Unreal, Unity, Source, GoldSrc, RAGE, RenderWare) -> Windows 10
-    elif engine in ("capcom_mt_framework", "unreal_engine", "unity_engine", "source_engine", "valve_goldsrc", "ea_nfs", "rockstar_gtasa"):
+    # REGLA 4: Motores 3D modernos (Capcom, Unreal, Unity, Source, GoldSrc, RAGE, RenderWare, Bethesda, Godot, CryEngine, id Tech) -> Windows 10
+    elif engine in ("capcom_mt_framework", "unreal_engine", "unity_engine", "source_engine", "valve_goldsrc", "ea_nfs", "rockstar_gtasa", "bethesda_creation", "godot_engine", "cryengine", "id_tech"):
         winver = "win10"
     # REGLA 5: Juegos DirectX 9 y Subsystem moderno -> Windows 10 (DXVK 2.x, mandos XInput 1.4 y audio WASAPI)
     elif has_d3d9 or sub_maj >= 5:

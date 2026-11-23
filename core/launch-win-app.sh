@@ -578,8 +578,8 @@ fi
 # CALIBRACIÓN UNIVERSAL DE COMPATIBILIDAD WINDOWS 10/11, DIRECT2D, DIRECT3D Y VRAM
 # ==============================================================================
 optimizar_entorno_windows_completo() {
-    # Si ya fue calibrado en este prefijo, retornar inmediatamente (0.01s)
-    if [ -f "${WINEPREFIX}/.vessel_win_full_v1" ]; then
+    # Si ya fue calibrado en este prefijo con la versión 2, retornar inmediatamente (0.01s)
+    if [ -f "${WINEPREFIX}/.vessel_win_full_v2" ]; then
         return 0
     fi
 
@@ -660,6 +660,16 @@ Windows Registry Editor Version 5.00
 "FontSmoothingGamma"=dword:00000578
 "FontSmoothingOrientation"=dword:00000001
 
+[HKEY_CURRENT_USER\Software\Wine\Fonts\Replacements]
+"Segoe UI"="Liberation Sans"
+"Calibri"="Liberation Sans"
+"Arial"="Liberation Sans"
+"Times New Roman"="Liberation Serif"
+"Courier New"="Liberation Mono"
+"Consolas"="Liberation Mono"
+"Tahoma"="Liberation Sans"
+"MS Sans Serif"="Liberation Sans"
+
 [HKEY_CURRENT_USER\Software\Wine\DirectInput]
 "MouseWarpOverride"="enable"
 
@@ -668,6 +678,9 @@ Windows Registry Editor Version 5.00
 
 [HKEY_LOCAL_MACHINE\Software\Microsoft\Windows NT\CurrentVersion\AeDebug]
 "Auto"="0"
+
+[HKEY_CURRENT_USER\Software\Wine\Drivers]
+"Audio"="pulse"
 
 [HKEY_CURRENT_USER\Software\Wine\DllOverrides]
 "riched20"="native,builtin"
@@ -689,30 +702,58 @@ Windows Registry Editor Version 5.00
 "wininet"="native,builtin"
 "urlmon"="native,builtin"
 "dwrite"="native,builtin"
+"mfplat"="native,builtin"
+"mf"="native,builtin"
+"mfreadwrite"="native,builtin"
+"evr"="native,builtin"
+"quartz"="builtin,native"
+"devenum"="builtin,native"
+"qedit"="builtin,native"
+"wmasf"="native,builtin"
+"wmvcore"="native,builtin"
+"winegstreamer"="builtin"
+"xaudio2_7"="native,builtin"
+"xaudio2_8"="native,builtin"
+"xaudio2_9"="native,builtin"
+"x3daudio1_7"="native,builtin"
+"openal32"="native,builtin"
+"dmusic"="native,builtin"
+"dmsynth"="native,builtin"
+"dmime"="native,builtin"
+"dmloader"="native,builtin"
+"dmband"="native,builtin"
 EOF
 
     DISPLAY="" "$WINE_CMD" regedit /s "$reg_full" >/dev/null 2>&1 || true
     rm -f "$reg_full" 2>/dev/null || true
-    touch "${WINEPREFIX}/.vessel_win_full_v1" 2>/dev/null || true
+    touch "${WINEPREFIX}/.vessel_win_full_v2" 2>/dev/null || true
 }
 
 
 # 8. Configuración de pantalla completa universal, ratón ultra-fluido, estabilidad 3D y supresión de crash dialogs
 optimizar_entorno_windows_completo
-if [ ! -f "${WINEPREFIX}/.vessel_reg_v4" ]; then
+if [ ! -f "${WINEPREFIX}/.vessel_reg_v5" ]; then
     "$WINE_CMD" reg add "HKEY_CURRENT_USER\Software\Wine\WineDbg" /v ShowCrashDialog /t REG_DWORD /d 0 /f >/dev/null 2>&1 || true
     "$WINE_CMD" reg add "HKEY_LOCAL_MACHINE\Software\Microsoft\Windows NT\CurrentVersion\AeDebug" /v Auto /t REG_SZ /d 0 /f >/dev/null 2>&1 || true
     "$WINE_CMD" reg add "HKEY_CURRENT_USER\Software\Wine\DirectInput" /v MouseWarpOverride /t REG_SZ /d enable /f >/dev/null 2>&1 || true
-    "$WINE_CMD" reg add "HKEY_CURRENT_USER\Software\Wine\X11 Driver" /v UseTakeFocus /t REG_SZ /d N /f >/dev/null 2>&1 || true
-    "$WINE_CMD" reg add "HKEY_CURRENT_USER\Software\Wine\X11 Driver" /v GrabFullscreen /t REG_SZ /d Y /f >/dev/null 2>&1 || true
-    "$WINE_CMD" reg add "HKEY_CURRENT_USER\Software\Wine\X11 Driver" /v Decorated /t REG_SZ /d N /f >/dev/null 2>&1 || true
+    "$WINE_CMD" reg add "HKEY_CURRENT_USER\Software\Wine\X11 Driver" /v Decorated /t REG_SZ /d Y /f >/dev/null 2>&1 || true
     "$WINE_CMD" reg add "HKEY_CURRENT_USER\Software\Wine\X11 Driver" /v Managed /t REG_SZ /d Y /f >/dev/null 2>&1 || true
     "$WINE_CMD" reg add "HKEY_CURRENT_USER\Software\Wine\Direct3D" /v csmt /t REG_DWORD /d 1 /f >/dev/null 2>&1 || true
     "$WINE_CMD" reg add "HKEY_CURRENT_USER\Software\Wine\Direct3D" /v StrictDrawOrdering /t REG_SZ /d disabled /f >/dev/null 2>&1 || true
     "$WINE_CMD" reg add "HKEY_CURRENT_USER\Software\Wine\Direct3D" /v AlwaysOffscreen /t REG_SZ /d enabled /f >/dev/null 2>&1 || true
     "$WINE_CMD" reg add "HKEY_CURRENT_USER\Software\Wine\Direct3D" /v CheckDepthStencil /t REG_SZ /d enabled /f >/dev/null 2>&1 || true
-    "$WINE_CMD" reg add "HKEY_CURRENT_USER\Software\Wine\AppDefaults\GameRanger.exe\X11 Driver" /v Decorated /t REG_SZ /d Y /f >/dev/null 2>&1 || true
-    touch "${WINEPREFIX}/.vessel_reg_v4" 2>/dev/null || true
+    touch "${WINEPREFIX}/.vessel_reg_v5" 2>/dev/null || true
+fi
+
+# 8.0 Gestión inteligente de ventanas: programas de escritorio con barra nativa, juegos en pantalla completa sin bordes
+if [ "$IS_PROGRAM" -eq 1 ] || [ "${PE_CATEGORY:-juego}" = "programa" ]; then
+    "$WINE_CMD" reg add "HKEY_CURRENT_USER\Software\Wine\AppDefaults\\${TARGET_FILE}\X11 Driver" /v Decorated /t REG_SZ /d Y /f >/dev/null 2>&1 || true
+    "$WINE_CMD" reg add "HKEY_CURRENT_USER\Software\Wine\AppDefaults\\${TARGET_FILE}\X11 Driver" /v GrabFullscreen /t REG_SZ /d N /f >/dev/null 2>&1 || true
+    "$WINE_CMD" reg add "HKEY_CURRENT_USER\Software\Wine\AppDefaults\\${TARGET_FILE}\X11 Driver" /v UseTakeFocus /t REG_SZ /d Y /f >/dev/null 2>&1 || true
+else
+    "$WINE_CMD" reg add "HKEY_CURRENT_USER\Software\Wine\AppDefaults\\${TARGET_FILE}\X11 Driver" /v Decorated /t REG_SZ /d N /f >/dev/null 2>&1 || true
+    "$WINE_CMD" reg add "HKEY_CURRENT_USER\Software\Wine\AppDefaults\\${TARGET_FILE}\X11 Driver" /v GrabFullscreen /t REG_SZ /d Y /f >/dev/null 2>&1 || true
+    "$WINE_CMD" reg add "HKEY_CURRENT_USER\Software\Wine\AppDefaults\\${TARGET_FILE}\X11 Driver" /v UseTakeFocus /t REG_SZ /d N /f >/dev/null 2>&1 || true
 fi
 
 # 8.1 Configuración de Versión de Windows por juego en AppDefaults (Mejora 1: win10 / win7 / winxp)
@@ -849,8 +890,8 @@ EOF
 }
 optimizar_red_y_wifi
 
-# Overrides universales de gráficos 3D, red, sockets, SSL/TLS, DirectPlay y librerías base
-export WINEDLLOVERRIDES="winemenubuilder.exe=d;dinput8=n,b;dxgi=n,b;d3d11=n,b;d3d10core=n,b;d3d9=n,b;d3d8=n,b;ddraw=n,b;dplayx=n,b;dpnet=n,b;dpwsockx=n,b;vorbisfile=n,b;vorbishooked=n,b;dsound=n,b;secur32=b;wininet=b;winhttp=b;ws2_32=b;iphlpapi=b;dnsapi=b;${WINEDLLOVERRIDES}"
+# Overrides universales de gráficos 3D, cinemáticas/codecs de video, audio espacial, DirectMusic, sockets y librerías base
+export WINEDLLOVERRIDES="winemenubuilder.exe=d;dinput8=n,b;dxgi=n,b;d3d11=n,b;d3d10core=n,b;d3d9=n,b;d3d8=n,b;ddraw=n,b;dplayx=n,b;dpnet=n,b;dpwsockx=n,b;vorbisfile=n,b;vorbishooked=n,b;dsound=n,b;mfplat=n,b;mf=n,b;mfreadwrite=n,b;evr=n,b;quartz=b,n;devenum=b,n;qedit=b,n;wmasf=n,b;wmvcore=n,b;winegstreamer=b;xaudio2_7=n,b;xaudio2_8=n,b;xaudio2_9=n,b;x3daudio1_7=n,b;openal32=n,b;dmusic=n,b;dmsynth=n,b;dmime=n,b;dmloader=n,b;dmband=n,b;secur32=b;wininet=b;winhttp=b;ws2_32=b;iphlpapi=b;dnsapi=b;${WINEDLLOVERRIDES}"
 
 # 11.1 Configuración específica para el cliente de lobby GameRanger
 EXTRA_APP_ARGS=""
@@ -938,7 +979,7 @@ fi
 # - Subpixel Antialiasing ClearType HD para renderizado impecable de fuentes y textos
 # - Sobrecargas de librerías para software de productividad, suites y diseño
 # ==============================================================================
-if [ "$IS_PROGRAM" -eq 1 ]; then
+if [ "$IS_PROGRAM" -eq 1 ] || [ "${PE_CATEGORY:-juego}" = "programa" ]; then
     GAMEMODE=""
     GAMESCOPE_PREFIX=""
     ESCRITORIO_VIRTUAL="0"
@@ -1777,12 +1818,39 @@ if os.path.exists(user_reg):
             EXTRA_APP_ARGS="${EXTRA_APP_ARGS} -fullscreen -w ${best_w} -h ${best_h}"
             ;;
 
+        bethesda_creation)
+            echo "[+] Perfil Activo: Bethesda Creation / Gamebryo Engine (Skyrim / Fallout) [Aislado]"
+            limpiar_zombies_juego "TESV\.exe|SkyrimSE\.exe|Fallout4\.exe|FalloutNV\.exe|Fallout3\.exe|Starfield\.exe"
+            sleep 0.2
+            export WINEDLLOVERRIDES="dinput8=n,b;xinput1_3=n,b;xaudio2_7=n,b;${WINEDLLOVERRIDES}"
+            ;;
+
+        godot_engine)
+            echo "[+] Perfil Activo: Godot Engine [Aislado]"
+            ;;
+
+        cryengine)
+            echo "[+] Perfil Activo: Crytek CryEngine [Aislado]"
+            limpiar_zombies_juego "Crysis.*\.exe|FarCry.*\.exe|KingdomCome.*\.exe|Prey.*\.exe"
+            ;;
+
+        id_tech)
+            echo "[+] Perfil Activo: id Tech Engine (DOOM / Wolfenstein / Quake) [Aislado]"
+            limpiar_zombies_juego "DOOM.*\.exe|Wolfenstein.*\.exe|Quake.*\.exe"
+            ;;
+
         gameranger)
             echo "[+] Perfil Activo: GameRanger Desktop Client [Aislado]"
             ;;
 
         *)
-            echo "[+] Perfil Activo: Aplicación Genérica [Aislado]"
+            if [ "$IS_PROGRAM" -eq 1 ] || [ "${PE_CATEGORY:-juego}" = "programa" ]; then
+                echo "[+] Perfil Activo: Programa de Escritorio / Utilidad Windows [Aislado]"
+                export WINE_FULLSCREEN_FSR=0
+                ACTIVAR_FSR_FINAL=0
+            else
+                echo "[+] Perfil Activo: Aplicación Genérica [Aislado]"
+            fi
             ;;
     esac
 }
@@ -1820,13 +1888,13 @@ if [ "$ESCRITORIO_VIRTUAL" = "1" ]; then
 fi
 
 GAMESCOPE_PREFIX=""
-if [ "$PERFIL_RENDIMIENTO" = "extremo" ] && [[ ! "$TARGET_FILE" =~ [Gg]ame[Rr]anger ]]; then
+if [ "$PERFIL_RENDIMIENTO" = "extremo" ] && [[ ! "$TARGET_FILE" =~ [Gg]ame[Rr]anger ]] && [ "$IS_PROGRAM" -eq 0 ] && [ "${PE_CATEGORY:-juego}" != "programa" ]; then
     if command -v gamescope &>/dev/null; then
         GAMESCOPE_PREFIX="gamescope -W ${best_w:-1280} -H ${best_h:-720} -r 60 -F fsr --"
     fi
 fi
 
-if [ "$IS_PROGRAM" -eq 1 ]; then
+if [ "$IS_PROGRAM" -eq 1 ] || [ "${PE_CATEGORY:-juego}" = "programa" ]; then
     perf_label="Entorno de Escritorio Windows (ClearType HD)"
 else
     perf_label="${PERFIL_RENDIMIENTO:-inteligente}"
@@ -1839,7 +1907,7 @@ else
 fi
 
 echo ""
-if [ "$IS_PROGRAM" -eq 1 ]; then
+if [ "$IS_PROGRAM" -eq 1 ] || [ "${PE_CATEGORY:-juego}" = "programa" ]; then
     echo "[+] Ejecutando Programa de Windows [Modo Ventana Nativa - ClearType HD] (Vessel v2.0)..."
     echo "    - CPU: ${CPU_MODEL} (${CPU_CORES} Hilos)"
     echo "    - GPU: ${DETECTED_GPU}"
@@ -2059,7 +2127,7 @@ fi
 
 # Sincronizar buffers de disco y optimizar prioridad de proceso
 sync 2>/dev/null || true
-if [ "$IS_PROGRAM" -eq 1 ]; then
+if [ "$IS_PROGRAM" -eq 1 ] || [ "${PE_CATEGORY:-juego}" = "programa" ]; then
     renice -n 0 $$ 2>/dev/null || true
 else
     renice -n -5 $$ 2>/dev/null || true

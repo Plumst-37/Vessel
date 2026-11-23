@@ -289,7 +289,7 @@ aplicar_entorno_hardware() {
         export DXVK_ENABLE_NVAPI=1
         export PROTON_ENABLE_NVAPI=1
         if [ "$IS_LOW_SPEC_GPU" = "true" ] || ! echo "${GPU_NAME:-${GPU_PRIMARY:-}}" | grep -qiE 'RTX|Titan V|Quadro RTX'; then
-            export VKD3D_CONFIG="nodxr"
+            export VKD3D_CONFIG="nodxr,no_upload_hvv,single_queue"
         else
             export VKD3D_CONFIG="dxr11,dxr"
         fi
@@ -335,9 +335,13 @@ aplicar_entorno_hardware() {
     # 10. Prevención universal de tirones de cámara, desgarro y micro-stuttering en Wayland/X11
     export SDL_VIDEO_MINIMIZE_ON_FOCUS_LOSS=0
     export WINE_FULLSCREEN_INTEGER_SCALING=0
-    export GST_PLUGIN_FEATURE_RANK="libav:MAX,ugly:MAX,bad:MAX"
+    export WINE_GSTREAMER_ENABLE_AUDIO=1
+    export WINE_GSTREAMER_ENABLE_VIDEO=1
+    export GST_PLUGIN_FEATURE_RANK="libav:MAX,ugly:MAX,bad:MAX,good:MAX,base:MAX"
     export SDL_MOUSE_RELATIVE_MODE_WARP=0
     export WINE_RAW_INPUT=1
+    export VKD3D_SHADER_CACHE_PATH="${HOME}/.cache/vkd3d"
+    mkdir -p "${HOME}/.cache/vkd3d" 2>/dev/null || true
 
     # 11. Mapeo Universal de Mandos (SDL2 GameControllerDB: +2.300 mandos compatibles)
     local db_gamepad="${DIR}/herramientas/gamecontrollerdb.txt"
