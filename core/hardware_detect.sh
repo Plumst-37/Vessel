@@ -59,6 +59,7 @@ if [ -f "$CFG_HW" ]; then
     CPU_CORES="${CPU_THREADS:-4}"
     DETECTED_GPU="${GPU_PRIMARY:-Desconocida}"
     IS_LOW_SPEC_GPU="${GPU_IS_ENTRY_LEVEL:-false}"
+    GPU_VRAM_MB="${GPU_VRAM_MB:-0}"
     HAS_VULKAN=true
     if [ "$GPU_PRIMARY_VENDOR" = "nvidia" ]; then
         HAS_NVIDIA=true
@@ -113,11 +114,19 @@ else
     fi
 fi
 export IS_LOW_SPEC_GPU
+export GPU_VRAM_MB="${GPU_VRAM_MB:-0}"
 
 # Función para exportar las variables de entorno óptimas según el hardware
 aplicar_entorno_hardware() {
-    # 1. Hilos de compilación para DXVK basados en la CPU real
+    # 1. Hilos de compilación para DXVK basados en la CPU real y topología física
     export DXVK_NUM_COMPILER_THREADS="$CPU_CORES"
+    CPU_PHYSICAL_CORES=$(lscpu -p 2>/dev/null | grep -v '^#' | awk -F, '{print $2}' | sort -u | wc -l 2>/dev/null || echo "$CPU_CORES")
+    [ -z "$CPU_PHYSICAL_CORES" ] || [ "$CPU_PHYSICAL_CORES" -le 0 ] && CPU_PHYSICAL_CORES="$CPU_CORES"
+    if [ "$CPU_PHYSICAL_CORES" -ne "$CPU_CORES" ]; then
+        export WINE_CPU_TOPOLOGY="${CPU_PHYSICAL_CORES}:${CPU_CORES}"
+    else
+        export WINE_CPU_TOPOLOGY="${CPU_CORES}"
+    fi
 
     # 2. Configuración de sincronización del Kernel (NTSync / Fsync / Esync)
     if [ "$HAS_NTSYNC" = "true" ] && [ -e "/dev/ntsync" ]; then
@@ -128,12 +137,14 @@ aplicar_entorno_hardware() {
         export WINENTSYNC=0
         export WINEFSYNC=1
         export WINEESYNC=1
+        export WINEFSYNC_SPINCOUNT=12
     else
         KERNEL_MAJOR=$(uname -r | cut -d. -f1)
         KERNEL_MINOR=$(uname -r | cut -d. -f2)
         if [ "$KERNEL_MAJOR" -gt 5 ] || { [ "$KERNEL_MAJOR" -eq 5 ] && [ "$KERNEL_MINOR" -ge 16 ]; }; then
             export WINEFSYNC=1
             export WINEESYNC=1
+            export WINEFSYNC_SPINCOUNT=12
         else
             export WINEFSYNC=0
             export WINEESYNC=1
@@ -143,11 +154,11 @@ aplicar_entorno_hardware() {
     # 3. Direccionamiento de memoria ampliado para juegos de 32 bits (permite 4GB en vez de 2GB)
     export WINE_LARGE_ADDRESS_AWARE=1
 
-    # 4. Latencia de audio ultra-baja para evitar cortes y retrasos (PipeWire / PulseAudio)
+    # 4. Latencia de audio ultra-baja y reactiva para evitar cortes y retrasos (PipeWire / PulseAudio)
     if [ "$HAS_PIPEWIRE" = "true" ] || pgrep -x pipewire &>/dev/null; then
         export PIPEWIRE_LATENCY="128/48000"
     fi
-    export PULSE_LATENCY_MSEC=50
+    export PULSE_LATENCY_MSEC=40
 
     # 5. Desactivar logs innecesarios de Wine para máximo rendimiento de CPU
     export WINEDEBUG=-all
@@ -171,7 +182,11 @@ aplicar_entorno_hardware() {
     export MESA_GLCACHE_DIR="${HOME}/.cache/mesa_shader_cache"
     mkdir -p "${HOME}/.cache/dxvk" "${HOME}/.cache/nvidia" "${HOME}/.cache/mesa_shader_cache" 2>/dev/null || true
 
+    # Optimización de gestión de memoria virtual y reducción de fragmentación en glibc
+    export MALLOC_TRIM_THRESHOLD_=131072
+    export MALLOC_MMAP_THRESHOLD_=131072
     export STAGING_SHARED_MEMORY=1
+    export STAGING_WRITECOPY=1
     # Desactivar async draw-call dropping para evitar que los modelos 3D desaparezcan/parpadeen al girar la cámara
     unset DXVK_ASYNC
     unset DXVK_GPLASYNCCACHE
@@ -180,9 +195,7 @@ aplicar_entorno_hardware() {
     export __GL_SHADER_DISK_CACHE_SIZE=10737418240
     export CUDA_CACHE_MAXSIZE=2147483648
     export MESA_DISK_CACHE_SINGLE_FILE=1
-    # mesa_glthread omitido globalmente para evitar inestabilidad y crashes en juegos D3D9/Wine (como GTA San Andreas)
     export __GL_YIELD="NOTHING"
-    export WINE_CPU_TOPOLOGY="${CPU_CORES}"
     export WINE_HEAP_DELAY_FREE=0
     export WINE_SIMULATE_WRITECOPY=1
     export WINE_RT_PRIO=1
@@ -212,6 +225,8 @@ aplicar_entorno_hardware() {
         export __GLX_VENDOR_LIBRARY_NAME=nvidia
         export __VK_LAYER_NV_optimus=NVIDIA_only
         export DXVK_FILTER_DEVICE_NAME="NVIDIA"
+        export DXVK_ENABLE_NVAPI=1
+        export PROTON_ENABLE_NVAPI=1
         if [ "$IS_LOW_SPEC_GPU" = "true" ] || ! echo "${GPU_NAME:-${GPU_PRIMARY:-}}" | grep -qiE 'RTX|Titan V|Quadro RTX'; then
             export VKD3D_CONFIG="nodxr"
         else
@@ -231,9 +246,12 @@ aplicar_entorno_hardware() {
         export LIBVA_DRIVER_NAME=radeonsi
         [ -z "$DXVK_FILTER_DEVICE_NAME" ] && export DXVK_FILTER_DEVICE_NAME="AMD"
     elif [ "$HAS_INTEL" = true ]; then
-        # Activar aceleración multimedia y controlador de video Intel
+        # Activar aceleración multimedia y controlador de video Intel Mesa (Iris Gen9+)
         export LIBVA_DRIVER_NAME=iHD
         export ANV_ENABLE_PIPELINE_CACHE=1
+        export MESA_LOADER_DRIVER_OVERRIDE=iris
+        export MESA_DISK_CACHE_SINGLE_FILE=1
+        export INTEL_DEBUG=noccs
     fi
 
     # 9. Puentes y compatibilidad para Anti-Cheat (EAC / BattlEye en juegos con soporte Linux)

@@ -62,11 +62,19 @@ else
     FRAME_LATENCY="2"
 fi
 
-# Calibración de chunks y memoria según hardware
-if [ "$IS_LOW_SPEC_GPU" = "true" ] || [ "${RAM_TOTAL_MB:-8192}" -le 4608 ]; then
+# Calibración de chunks y memoria según hardware y VRAM (Adaptado para GPUs con <= 2GB VRAM como NVIDIA MX130 / Intel UHD)
+if [ "$IS_LOW_SPEC_GPU" = "true" ] || [ "${GPU_VRAM_MB:-0}" -le 2048 ] || [ "${RAM_TOTAL_MB:-8192}" -le 4608 ]; then
     MAX_CHUNK_SIZE="32"
+    SHRINK_HEAPS="True"
+    ALLOW_OVERCOMMIT="True"
+    SAMPLER_ANISO="8"
+    MAX_TESSELLATION="16"
 else
     MAX_CHUNK_SIZE="128"
+    SHRINK_HEAPS="False"
+    ALLOW_OVERCOMMIT="False"
+    SAMPLER_ANISO="16"
+    MAX_TESSELLATION="0"
 fi
 
 # Calibración de memoria según RAM (Ahorro <= 4GB, Equilibrado 8GB-12GB, Extremo 16GB+)
@@ -109,8 +117,8 @@ d3d9.floatEmulation = Strict
 d3d11.floatEmulation = Strict
 d3d9.clampNegativeLodBias = True
 d3d11.clampNegativeLodBias = True
-d3d9.samplerAnisotropy = 16
-d3d11.samplerAnisotropy = 16
+d3d9.samplerAnisotropy = ${SAMPLER_ANISO}
+d3d11.samplerAnisotropy = ${SAMPLER_ANISO}
 d3d11.constantBufferRangeCheck = True
 d3d11.relaxedBarriers = False
 d3d9.lenientClear = True
@@ -125,9 +133,12 @@ d3d9.numBackBuffers = ${NUM_BUFFERS}
 d3d9.maxFrameLatency = ${FRAME_LATENCY}
 dxgi.maxFrameLatency = ${FRAME_LATENCY}
 
-# Optimizaciones de pipelines DXVK y memoria (Control adaptativo de RAM)
+# Optimizaciones de pipelines DXVK y memoria (Control adaptativo de RAM y VRAM)
 dxvk.trackPipelineLifetime = False
 dxvk.maxChunkSize = ${MAX_CHUNK_SIZE}
+dxvk.shrinkImageHeaps = ${SHRINK_HEAPS}
+dxvk.allowMemoryOvercommit = ${ALLOW_OVERCOMMIT}
+d3d11.maxTessellationFactor = ${MAX_TESSELLATION}
 d3d9.memoryTrackTest = False
 dxvk.enableNvapi = True
 
@@ -141,7 +152,10 @@ d3d11.clampNegativeLodBias = True
 d3d11.constantBufferRangeCheck = True
 d3d11.invariantPosition = True
 d3d11.relaxedBarriers = False
-d3d11.samplerAnisotropy = 16
+d3d11.samplerAnisotropy = ${SAMPLER_ANISO}
+dxvk.shrinkImageHeaps = ${SHRINK_HEAPS}
+dxvk.allowMemoryOvercommit = ${ALLOW_OVERCOMMIT}
+d3d11.maxTessellationFactor = ${MAX_TESSELLATION}
 dxvk.gpl = True
 dxvk.allowFse = False
 dxvk.tearFree = True
@@ -156,7 +170,10 @@ d3d11.clampNegativeLodBias = True
 d3d11.constantBufferRangeCheck = True
 d3d11.invariantPosition = True
 d3d11.relaxedBarriers = False
-d3d11.samplerAnisotropy = 16
+d3d11.samplerAnisotropy = ${SAMPLER_ANISO}
+dxvk.shrinkImageHeaps = ${SHRINK_HEAPS}
+dxvk.allowMemoryOvercommit = ${ALLOW_OVERCOMMIT}
+d3d11.maxTessellationFactor = ${MAX_TESSELLATION}
 dxvk.gpl = True
 dxvk.allowFse = False
 dxvk.tearFree = True
@@ -166,7 +183,7 @@ dxgi.syncInterval = 1
 d3d9.invariantPosition = True
 d3d9.floatEmulation = Strict
 d3d9.clampNegativeLodBias = True
-d3d9.samplerAnisotropy = 16
+d3d9.samplerAnisotropy = ${SAMPLER_ANISO}
 d3d9.presentInterval = 1
 dxvk.tearFree = True
 dxvk.allowFse = False
@@ -175,7 +192,7 @@ dxvk.allowFse = False
 d3d9.invariantPosition = True
 d3d9.floatEmulation = Strict
 d3d9.clampNegativeLodBias = True
-d3d9.samplerAnisotropy = 16
+d3d9.samplerAnisotropy = ${SAMPLER_ANISO}
 d3d9.lenientClear = True
 d3d9.presentInterval = 1
 dxvk.tearFree = True
@@ -262,7 +279,7 @@ dxvk.gpl = True
 d3d9.invariantPosition = True
 d3d9.floatEmulation = Strict
 d3d9.clampNegativeLodBias = True
-d3d9.samplerAnisotropy = 16
+d3d9.samplerAnisotropy = ${SAMPLER_ANISO}
 d3d9.presentInterval = 1
 dxvk.tearFree = True
 dxvk.allowFse = False
@@ -271,7 +288,7 @@ dxvk.allowFse = False
 d3d9.invariantPosition = True
 d3d9.floatEmulation = Strict
 d3d9.clampNegativeLodBias = True
-d3d9.samplerAnisotropy = 16
+d3d9.samplerAnisotropy = ${SAMPLER_ANISO}
 d3d9.presentInterval = 1
 dxvk.tearFree = True
 dxvk.allowFse = False

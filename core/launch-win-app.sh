@@ -2065,6 +2065,25 @@ else
     renice -n -5 $$ 2>/dev/null || true
 fi
 
+# Optimización profunda de RAM: Liberación de cachés residuales y compactación de memoria para evitar stuttering
+RAM_AVAIL_MB=$(free -m 2>/dev/null | awk '/^Mem:/{print $7}' || echo 8192)
+if [ -n "$RAM_AVAIL_MB" ] && [ "$RAM_AVAIL_MB" -lt 3500 ]; then
+    sync 2>/dev/null || true
+    if [ -w /proc/sys/vm/drop_caches ]; then
+        echo 3 > /proc/sys/vm/drop_caches 2>/dev/null || true
+    fi
+    if [ -w /proc/sys/vm/compact_memory ]; then
+        echo 1 > /proc/sys/vm/compact_memory 2>/dev/null || true
+    fi
+fi
+
+# Ajuste de CPU Governor a alto rendimiento (performance) si los privilegios del kernel lo admiten
+for gov in /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor; do
+    if [ -w "$gov" ]; then
+        echo "performance" > "$gov" 2>/dev/null || true
+    fi
+done
+
 # Desactivar 'set -e' antes de la ejecución para garantizar que salidas con código != 0 no interrumpan la limpieza
 set +e
 
@@ -2140,7 +2159,6 @@ if [ -n "$WINEPREFIX" ] && [ -d "$WINEPREFIX" ]; then
         active_children=$(pgrep -f "$WINEPREFIX" 2>/dev/null | while read -r c_pid; do
             [ "$c_pid" -eq "$$" ] && continue
             [ "$c_pid" -eq "$PPID" ] && continue
-            local cmdline
             cmdline=$(cat /proc/"$c_pid"/cmdline 2>/dev/null | tr '\0' ' ' || true)
             if echo "$cmdline" | grep -qiE '\.exe' && \
                ! echo "$cmdline" | grep -qiE 'services\.exe|winedevice\.exe|plugplay\.exe|explorer\.exe|rpcss\.exe|conhost\.exe'; then
