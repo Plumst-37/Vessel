@@ -28,6 +28,12 @@ CONFIG_DIR="${DIR}/config"
 mkdir -p "$CONFIG_DIR" 2>/dev/null || true
 
 CONF_FILE="${CONFIG_DIR}/dxvk.conf"
+DRIVERS_DXVK_CONF="${DIR}/drivers/dxvk/dxvk.conf"
+if [ -f "$DRIVERS_DXVK_CONF" ] && [ -s "$DRIVERS_DXVK_CONF" ]; then
+    # Preservar configuración modular editada por el usuario en drivers/dxvk/dxvk.conf
+    cp -f "$DRIVERS_DXVK_CONF" "$CONF_FILE" 2>/dev/null || true
+    exit 0
+fi
 CONFIG_USER="${CONFIG_DIR}/config_rendimiento.cfg"
 [ ! -f "$CONFIG_USER" ] && CONFIG_USER="${DIR}/config_rendimiento.cfg"
 

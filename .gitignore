@@ -43,3 +43,13 @@ GameRangerSetup.exe
 *.dll
 *.asi
 *.msi
+
+# Binarios y descargas dinámicas en drivers/ (Cumplimiento GPLv3 - Solo se versionan configs .conf y scripts)
+drivers/*/x64/
+drivers/*/x32/
+drivers/*/x86/
+drivers/*/*.tar.gz
+drivers/*/*.tar.xz
+drivers/*/*.zip
+drivers/*/*.so
+

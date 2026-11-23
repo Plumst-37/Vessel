@@ -619,9 +619,10 @@ case "${1:-menu}" in
         echo "  [8] 🕹️  Descargar / Preparar cnc-ddraw (DirectDraw OpenGL)"
         echo "  [9] 🎮 Actualizar base de datos de mandos (gamecontrollerdb.txt)"
         echo "  [10] 🎨 Generar configuración optimizada de vkBasalt (AMD CAS)"
+        echo "  [11] 🚀 Panel Modular de Drivers (DXVK, VKD3D-Proton, GPU y Pantalla)"
         echo "  [0] ↩️  Salir"
         echo ""
-        read -rp "Selecciona una opción [0-10]: " opc
+        read -rp "Selecciona una opción [0-11]: " opc
         case "$opc" in
             1) instalar_paquete_maestro "${DIR}/wineprefix" ;;
             2) instalar_directx_completo "${DIR}/wineprefix" && configurar_dlloverrides "${DIR}/wineprefix" ;;
@@ -633,6 +634,7 @@ case "${1:-menu}" in
             8) instalar_cnc_ddraw ;;
             9) actualizar_gamecontrollerdb ;;
             10) configurar_vkbasalt ;;
+            11) bash "${CORE_DIR}/gestor_drivers.sh" estado ;;
             *) echo "Saliendo..." ;;
         esac
         ;;

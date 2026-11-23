@@ -2188,6 +2188,7 @@ def menu_herramientas(hw, cfg):
                 ("7", "🌐 .NET Framework 4.8 (dotnet48 para launchers y mods)"),
                 ("8", "🔊 Audio 3D OpenAL + DSOAL (EAX binaural espacial)"),
                 ("9", "🕹️  DirectDraw Retro OpenGL (cnc-ddraw para clásicos 1995-2003)"),
+                ("10", "⚡ Apartado Modular de Drivers (DXVK, VKD3D-Proton, GPU y Pantalla)\n• Revisa el estado de drivers abiertos y configuración de pantalla objetivo"),
                 ("0", "↩️  Cancelar")
             ]
             w_sel = submenu_interactivo("📦  Instalar Dependencias y DLLs de Windows", sub_winetricks, hw, cfg)
@@ -2228,6 +2229,11 @@ def menu_herramientas(hw, cfg):
                 os.system("clear")
                 target_dest = os.path.join(WINEPREFIX, "drive_c", "windows", "syswow64") if os.path.isdir(os.path.join(WINEPREFIX, "drive_c", "windows", "syswow64")) else os.path.join(WINEPREFIX, "drive_c", "windows", "system32")
                 subprocess.run(["bash", script_lib, "instalar_ddraw", target_dest])
+                pausar()
+            elif w_sel == "10":
+                os.system("clear")
+                script_drv = os.path.join(CORE_DIR, "gestor_drivers.sh") if os.path.exists(os.path.join(CORE_DIR, "gestor_drivers.sh")) else os.path.join(DIR, "core", "gestor_drivers.sh")
+                subprocess.run(["bash", script_drv, "estado"])
                 pausar()
         elif sel == "7":
             os.system("clear")

@@ -61,11 +61,22 @@ RESOLVER_BAT="${CORE_DIR}/resolver_bat.py"
 ANALIZADOR_PE="${CORE_DIR}/analizador_pe.py"
 [ ! -f "$ANALIZADOR_PE" ] && ANALIZADOR_PE="${DIR}/analizador_pe.py"
 
+GESTOR_DRIVERS="${CORE_DIR}/gestor_drivers.sh"
+[ ! -f "$GESTOR_DRIVERS" ] && GESTOR_DRIVERS="${DIR}/gestor_drivers.sh"
+if [ -f "$GESTOR_DRIVERS" ]; then
+    source "$GESTOR_DRIVERS" cargar_env
+fi
+
 GENERAR_DXVK="${CORE_DIR}/generar_dxvk_conf.sh"
 [ ! -f "$GENERAR_DXVK" ] && GENERAR_DXVK="${DIR}/generar_dxvk_conf.sh"
 
-DXVK_CONF="${CONFIG_DIR}/dxvk.conf"
-[ ! -f "$DXVK_CONF" ] && DXVK_CONF="${DIR}/dxvk.conf"
+if [ -f "${DIR}/drivers/dxvk/dxvk.conf" ]; then
+    DXVK_CONF="${DIR}/drivers/dxvk/dxvk.conf"
+elif [ -f "${CONFIG_DIR}/dxvk.conf" ]; then
+    DXVK_CONF="${CONFIG_DIR}/dxvk.conf"
+else
+    DXVK_CONF="${DIR}/dxvk.conf"
+fi
 
 # 2. Aplicar optimizaciones dinámicas para el hardware real del equipo
 aplicar_entorno_hardware
@@ -552,10 +563,12 @@ if [ ! -f "${WINEPREFIX}/system.reg" ]; then
     [ ! -e "${WINEPREFIX}/dosdevices/z:" ] && ln -s / "${WINEPREFIX}/dosdevices/z:" 2>/dev/null || true
 fi
 
-# 7.1 Auto-verificación e integración de DXVK (DirectX 8/9/10/11 -> Vulkan) en el prefijo activo
+# 7.1 Auto-verificación e integración modular de DXVK y VKD3D en el prefijo activo
 if [ "$RENDERER_IN_USE" != "WineD3D (OpenGL Compatibilidad)" ]; then
     if [ -d "${WINEPREFIX}/drive_c/windows/system32" ]; then
-        if [ -d "/usr/lib/dxvk/wine64" ]; then
+        if [ -f "${CORE_DIR}/gestor_drivers.sh" ]; then
+            bash "${CORE_DIR}/gestor_drivers.sh" instalar_todo "$WINEPREFIX" >/dev/null 2>&1 || true
+        elif [ -d "/usr/lib/dxvk/wine64" ]; then
             for dll in d3d11 d3d10core d3d9 d3d8 dxgi; do
                 [ -f "/usr/lib/dxvk/wine64/${dll}.dll.so" ] && ln -sf "/usr/lib/dxvk/wine64/${dll}.dll.so" "${WINEPREFIX}/drive_c/windows/system32/${dll}.dll" 2>/dev/null || true
                 [ -f "/usr/lib/dxvk/wine32/${dll}.dll.so" ] && ln -sf "/usr/lib/dxvk/wine32/${dll}.dll.so" "${WINEPREFIX}/drive_c/windows/syswow64/${dll}.dll" 2>/dev/null || true
@@ -771,13 +784,20 @@ if [ -n "$GAME_WINVER" ]; then
     "$WINE_CMD" reg add "HKEY_CURRENT_USER\Software\Wine\AppDefaults\\${TARGET_FILE}" /v "Version" /t REG_SZ /d "$GAME_WINVER" /f >/dev/null 2>&1 || true
 fi
 
-# 9. Generar archivo DXVK optimizado según la CPU y límite de FPS configurado
+# 9. Configuración modular de DXVK y traducción gráfica
 if [ "$RENDERER_IN_USE" != "WineD3D (OpenGL Compatibilidad)" ]; then
-    export DXVK_CONFIG_FILE="$DXVK_CONF"
-    if [ -x "$GENERAR_DXVK" ]; then
-        "$GENERAR_DXVK"
-    elif [ -f "$GENERAR_DXVK" ]; then
-        bash "$GENERAR_DXVK"
+    if [ -f "${DIR}/drivers/dxvk/dxvk.conf" ]; then
+        export DXVK_CONFIG_FILE="${DIR}/drivers/dxvk/dxvk.conf"
+    else
+        export DXVK_CONFIG_FILE="$DXVK_CONF"
+        if [ -x "$GENERAR_DXVK" ]; then
+            "$GENERAR_DXVK"
+        elif [ -f "$GENERAR_DXVK" ]; then
+            bash "$GENERAR_DXVK"
+        fi
+    fi
+    if [ -f "${DIR}/drivers/vkd3d-proton/vkd3d.conf" ]; then
+        export VKD3D_CONFIG_FILE="${DIR}/drivers/vkd3d-proton/vkd3d.conf"
     fi
 else
     unset DXVK_CONFIG_FILE
@@ -1032,7 +1052,25 @@ detectar_pantalla_activa() {
     ACTIVE_MON_X=0
     ACTIVE_MON_Y=0
 
-    if command -v xrandr &>/dev/null; then
+    # Cargar preferencias de hardware y monitor desde drivers/gpu_env.conf
+    if [ -f "${DIR}/drivers/gpu_env.conf" ]; then
+        source "${DIR}/drivers/gpu_env.conf"
+    fi
+
+    local target_specified=0
+    if [ -n "${TARGET_MONITOR:-}" ] && [ "$TARGET_MONITOR" != "auto" ] && command -v xrandr &>/dev/null; then
+        local mon_line
+        mon_line=$(xrandr 2>/dev/null | grep -E "^${TARGET_MONITOR}\s+connected")
+        if [[ "$mon_line" =~ ([0-9]{3,4})x([0-9]{3,4})\+([0-9]+)\+([0-9]+) ]]; then
+            ACTIVE_MON_W="${BASH_REMATCH[1]}"
+            ACTIVE_MON_H="${BASH_REMATCH[2]}"
+            ACTIVE_MON_X="${BASH_REMATCH[3]}"
+            ACTIVE_MON_Y="${BASH_REMATCH[4]}"
+            target_specified=1
+        fi
+    fi
+
+    if [ "$target_specified" -eq 0 ] && command -v xrandr &>/dev/null; then
         local mouse_x=-1 mouse_y=-1
         if command -v xdotool &>/dev/null; then
             eval "$(xdotool getmouselocation --shell 2>/dev/null || true)"
@@ -1104,6 +1142,12 @@ detectar_pantalla_activa() {
         fi
         ACTIVE_MON_X=0
         ACTIVE_MON_Y=0
+    fi
+
+    # Si se especificó una resolución forzada en gpu_env.conf
+    if [ -n "${FORCE_RESOLUTION:-}" ]; then
+        ACTIVE_MON_W=$(echo "$FORCE_RESOLUTION" | cut -dx -f1)
+        ACTIVE_MON_H=$(echo "$FORCE_RESOLUTION" | cut -dx -f2)
     fi
 
     best_w="$ACTIVE_MON_W"
@@ -2246,6 +2290,25 @@ if [ -n "$EXTRA_APP_ARGS" ] && [[ ! "$TARGET_FILE" =~ \.([rR][eE][gG]|[vV][bB][s
     FINAL_CMD+=("${EXTRA_OPTS[@]}")
 fi
 
+# 6.1 Alineación y posicionamiento dinámico en pantalla objetivo (Multimonitor Wayland/X11)
+MON_WATCHDOG_PID=""
+if ([ -n "$ACTIVE_MON_X" ] && [ "$ACTIVE_MON_X" -ne 0 ]) || ([ -n "$ACTIVE_MON_Y" ] && [ "$ACTIVE_MON_Y" -ne 0 ]); then
+    (
+        target_name="${TARGET_FILE%.*}"
+        for i in {1..25}; do
+            sleep 0.4
+            w_ids=$(xdotool search --name "$target_name" 2>/dev/null || xdotool search --class "wine" 2>/dev/null || true)
+            if [ -n "$w_ids" ]; then
+                for wid in $w_ids; do
+                    xdotool windowmove "$wid" "$ACTIVE_MON_X" "$ACTIVE_MON_Y" 2>/dev/null || true
+                done
+                break
+            fi
+        done
+    ) &
+    MON_WATCHDOG_PID=$!
+fi
+
 # 7. Ejecución con captura en tiempo real
 EXEC_START_TIME=$(date +%s)
 "${FINAL_CMD[@]}" 2>&1 | tee "$TEMP_GAME_LOG"
@@ -2279,6 +2342,7 @@ fi
 # Terminar vigilantes en segundo plano si siguen activos
 [ -n "$WATCHDOG_PID" ] && kill "$WATCHDOG_PID" 2>/dev/null || true
 [ -n "$GR_WATCHDOG_PID" ] && kill "$GR_WATCHDOG_PID" 2>/dev/null || true
+[ -n "$MON_WATCHDOG_PID" ] && kill "$MON_WATCHDOG_PID" 2>/dev/null || true
 
 # Respaldar sesión de GameRanger para asegurar persistencia permanente
 if [[ "$TARGET_FILE" =~ [Gg]ame[Rr]anger ]]; then

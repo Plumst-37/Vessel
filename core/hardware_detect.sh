@@ -125,6 +125,9 @@ else
         HAS_VULKAN=false
         command -v vulkaninfo &>/dev/null && vulkaninfo --summary &>/dev/null && HAS_VULKAN=true
         HAS_VULKAN_GPL=false
+        if [ "$HAS_VULKAN" = true ]; then
+            vulkaninfo 2>/dev/null | grep -qi "VK_EXT_graphics_pipeline_library" && HAS_VULKAN_GPL=true
+        fi
         IS_LOW_SPEC_GPU=false
         [ "$HAS_NVIDIA" = true ] && echo "$GPU_NAME" | grep -qiE 'MX[0-9]{3}|GT[0-9]{3}|GTX\s*(750|850|950)' && IS_LOW_SPEC_GPU=true
         [ "$HAS_INTEL" = true ] && [ "$HAS_NVIDIA" = false ] && [ "$HAS_AMD_DEDICATED" = false ] && IS_LOW_SPEC_GPU=true
@@ -286,6 +289,7 @@ aplicar_entorno_hardware() {
         export __GLX_VENDOR_LIBRARY_NAME=nvidia
         export __VK_LAYER_NV_optimus=NVIDIA_only
         export DXVK_FILTER_DEVICE_NAME="NVIDIA"
+        export MESA_VK_DEVICE_SELECT="10de:*"
         export DXVK_ENABLE_NVAPI=1
         export PROTON_ENABLE_NVAPI=1
         if [ "$IS_LOW_SPEC_GPU" = "true" ] || ! echo "${GPU_NAME:-${GPU_PRIMARY:-}}" | grep -qiE 'RTX|Titan V|Quadro RTX'; then
