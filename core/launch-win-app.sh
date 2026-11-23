@@ -905,8 +905,8 @@ EOF
 }
 optimizar_red_y_wifi
 
-# Overrides universales de gráficos 3D, cinemáticas/codecs de video, audio espacial, DirectMusic, sockets y librerías base
-export WINEDLLOVERRIDES="winemenubuilder.exe=d;dinput8=n,b;dxgi=n,b;d3d11=n,b;d3d10core=n,b;d3d9=n,b;d3d8=n,b;ddraw=n,b;dplayx=n,b;dpnet=n,b;dpwsockx=n,b;vorbisfile=n,b;vorbishooked=n,b;dsound=n,b;mfplat=n,b;mf=n,b;mfreadwrite=n,b;evr=n,b;quartz=b,n;devenum=b,n;qedit=b,n;wmasf=n,b;wmvcore=n,b;winegstreamer=b;xaudio2_7=n,b;xaudio2_8=n,b;xaudio2_9=n,b;x3daudio1_7=n,b;openal32=n,b;dmusic=n,b;dmsynth=n,b;dmime=n,b;dmloader=n,b;dmband=n,b;secur32=b;wininet=b;winhttp=b;ws2_32=b;iphlpapi=b;dnsapi=b;${WINEDLLOVERRIDES}"
+# Overrides universales de gráficos 3D, cinemáticas/codecs de video, audio espacial (FAudio/PipeWire nativo), DirectMusic, sockets y librerías base
+export WINEDLLOVERRIDES="winemenubuilder.exe=d;dinput8=n,b;dxgi=n,b;d3d11=n,b;d3d10core=n,b;d3d9=n,b;d3d8=n,b;ddraw=n,b;dplayx=n,b;dpnet=n,b;dpwsockx=n,b;vorbisfile=n,b;vorbishooked=n,b;dsound=n,b;mfplat=n,b;mf=n,b;mfreadwrite=n,b;evr=n,b;quartz=b,n;devenum=b,n;qedit=b,n;wmasf=n,b;wmvcore=n,b;winegstreamer=b;xaudio2_7=b;xaudio2_8=b;xaudio2_9=b;x3daudio1_7=b;openal32=n,b;dmusic=n,b;dmsynth=n,b;dmime=n,b;dmloader=n,b;dmband=n,b;secur32=b;wininet=b;winhttp=b;ws2_32=b;iphlpapi=b;dnsapi=b;${WINEDLLOVERRIDES}"
 
 # 11.1 Configuración específica para el cliente de lobby GameRanger
 EXTRA_APP_ARGS=""
@@ -1406,7 +1406,8 @@ EOF_DLC
             mkdir -p "$gta_save_dir"
 
             # Overrides específicos de DirectX 11, Bink Video, Social Club y ASI Loader
-            export WINEDLLOVERRIDES="bink2w64=n,b;asiloader=n,b;dinput8=n,b;d3dcompiler_47=n,b;d3dcompiler_46=n,b;d3dcompiler_43=n,b;d3dcsx_46=n,b;socialclub=n,b;steam_api64=n,b;dxgi=n,b;d3d11=n,b;d3d9=n,b;${WINEDLLOVERRIDES}"
+            # Forzar xaudio2 a builtin (FAudio/PipeWire) para erradicar el crash de lectura de punteros WASAPI en Microsoft xaudio2_7.dll
+            export WINEDLLOVERRIDES="xaudio2_7=b;xaudio2_8=b;xaudio2_9=b;x3daudio1_7=b;bink2w64=n,b;asiloader=n,b;dinput8=n,b;d3dcompiler_47=n,b;d3dcompiler_46=n,b;d3dcompiler_43=n,b;d3dcsx_46=n,b;socialclub=n,b;steam_api64=n,b;dxgi=n,b;d3d11=n,b;d3d9=n,b;${WINEDLLOVERRIDES}"
             ;;
 
         rockstar_gtasa)
@@ -1858,7 +1859,7 @@ if os.path.exists(user_reg):
             echo "[+] Perfil Activo: Bethesda Creation / Gamebryo Engine (Skyrim / Fallout) [Aislado]"
             limpiar_zombies_juego "TESV\.exe|SkyrimSE\.exe|Fallout4\.exe|FalloutNV\.exe|Fallout3\.exe|Starfield\.exe"
             sleep 0.2
-            export WINEDLLOVERRIDES="dinput8=n,b;xinput1_3=n,b;xaudio2_7=n,b;${WINEDLLOVERRIDES}"
+            export WINEDLLOVERRIDES="dinput8=n,b;xinput1_3=n,b;xaudio2_7=b;${WINEDLLOVERRIDES}"
             ;;
 
         godot_engine)
@@ -1898,7 +1899,7 @@ aplicar_perfil_aislado_juego
 # y activa el override nativo (n,b) en Wine para que carguen de forma transparente.
 # Filtra estrictamente librerías de sistema, runtime CRT y forwarders api-ms-win.
 # ==============================================================================
-DLL_EXCLUIDAS_CORE="^(ntdll|kernel32|kernelbase|user32|gdi32|gdiplus|advapi32|rpcrt4|ws2_32|wsock32|iphlpapi|shell32|shlwapi|shcore|ole32|oleaut32|combase|comctl32|comdlg32|version|imm32|winmm|crypt32|cryptbase|secur32|bcrypt|ncrypt|sspicli|wldp|uxtheme|dwmapi|setupapi|cfgmgr32|winhttp|wininet|urlmon|mpr|netapi32|dnsapi|normaliz|imagehlp|dbghelp|psapi|api-ms-win-.*|ext-ms-win-.*|ucrtbase|vcruntime.*|msvcp.*|msvcr.*|concrt.*|vcomp.*|msvcrt|dxgi|d3d11|d3d12|d3d10.*|d3d9|d3d8|ddraw|vulkan-1|winevulkan|opengl32|glu32|winegstreamer|orig_socialclub|launc)$"
+DLL_EXCLUIDAS_CORE="^(ntdll|kernel32|kernelbase|user32|gdi32|gdiplus|advapi32|rpcrt4|ws2_32|wsock32|iphlpapi|shell32|shlwapi|shcore|ole32|oleaut32|combase|comctl32|comdlg32|version|imm32|winmm|crypt32|cryptbase|secur32|bcrypt|ncrypt|sspicli|wldp|uxtheme|dwmapi|setupapi|cfgmgr32|winhttp|wininet|urlmon|mpr|netapi32|dnsapi|normaliz|imagehlp|dbghelp|psapi|api-ms-win-.*|ext-ms-win-.*|ucrtbase|vcruntime.*|msvcp.*|msvcr.*|concrt.*|vcomp.*|msvcrt|dxgi|d3d11|d3d12|d3d10.*|d3d9|d3d8|ddraw|vulkan-1|winevulkan|opengl32|glu32|winegstreamer|xaudio2_.*|x3daudio.*|orig_socialclub|launc)$"
 MODS_ACTIVADOS=()
 declare -A VISTAS_DLL=()
 
