@@ -62,19 +62,64 @@ else
     FRAME_LATENCY="2"
 fi
 
-# Calibración de chunks y memoria según hardware y VRAM (Adaptado para GPUs con <= 2GB VRAM como NVIDIA MX130 / Intel UHD)
-if [ "$IS_LOW_SPEC_GPU" = "true" ] || [ "${GPU_VRAM_MB:-0}" -le 2048 ] || [ "${RAM_TOTAL_MB:-8192}" -le 4608 ]; then
-    MAX_CHUNK_SIZE="32"
-    SHRINK_HEAPS="True"
-    ALLOW_OVERCOMMIT="True"
-    SAMPLER_ANISO="8"
-    MAX_TESSELLATION="16"
+# Calibración de hilos de compilación según la arquitectura del procesador
+if [ "${CPU_CORES:-4}" -le 2 ]; then
+    DXVK_COMPILER_THREADS=1
+elif [ "${CPU_CORES:-4}" -le 4 ]; then
+    DXVK_COMPILER_THREADS=3
+elif [ "${CPU_CORES:-4}" -le 8 ]; then
+    DXVK_COMPILER_THREADS="${CPU_CORES:-4}"
+elif [ "${CPU_CORES:-4}" -le 16 ]; then
+    DXVK_COMPILER_THREADS=$((CPU_CORES - 2))
 else
-    MAX_CHUNK_SIZE="128"
-    SHRINK_HEAPS="False"
-    ALLOW_OVERCOMMIT="False"
-    SAMPLER_ANISO="16"
-    MAX_TESSELLATION="0"
+    DXVK_COMPILER_THREADS=16
+fi
+
+# Calibración multiescala según la Gama de Hardware (Baja, Media, Alta, Extrema)
+case "${VESSEL_HARDWARE_TIER:-baja}" in
+    baja)
+        MAX_CHUNK_SIZE="32"
+        SHRINK_HEAPS="True"
+        ALLOW_OVERCOMMIT="True"
+        SAMPLER_ANISO="8"
+        [ "${RAM_TOTAL_MB:-8192}" -le 4608 ] && SAMPLER_ANISO="4"
+        MAX_TESSELLATION="16"
+        [ "$VSYNC_ENABLED" = "1" ] && FRAME_LATENCY="1" && NUM_BUFFERS="2"
+        ;;
+    media)
+        MAX_CHUNK_SIZE="64"
+        if [ "${GPU_VRAM_MB:-0}" -le 4096 ]; then
+            SHRINK_HEAPS="True"
+        else
+            SHRINK_HEAPS="False"
+        fi
+        ALLOW_OVERCOMMIT="True"
+        SAMPLER_ANISO="16"
+        MAX_TESSELLATION="32"
+        [ "$VSYNC_ENABLED" = "1" ] && FRAME_LATENCY="2" && NUM_BUFFERS="3"
+        ;;
+    alta|extrema)
+        MAX_CHUNK_SIZE="128"
+        SHRINK_HEAPS="False"
+        ALLOW_OVERCOMMIT="False"
+        SAMPLER_ANISO="16"
+        MAX_TESSELLATION="0"
+        [ "$VSYNC_ENABLED" = "1" ] && FRAME_LATENCY="2" && NUM_BUFFERS="3"
+        ;;
+    *)
+        MAX_CHUNK_SIZE="64"
+        SHRINK_HEAPS="True"
+        ALLOW_OVERCOMMIT="True"
+        SAMPLER_ANISO="8"
+        MAX_TESSELLATION="16"
+        ;;
+esac
+
+# Soporte adaptativo para Graphics Pipeline Library (GPL)
+if [ "${HAS_VULKAN_GPL:-false}" = "true" ]; then
+    GPL_VAL="True"
+else
+    GPL_VAL="False"
 fi
 
 # Calibración de memoria según RAM (Ahorro <= 4GB, Equilibrado 8GB-12GB, Extremo 16GB+)
@@ -92,20 +137,21 @@ cat <<EOF > "$CONF_FILE"
 # ==============================================================================
 # DXVK CONFIGURACIÓN UNIVERSAL GENERADA AUTOMÁTICAMENTE
 # CPU: ${CPU_MODEL} (${CPU_CORES} Hilos) | RAM: ${RAM_TOTAL_MB} MB
-# Perfil: ${PERFIL_RENDIMIENTO:-maximo}
+# Gama Detectada: ${VESSEL_HARDWARE_TIER^^} | Perfil: ${PERFIL_RENDIMIENTO:-maximo}
 # ==============================================================================
 
-# Compilación de Shaders en paralelo con todos los hilos del CPU
-dxvk.numCompilerThreads = ${CPU_CORES}
+# Compilación de Shaders en paralelo con hilos óptimos de CPU
+dxvk.numCompilerThreads = ${DXVK_COMPILER_THREADS}
 
 # Control de Tasa de Refresco / FPS (D3D9 y D3D11/DXGI)
 dxgi.maxFrameRate = ${FPS_VAL}
 d3d9.maxFrameRate = ${FPS_VAL}
 
-# Reducción drástica de tirones y stuttering (Graphics Pipeline Library - Carga sincrónica sin pérdida de mallas)
+# Reducción drástica de tirones y stuttering (GPL adaptativo y State Cache universal)
 dxvk.enableAsync = False
-dxvk.gpl = True
-dxvk.enableGraphicsPipelineLibrary = True
+dxvk.gpl = ${GPL_VAL}
+dxvk.enableGraphicsPipelineLibrary = ${GPL_VAL}
+dxvk.enableStateCache = True
 
 # Modo Pantalla Completa: False para compatibilidad universal (evita fallos de EDID/swapchains en Wayland/PRIME)
 dxvk.allowFse = False
@@ -156,7 +202,7 @@ d3d11.samplerAnisotropy = ${SAMPLER_ANISO}
 dxvk.shrinkImageHeaps = ${SHRINK_HEAPS}
 dxvk.allowMemoryOvercommit = ${ALLOW_OVERCOMMIT}
 d3d11.maxTessellationFactor = ${MAX_TESSELLATION}
-dxvk.gpl = True
+dxvk.gpl = ${GPL_VAL}
 dxvk.allowFse = False
 dxvk.tearFree = True
 dxgi.syncInterval = 1
@@ -174,7 +220,7 @@ d3d11.samplerAnisotropy = ${SAMPLER_ANISO}
 dxvk.shrinkImageHeaps = ${SHRINK_HEAPS}
 dxvk.allowMemoryOvercommit = ${ALLOW_OVERCOMMIT}
 d3d11.maxTessellationFactor = ${MAX_TESSELLATION}
-dxvk.gpl = True
+dxvk.gpl = ${GPL_VAL}
 dxvk.allowFse = False
 dxvk.tearFree = True
 dxgi.syncInterval = 1

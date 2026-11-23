@@ -57,10 +57,16 @@ fi
 if [ -f "$CFG_HW" ]; then
     source "$CFG_HW"
     CPU_CORES="${CPU_THREADS:-4}"
+    CPU_PHYSICAL_CORES="${CPU_PHYSICAL_CORES:-$CPU_CORES}"
+    CPU_TIER="${CPU_TIER:-media}"
+    RAM_TIER="${RAM_TIER:-media}"
+    GPU_TIER="${GPU_TIER:-media}"
+    VESSEL_HARDWARE_TIER="${VESSEL_HARDWARE_TIER:-media}"
     DETECTED_GPU="${GPU_PRIMARY:-Desconocida}"
     IS_LOW_SPEC_GPU="${GPU_IS_ENTRY_LEVEL:-false}"
     GPU_VRAM_MB="${GPU_VRAM_MB:-0}"
-    HAS_VULKAN=true
+    HAS_VULKAN="${HAS_VULKAN:-true}"
+    HAS_VULKAN_GPL="${HAS_VULKAN_GPL:-false}"
     if [ "$GPU_PRIMARY_VENDOR" = "nvidia" ]; then
         HAS_NVIDIA=true
         HAS_AMD_DEDICATED=false
@@ -80,12 +86,21 @@ else
     if [ -f "$CFG_HW" ]; then
         source "$CFG_HW"
         CPU_CORES="${CPU_THREADS:-4}"
+        CPU_PHYSICAL_CORES="${CPU_PHYSICAL_CORES:-$CPU_CORES}"
+        CPU_TIER="${CPU_TIER:-media}"
+        RAM_TIER="${RAM_TIER:-media}"
+        GPU_TIER="${GPU_TIER:-media}"
+        VESSEL_HARDWARE_TIER="${VESSEL_HARDWARE_TIER:-media}"
         DETECTED_GPU="${GPU_PRIMARY:-Desconocida}"
         IS_LOW_SPEC_GPU="${GPU_IS_ENTRY_LEVEL:-false}"
-        HAS_VULKAN=true
+        GPU_VRAM_MB="${GPU_VRAM_MB:-0}"
+        HAS_VULKAN="${HAS_VULKAN:-true}"
+        HAS_VULKAN_GPL="${HAS_VULKAN_GPL:-false}"
     else
         # Fallback de detección rápida
         CPU_CORES=$(nproc 2>/dev/null || echo 4)
+        CPU_PHYSICAL_CORES=$(lscpu -p 2>/dev/null | grep -v '^#' | awk -F, '{print $2}' | sort -u | wc -l 2>/dev/null || echo "$CPU_CORES")
+        [ -z "$CPU_PHYSICAL_CORES" ] || [ "$CPU_PHYSICAL_CORES" -le 0 ] && CPU_PHYSICAL_CORES="$CPU_CORES"
         CPU_MODEL=$(lscpu 2>/dev/null | grep -iE 'model name|nombre del modelo' | cut -d: -f2 | xargs | head -n 1)
         [ -z "$CPU_MODEL" ] && CPU_MODEL="Procesador Genérico (${CPU_CORES} hilos)"
         RAM_TOTAL_MB=$(free -m 2>/dev/null | awk '/^Mem:/{print $2}')
@@ -107,28 +122,66 @@ else
             GPU_NAME=$(lspci 2>/dev/null | grep -iE 'vga|3d|display' | grep -i 'intel' | cut -d: -f3 | xargs | head -n 1)
             DETECTED_GPU="Intel: ${GPU_NAME:-Gráficos Integrados}"
         fi
-        HAS_VULKAN=true
+        HAS_VULKAN=false
+        command -v vulkaninfo &>/dev/null && vulkaninfo --summary &>/dev/null && HAS_VULKAN=true
+        HAS_VULKAN_GPL=false
         IS_LOW_SPEC_GPU=false
         [ "$HAS_NVIDIA" = true ] && echo "$GPU_NAME" | grep -qiE 'MX[0-9]{3}|GT[0-9]{3}|GTX\s*(750|850|950)' && IS_LOW_SPEC_GPU=true
         [ "$HAS_INTEL" = true ] && [ "$HAS_NVIDIA" = false ] && [ "$HAS_AMD_DEDICATED" = false ] && IS_LOW_SPEC_GPU=true
+        CPU_TIER="media"
+        [ "$CPU_CORES" -le 4 ] && CPU_TIER="baja"
+        [ "$CPU_CORES" -ge 12 ] && CPU_TIER="alta"
+        RAM_TIER="media"
+        [ "$RAM_TOTAL_MB" -le 6144 ] && RAM_TIER="baja"
+        [ "$RAM_TOTAL_MB" -ge 16384 ] && RAM_TIER="alta"
+        GPU_TIER="media"
+        [ "$IS_LOW_SPEC_GPU" = "true" ] && GPU_TIER="baja"
+        VESSEL_HARDWARE_TIER="media"
+        [ "$GPU_TIER" = "baja" ] || [ "$RAM_TIER" = "baja" ] || [ "$CPU_TIER" = "baja" ] && VESSEL_HARDWARE_TIER="baja"
     fi
 fi
 export IS_LOW_SPEC_GPU
 export GPU_VRAM_MB="${GPU_VRAM_MB:-0}"
+export CPU_TIER="${CPU_TIER:-media}"
+export RAM_TIER="${RAM_TIER:-media}"
+export GPU_TIER="${GPU_TIER:-media}"
+export VESSEL_HARDWARE_TIER="${VESSEL_HARDWARE_TIER:-media}"
+export HAS_VULKAN
+export HAS_VULKAN_GPL
 
 # Función para exportar las variables de entorno óptimas según el hardware
 aplicar_entorno_hardware() {
     # 1. Hilos de compilación para DXVK basados en la CPU real y topología física
-    export DXVK_NUM_COMPILER_THREADS="$CPU_CORES"
-    CPU_PHYSICAL_CORES=$(lscpu -p 2>/dev/null | grep -v '^#' | awk -F, '{print $2}' | sort -u | wc -l 2>/dev/null || echo "$CPU_CORES")
-    [ -z "$CPU_PHYSICAL_CORES" ] || [ "$CPU_PHYSICAL_CORES" -le 0 ] && CPU_PHYSICAL_CORES="$CPU_CORES"
-    if [ "$CPU_PHYSICAL_CORES" -ne "$CPU_CORES" ]; then
-        export WINE_CPU_TOPOLOGY="${CPU_PHYSICAL_CORES}:${CPU_CORES}"
+    if [ "$CPU_CORES" -le 2 ]; then
+        export DXVK_NUM_COMPILER_THREADS=1
+    elif [ "$CPU_CORES" -le 4 ]; then
+        export DXVK_NUM_COMPILER_THREADS=3
+    elif [ "$CPU_CORES" -le 8 ]; then
+        export DXVK_NUM_COMPILER_THREADS="$CPU_CORES"
+    elif [ "$CPU_CORES" -le 16 ]; then
+        export DXVK_NUM_COMPILER_THREADS=$((CPU_CORES - 2))
     else
-        export WINE_CPU_TOPOLOGY="${CPU_CORES}"
+        export DXVK_NUM_COMPILER_THREADS=16
+    fi
+
+    local topo_cores="$CPU_CORES"
+    local topo_phys="${CPU_PHYSICAL_CORES:-$CPU_CORES}"
+    [ "$topo_cores" -gt 64 ] && topo_cores=64
+    [ "$topo_phys" -gt 32 ] && topo_phys=32
+    if [ "$topo_phys" -ne "$topo_cores" ]; then
+        export WINE_CPU_TOPOLOGY="${topo_phys}:${topo_cores}"
+    else
+        export WINE_CPU_TOPOLOGY="${topo_cores}"
     fi
 
     # 2. Configuración de sincronización del Kernel (NTSync / Fsync / Esync)
+    local spincount_val=12
+    if [ "$CPU_TIER" = "baja" ] || [ "$CPU_CORES" -le 2 ]; then
+        spincount_val=4
+    elif [ "$CPU_TIER" = "alta" ] || [ "$CPU_TIER" = "extrema" ]; then
+        spincount_val=16
+    fi
+
     if [ "$HAS_NTSYNC" = "true" ] && [ -e "/dev/ntsync" ]; then
         export WINENTSYNC=1
         export WINEFSYNC=0
@@ -137,14 +190,14 @@ aplicar_entorno_hardware() {
         export WINENTSYNC=0
         export WINEFSYNC=1
         export WINEESYNC=1
-        export WINEFSYNC_SPINCOUNT=12
+        export WINEFSYNC_SPINCOUNT="$spincount_val"
     else
         KERNEL_MAJOR=$(uname -r | cut -d. -f1)
         KERNEL_MINOR=$(uname -r | cut -d. -f2)
         if [ "$KERNEL_MAJOR" -gt 5 ] || { [ "$KERNEL_MAJOR" -eq 5 ] && [ "$KERNEL_MINOR" -ge 16 ]; }; then
             export WINEFSYNC=1
             export WINEESYNC=1
-            export WINEFSYNC_SPINCOUNT=12
+            export WINEFSYNC_SPINCOUNT="$spincount_val"
         else
             export WINEFSYNC=0
             export WINEESYNC=1
@@ -183,8 +236,16 @@ aplicar_entorno_hardware() {
     mkdir -p "${HOME}/.cache/dxvk" "${HOME}/.cache/nvidia" "${HOME}/.cache/mesa_shader_cache" 2>/dev/null || true
 
     # Optimización de gestión de memoria virtual y reducción de fragmentación en glibc
-    export MALLOC_TRIM_THRESHOLD_=131072
-    export MALLOC_MMAP_THRESHOLD_=131072
+    if [ "$RAM_TIER" = "baja" ]; then
+        export MALLOC_TRIM_THRESHOLD_=65536
+        export MALLOC_MMAP_THRESHOLD_=65536
+    elif [ "$RAM_TIER" = "alta" ] || [ "$RAM_TIER" = "extrema" ]; then
+        export MALLOC_TRIM_THRESHOLD_=262144
+        export MALLOC_MMAP_THRESHOLD_=262144
+    else
+        export MALLOC_TRIM_THRESHOLD_=131072
+        export MALLOC_MMAP_THRESHOLD_=131072
+    fi
     export STAGING_SHARED_MEMORY=1
     export STAGING_WRITECOPY=1
     # Desactivar async draw-call dropping para evitar que los modelos 3D desaparezcan/parpadeen al girar la cámara
@@ -241,7 +302,13 @@ aplicar_entorno_hardware() {
         # Activar optimizaciones AMD Radeon (PRIME, compilador ACO, SAM y forzado de RADV)
         export DRI_PRIME=1
         export AMD_VULKAN_ICD=RADV
-        export RADV_PERFTEST=aco,sam,dcc
+        if echo "${GPU_NAME:-${GPU_PRIMARY:-}}" | grep -qiE 'RX\s*([6-9][0-9]{3})'; then
+            export RADV_PERFTEST=aco,sam,dcc,rt
+            export VKD3D_CONFIG="dxr11,dxr"
+        else
+            export RADV_PERFTEST=aco,sam,dcc
+            export VKD3D_CONFIG="nodxr"
+        fi
         export vblank_mode=0
         export LIBVA_DRIVER_NAME=radeonsi
         [ -z "$DXVK_FILTER_DEVICE_NAME" ] && export DXVK_FILTER_DEVICE_NAME="AMD"
@@ -252,6 +319,11 @@ aplicar_entorno_hardware() {
         export MESA_LOADER_DRIVER_OVERRIDE=iris
         export MESA_DISK_CACHE_SINGLE_FILE=1
         export INTEL_DEBUG=noccs
+        if echo "${GPU_NAME:-${GPU_PRIMARY:-}}" | grep -qiE 'Arc|DG2|A[57][0-9]{2}'; then
+            export VKD3D_CONFIG="dxr11,dxr"
+        else
+            export VKD3D_CONFIG="nodxr"
+        fi
     fi
 
     # 9. Puentes y compatibilidad para Anti-Cheat (EAC / BattlEye en juegos con soporte Linux)
