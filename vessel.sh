@@ -47,5 +47,24 @@ for term in konsole gnome-terminal ptyxis xfce4-terminal mate-terminal tilix ala
     fi
 done
 
-# Fallback si no se detectó ningún emulador gráfico conocido
+# Fallback si no se detectó ningún emulador gráfico conocido:
+# Si se ejecutó sin TTY interactivo (ej. doble clic en el escritorio) y no hay emulador gráfico,
+# emitir una ventana visual informativa (Zenity/KDialog/Notify-Send/xmessage) en vez de cerrarse en silencio.
+if [ ! -t 0 ]; then
+    msg="Vessel requiere una ventana de terminal para mostrar su menú interactivo.\n\nNo se encontró un emulador de terminal gráfico compatible (Konsole, GNOME Terminal, Alacritty, XFCE Terminal, XTerm, etc.).\n\nPuedes abrir tu terminal habitual e iniciar Vessel escribiendo:\n  bash \"${DIR}/vessel.sh\""
+    if command -v zenity &>/dev/null; then
+        zenity --warning --title="Vessel - Terminal Requerida" --text="$msg" --width=450 2>/dev/null || true
+        exit 1
+    elif command -v kdialog &>/dev/null; then
+        kdialog --sorry "$msg" --title "Vessel - Terminal Requerida" 2>/dev/null || true
+        exit 1
+    elif command -v notify-send &>/dev/null; then
+        notify-send -u critical "Vessel" "Abre una terminal y ejecuta: bash '${DIR}/vessel.sh'" 2>/dev/null || true
+        exit 1
+    elif command -v xmessage &>/dev/null; then
+        xmessage -center "$msg" 2>/dev/null || true
+        exit 1
+    fi
+fi
+
 exec bash "${DIR}/menu-win.sh" "$@"

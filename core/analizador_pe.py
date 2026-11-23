@@ -95,6 +95,8 @@ def analizar_juego(exe_path):
         "has_d3d8": False,
         "has_ddraw": False,
         "has_vulkan": False,
+        "anti_cheat_warning": False,
+        "anti_cheat_name": "",
         "category": "juego"
     }
 
@@ -169,6 +171,52 @@ def analizar_juego(exe_path):
     has_d3d8 = "d3d8.dll" in all_files
     has_ddraw = "ddraw.dll" in all_files or "ddraw.ini" in all_files
     has_vulkan = "vulkan-1.dll" in all_files or "winevulkan.dll" in all_files
+
+    # 2.1 Escaneo preventivo de Anti-Cheats de Kernel (Ring 0)
+    anti_cheat_warning = False
+    anti_cheat_name = ""
+    known_anticheats = {
+        "vgk.sys": "Riot Vanguard (Ring 0)",
+        "easyanticheat.sys": "Easy Anti-Cheat (Ring 0)",
+        "easyanticheat_eos.sys": "Easy Anti-Cheat EOS (Ring 0)",
+        "bedaisy.sys": "BattlEye (Ring 0)",
+        "mhyprot2.sys": "HoYoverse Anti-Cheat (Ring 0)",
+        "anticheat.sys": "Kernel Anti-Cheat Genérico (Ring 0)",
+        "neacsafe.sys": "NetEase Anti-Cheat (Ring 0)",
+    }
+
+    if os.path.isdir(game_dir):
+        for ac_file, ac_label in known_anticheats.items():
+            if ac_file in root_files:
+                anti_cheat_warning = True
+                anti_cheat_name = ac_label
+                break
+
+        if not anti_cheat_warning:
+            try:
+                for entry in os.scandir(game_dir):
+                    if entry.is_dir(follow_symlinks=False):
+                        s_name = entry.name.lower()
+                        if any(k in s_name for k in ("anticheat", "eac", "battleye", "vanguard", "easyanticheat")):
+                            anti_cheat_warning = True
+                            anti_cheat_name = "Easy Anti-Cheat / BattlEye (Ring 0)" if ("eac" in s_name or "easy" in s_name) else "Kernel Anti-Cheat (Ring 0)"
+                            break
+                        try:
+                            for subentry in os.scandir(entry.path):
+                                sub_low = subentry.name.lower()
+                                if sub_low in known_anticheats:
+                                    anti_cheat_warning = True
+                                    anti_cheat_name = known_anticheats[sub_low]
+                                    break
+                        except Exception:
+                            pass
+                    if anti_cheat_warning:
+                        break
+            except Exception:
+                pass
+
+    res["anti_cheat_warning"] = anti_cheat_warning
+    res["anti_cheat_name"] = anti_cheat_name
 
     # 3. Detección Inteligente de Motor de Juego y Desambiguación Remake vs Clásico
     engine = "generico"
@@ -389,6 +437,8 @@ def main():
         print(f'PE_HAS_DX11="{1 if info["has_d3d11"] else 0}"')
         print(f'PE_HAS_DDRAW="{1 if info["has_ddraw"] else 0}"')
         print(f'PE_CATEGORY="{info["category"]}"')
+        print(f'PE_ANTI_CHEAT_WARNING="{1 if info.get("anti_cheat_warning") else 0}"')
+        print(f'PE_ANTI_CHEAT_NAME="{info.get("anti_cheat_name", "")}"')
     elif flag == "--json":
         print(json.dumps(info, indent=2))
     elif flag == "--winver":
@@ -410,6 +460,8 @@ def main():
         print(f"Motor     : {info['engine']}")
         print(f"API 3D    : {info['api'].upper()}")
         print(f"Subsystem : {info['subsys']}")
+        if info.get("anti_cheat_warning"):
+            print(f"Anti-Cheat: ⚠️ {info.get('anti_cheat_name')} (Kernel Ring-0)")
 
 if __name__ == "__main__":
     main()

@@ -235,7 +235,7 @@ case "$DISTRO_DETECTED" in
             sudo dpkg --add-architecture i386 2>/dev/null || true
         fi
         sudo apt-get update -y 2>/dev/null || true
-        sudo apt-get install -y wine wine32:i386 wine64 winetricks cabextract curl git p7zip-full mesa-utils vulkan-tools zenity python3 wine-gecko wine-mono wmctrl xdotool 2>/dev/null || sudo apt-get install -y wine winetricks cabextract curl git p7zip-full zenity python3 wmctrl xdotool 2>/dev/null || true
+        sudo apt-get install -y wine wine32:i386 wine64 winetricks cabextract curl git p7zip-full zstd mesa-utils vulkan-tools zenity python3 wine-gecko wine-mono wmctrl xdotool 2>/dev/null || sudo apt-get install -y wine winetricks cabextract curl git p7zip-full zstd zenity python3 wmctrl xdotool 2>/dev/null || true
         sudo apt-get install -y dxvk dxvk-wine32:i386 dxvk-wine64 libvulkan1 libvulkan1:i386 mesa-vulkan-drivers mesa-vulkan-drivers:i386 libgl1-mesa-dri:i386 libgl1:i386 2>/dev/null || true
         sudo apt-get install -y gamemode libgamemode0:i386 2>/dev/null || sudo apt-get install -y gamemode 2>/dev/null || true
         if lspci 2>/dev/null | grep -qi "nvidia"; then
@@ -249,9 +249,10 @@ case "$DISTRO_DETECTED" in
             sudo apt-get install -y mesa-va-drivers mesa-va-drivers:i386 2>/dev/null || true
         fi
         sudo apt-get install -y libgnutls30:i386 2>/dev/null || sudo apt-get install -y libgnutls30t64:i386 2>/dev/null || true
-        sudo apt-get install -y libnss-resolve:i386 libnss-mdns:i386 libvkd3d1:i386 2>/dev/null || true
-        sudo apt-get install -y libasound2-plugins:i386 2>/dev/null || true
-        sudo apt-get install -y gstreamer1.0-plugins-base:i386 gstreamer1.0-plugins-good:i386 gstreamer1.0-plugins-ugly:i386 gstreamer1.0-libav:i386 2>/dev/null || true
+        sudo apt-get install -y libnss-resolve:i386 libnss-mdns:i386 libvkd3d1 libvkd3d1:i386 2>/dev/null || true
+        sudo apt-get install -y libasound2-plugins:i386 libpulse0:i386 pipewire-alsa:i386 libasound2:i386 2>/dev/null || true
+        sudo apt-get install -y gstreamer1.0-plugins-base gstreamer1.0-plugins-good gstreamer1.0-plugins-bad gstreamer1.0-plugins-ugly gstreamer1.0-libav 2>/dev/null || true
+        sudo apt-get install -y gstreamer1.0-plugins-base:i386 gstreamer1.0-plugins-good:i386 gstreamer1.0-plugins-bad:i386 gstreamer1.0-plugins-ugly:i386 gstreamer1.0-libav:i386 2>/dev/null || true
         sudo apt-get install -y iw wireless-tools 2>/dev/null || true
         ;;
     ubuntu)
@@ -261,7 +262,7 @@ case "$DISTRO_DETECTED" in
             sudo dpkg --add-architecture i386 2>/dev/null || true
         fi
         sudo apt-get update -y 2>/dev/null || true
-        sudo apt-get install -y wine wine32:i386 wine64 winetricks cabextract curl git p7zip-full mesa-utils vulkan-tools zenity python3 wine-gecko wine-mono wmctrl xdotool 2>/dev/null || sudo apt-get install -y wine winetricks cabextract curl git p7zip-full zenity python3 wmctrl xdotool 2>/dev/null || true
+        sudo apt-get install -y wine wine32:i386 wine64 winetricks cabextract curl git p7zip-full zstd mesa-utils vulkan-tools zenity python3 wine-gecko wine-mono wmctrl xdotool 2>/dev/null || sudo apt-get install -y wine winetricks cabextract curl git p7zip-full zstd zenity python3 wmctrl xdotool 2>/dev/null || true
         sudo apt-get install -y dxvk dxvk-wine32:i386 dxvk-wine64 libvulkan1 libvulkan1:i386 mesa-vulkan-drivers mesa-vulkan-drivers:i386 libgl1-mesa-dri:i386 libgl1:i386 mangohud gamemode libgamemode0:i386 2>/dev/null || true
         if lspci 2>/dev/null | grep -qi "nvidia"; then
             echo -e "${C_CYAN}  🎮 GPU NVIDIA detectada: Asegurando controladores y librerías de 32 bits...${C_RESET}"
@@ -269,7 +270,7 @@ case "$DISTRO_DETECTED" in
             if [ -n "$nv_ver" ]; then
                 sudo apt-get install -y "libnvidia-gl-${nv_ver}:i386" 2>/dev/null || true
             else
-                sudo apt-get install -y libnvidia-gl-550:i386 2>/dev/null || sudo apt-get install -y libnvidia-gl-535:i386 2>/dev/null || sudo apt-get install -y libnvidia-gl-525:i386 2>/dev/null || true
+                sudo apt-get install -y libnvidia-gl-550:i386 2>/dev/null || sudo apt-get install -y libnvidia-gl-535:i386 2>/dev/null || sudo apt-get install -y libnvidia-gl-525:i386 2>/dev/null || sudo apt-get install -y nvidia-driver-libs:i386 2>/dev/null || true
             fi
         elif lspci 2>/dev/null | grep -qi "intel"; then
             echo -e "${C_CYAN}  🎮 Gráficos Intel detectados: Asegurando aceleración multimedia VA-API...${C_RESET}"
@@ -279,9 +280,10 @@ case "$DISTRO_DETECTED" in
             sudo apt-get install -y mesa-va-drivers mesa-va-drivers:i386 2>/dev/null || true
         fi
         sudo apt-get install -y libgnutls30:i386 2>/dev/null || sudo apt-get install -y libgnutls30t64:i386 2>/dev/null || true
-        sudo apt-get install -y libnss-resolve:i386 libnss-mdns:i386 libvkd3d1:i386 2>/dev/null || true
-        sudo apt-get install -y libasound2-plugins:i386 2>/dev/null || true
-        sudo apt-get install -y gstreamer1.0-plugins-base:i386 gstreamer1.0-plugins-good:i386 gstreamer1.0-plugins-ugly:i386 gstreamer1.0-libav:i386 2>/dev/null || true
+        sudo apt-get install -y libnss-resolve:i386 libnss-mdns:i386 libvkd3d1 libvkd3d1:i386 2>/dev/null || true
+        sudo apt-get install -y libasound2-plugins:i386 libpulse0:i386 pipewire-alsa:i386 libasound2:i386 2>/dev/null || true
+        sudo apt-get install -y gstreamer1.0-plugins-base gstreamer1.0-plugins-good gstreamer1.0-plugins-bad gstreamer1.0-plugins-ugly gstreamer1.0-libav 2>/dev/null || true
+        sudo apt-get install -y gstreamer1.0-plugins-base:i386 gstreamer1.0-plugins-good:i386 gstreamer1.0-plugins-bad:i386 gstreamer1.0-plugins-ugly:i386 gstreamer1.0-libav:i386 2>/dev/null || true
         sudo apt-get install -y iw wireless-tools 2>/dev/null || true
         ;;
     arch)
@@ -291,8 +293,8 @@ case "$DISTRO_DETECTED" in
             sudo sed -i '/^#\[multilib\]/{s/^#//;n;s/^#//}' /etc/pacman.conf 2>/dev/null || true
             sudo pacman -Sy --noconfirm 2>/dev/null || true
         fi
-        sudo pacman -S --needed --noconfirm wine winetricks gamemode lib32-gamemode cabextract curl git p7zip mesa-utils vulkan-tools zenity python wine-gecko wine-mono wmctrl xdotool 2>/dev/null || sudo pacman -S --needed --noconfirm wine winetricks gamemode cabextract curl git p7zip mesa-utils vulkan-tools zenity python wmctrl xdotool 2>/dev/null || true
-        sudo pacman -S --needed --noconfirm vulkan-icd-loader lib32-vulkan-icd-loader lib32-mesa lib32-libglvnd mangohud lib32-mangohud lib32-vkd3d 2>/dev/null || true
+        sudo pacman -S --needed --noconfirm wine winetricks gamemode lib32-gamemode cabextract curl git p7zip zstd mesa-utils vulkan-tools zenity python wine-gecko wine-mono wmctrl xdotool 2>/dev/null || sudo pacman -S --needed --noconfirm wine winetricks gamemode cabextract curl git p7zip zstd mesa-utils vulkan-tools zenity python wmctrl xdotool 2>/dev/null || true
+        sudo pacman -S --needed --noconfirm vulkan-icd-loader lib32-vulkan-icd-loader lib32-mesa lib32-libglvnd mangohud lib32-mangohud vkd3d lib32-vkd3d 2>/dev/null || true
         if lspci 2>/dev/null | grep -qiE "amd|radeon"; then
             echo -e "${C_CYAN}  🎮 GPU AMD detectada: Instalando controladores RADV Vulkan y VA-API (32 y 64 bits)...${C_RESET}"
             sudo pacman -S --needed --noconfirm vulkan-radeon lib32-vulkan-radeon mesa lib32-mesa libva-mesa-driver lib32-libva-mesa-driver 2>/dev/null || true
@@ -304,12 +306,12 @@ case "$DISTRO_DETECTED" in
             echo -e "${C_CYAN}  🎮 GPU NVIDIA detectada: Instalando librerías nvidia-utils (32 y 64 bits)...${C_RESET}"
             sudo pacman -S --needed --noconfirm nvidia-utils lib32-nvidia-utils 2>/dev/null || true
         fi
-        sudo pacman -S --needed --noconfirm lib32-gnutls lib32-glibc lib32-gst-plugins-base lib32-gst-plugins-good lib32-gst-plugins-ugly lib32-gst-libav iw wireless_tools 2>/dev/null || true
+        sudo pacman -S --needed --noconfirm lib32-gnutls lib32-glibc gst-plugins-base gst-plugins-good gst-plugins-bad gst-plugins-ugly gst-libav lib32-gst-plugins-base lib32-gst-plugins-good lib32-gst-plugins-bad lib32-gst-plugins-ugly lib32-gst-libav iw wireless_tools 2>/dev/null || true
         ;;
     fedora)
         echo -e "${C_CYAN}  ⚙️ Configurando Fedora / Nobara...${C_RESET}"
         # 1. Paquetes base esenciales (100% oficiales y disponibles en Fedora)
-        sudo dnf install -y wine winetricks gamemode cabextract curl git p7zip p7zip-plugins vulkan-tools glx-utils zenity python3 wine-gecko wine-mono wmctrl xdotool 2>/dev/null || sudo dnf install -y wine winetricks gamemode cabextract curl git p7zip vulkan-tools zenity python3 wmctrl xdotool 2>/dev/null || true
+        sudo dnf install -y wine winetricks gamemode cabextract curl git p7zip p7zip-plugins zstd vulkan-tools glx-utils zenity python3 wine-gecko wine-mono wmctrl xdotool 2>/dev/null || sudo dnf install -y wine winetricks gamemode cabextract curl git p7zip zstd vulkan-tools zenity python3 wmctrl xdotool 2>/dev/null || true
 
         # 2. Soporte para juegos y ejecutables de 32 bits (Wine multiarch)
         sudo dnf install -y wine.i686 2>/dev/null || sudo dnf install -y wine-core.i686 2>/dev/null || true
@@ -320,7 +322,7 @@ case "$DISTRO_DETECTED" in
 
         # 4. Herramientas complementarias (MangoHud y VKD3D)
         sudo dnf install -y mangohud vkd3d 2>/dev/null || true
-        sudo dnf install -y mangohud.i686 2>/dev/null || true
+        sudo dnf install -y mangohud.i686 vkd3d.i686 2>/dev/null || true
 
         # 5. Detección y aceleración por GPU
         if lspci 2>/dev/null | grep -qiE "amd|radeon"; then
@@ -337,9 +339,9 @@ case "$DISTRO_DETECTED" in
             sudo dnf install -y xorg-x11-drv-nvidia-libs.i686 2>/dev/null || true
         fi
 
-        # 6. Decodificadores multimedia GStreamer y Sonido 32 bits
-        sudo dnf install -y gstreamer1-plugins-base.i686 gstreamer1-plugins-good.i686 2>/dev/null || true
-        sudo dnf install -y gstreamer1-plugins-ugly.i686 gstreamer1-plugins-bad-free.i686 2>/dev/null || true
+        # 6. Decodificadores multimedia GStreamer y Sonido (32 y 64 bits para cinemáticas sin pantalla negra)
+        sudo dnf install -y gstreamer1-plugins-base gstreamer1-plugins-good gstreamer1-plugins-bad-free gstreamer1-plugins-ugly gstreamer1-libav 2>/dev/null || true
+        sudo dnf install -y gstreamer1-plugins-base.i686 gstreamer1-plugins-good.i686 gstreamer1-plugins-bad-free.i686 gstreamer1-plugins-ugly.i686 gstreamer1-libav.i686 2>/dev/null || true
         sudo dnf install -y pipewire-alsa.i686 alsa-plugins-pulseaudio.i686 openal-soft.i686 2>/dev/null || true
 
         # 7. Librerías de red, SSL/TLS y DNS de 32 bits (Multijugador, GameRanger y HTTPS)
@@ -355,7 +357,7 @@ case "$DISTRO_DETECTED" in
         ;;
     opensuse)
         echo -e "${C_CYAN}  ⚙️ Configurando openSUSE...${C_RESET}"
-        sudo zypper --non-interactive --auto-agree-with-licenses install wine wine-32bit winetricks gamemode gamemode-32bit cabextract curl git p7zip mesa-utils vulkan-tools zenity python3 wine-gecko wine-mono wmctrl xdotool 2>/dev/null || sudo zypper --non-interactive --auto-agree-with-licenses install wine winetricks gamemode cabextract curl git p7zip mesa-utils vulkan-tools zenity python3 wmctrl xdotool 2>/dev/null || true
+        sudo zypper --non-interactive --auto-agree-with-licenses install wine wine-32bit winetricks gamemode gamemode-32bit cabextract curl git p7zip zstd mesa-utils vulkan-tools zenity python3 wine-gecko wine-mono wmctrl xdotool 2>/dev/null || sudo zypper --non-interactive --auto-agree-with-licenses install wine winetricks gamemode cabextract curl git p7zip zstd mesa-utils vulkan-tools zenity python3 wmctrl xdotool 2>/dev/null || true
         sudo zypper --non-interactive --auto-agree-with-licenses install libvulkan1 libvulkan1-32bit Mesa-dri-32bit libglvnd-32bit mangohud mangohud-32bit 2>/dev/null || true
         if lspci 2>/dev/null | grep -qiE "amd|radeon"; then
             echo -e "${C_CYAN}  🎮 GPU AMD detectada: Instalando controladores RADV Vulkan...${C_RESET}"
@@ -364,7 +366,7 @@ case "$DISTRO_DETECTED" in
             echo -e "${C_CYAN}  🎮 Gráficos Intel detectados: Instalando controladores ANV Vulkan...${C_RESET}"
             sudo zypper --non-interactive --auto-agree-with-licenses install libvulkan_intel libvulkan_intel-32bit 2>/dev/null || true
         fi
-        sudo zypper --non-interactive --auto-agree-with-licenses install gstreamer-plugins-ugly-32bit gstreamer-plugins-bad-32bit libgnutls30-32bit systemd-32bit iw wireless-tools 2>/dev/null || sudo zypper --non-interactive --auto-agree-with-licenses install gnutls-32bit iw wireless-tools 2>/dev/null || true
+        sudo zypper --non-interactive --auto-agree-with-licenses install gstreamer-plugins-base gstreamer-plugins-good gstreamer-plugins-bad gstreamer-plugins-ugly gstreamer-plugins-ugly-32bit gstreamer-plugins-bad-32bit libgnutls30-32bit systemd-32bit iw wireless-tools 2>/dev/null || sudo zypper --non-interactive --auto-agree-with-licenses install gnutls-32bit iw wireless-tools 2>/dev/null || true
         ;;
     portable)
         echo -e "${C_PURPLE}  ⚙️ Modo Portable Universal seleccionado (SteamOS / Distros Inmutables / Sin Sudo)...${C_RESET}"
@@ -376,13 +378,13 @@ case "$DISTRO_DETECTED" in
         echo -e "${C_YELLOW}  ⚠️ Distribución genérica detectada. Verificando comandos estándar...${C_RESET}"
         if command -v apt-get &>/dev/null; then
             sudo apt-get update -y 2>/dev/null || true
-            sudo apt-get install -y wine winetricks gamemode cabextract curl p7zip-full zenity python3 wmctrl xdotool iw wireless-tools 2>/dev/null || true
+            sudo apt-get install -y wine winetricks gamemode cabextract curl zstd p7zip-full zenity python3 wmctrl xdotool iw wireless-tools 2>/dev/null || true
         elif command -v pacman &>/dev/null; then
-            sudo pacman -S --needed --noconfirm wine winetricks gamemode cabextract curl p7zip zenity python wmctrl xdotool iw wireless_tools 2>/dev/null || true
+            sudo pacman -S --needed --noconfirm wine winetricks gamemode cabextract curl zstd p7zip zenity python wmctrl xdotool iw wireless_tools 2>/dev/null || true
         elif command -v dnf &>/dev/null; then
-            sudo dnf install -y --skip-broken wine winetricks gamemode cabextract curl p7zip zenity python3 wmctrl xdotool iw wireless-tools 2>/dev/null || true
+            sudo dnf install -y --skip-broken wine winetricks gamemode cabextract curl zstd p7zip zenity python3 wmctrl xdotool iw wireless-tools 2>/dev/null || true
         elif command -v zypper &>/dev/null; then
-            sudo zypper --non-interactive --auto-agree-with-licenses install wine winetricks gamemode cabextract curl p7zip zenity python3 wmctrl xdotool iw wireless-tools 2>/dev/null || true
+            sudo zypper --non-interactive --auto-agree-with-licenses install wine winetricks gamemode cabextract curl zstd p7zip zenity python3 wmctrl xdotool iw wireless-tools 2>/dev/null || true
         fi
         ;;
 esac
@@ -791,7 +793,7 @@ elif [ -d "$TARGET_HOME/.local/bin" ]; then
     ln -sf "${DIR}/vessel.sh" "$TARGET_HOME/.local/bin/vessel" 2>/dev/null || true
 fi
 
-echo "1.2" > "${DIR}/.instalado" 2>/dev/null || true
+echo "1.3" > "${DIR}/.instalado" 2>/dev/null || true
 chown "$TARGET_USER:$TARGET_USER" "${DIR}/.instalado" 2>/dev/null || true
 # version.txt se mantiene limpio (0 bytes) para sincronización con git
 > "${DIR}/version.txt" 2>/dev/null || true

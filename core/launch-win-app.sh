@@ -592,6 +592,12 @@ if [ -f "$local_gestor_lib" ] && [ -d "${WINEPREFIX}/drive_c/windows" ]; then
         bash "$local_gestor_lib" instalar_vcredist "$WINEPREFIX" >/dev/null 2>&1 || true
         bash "$local_gestor_lib" configurar_overrides "$WINEPREFIX" >/dev/null 2>&1 || true
     fi
+    if [ "$es_dx12" = true ] || [ "${PE_API:-}" = "dx12" ] || [ "${PE_HAS_DX12:-0}" = "1" ]; then
+        if [ ! -f "${WINEPREFIX}/drive_c/windows/system32/d3d12.dll" ]; then
+            echo "[*] Sincronizando traductor oficial DirectX 12 a Vulkan (VKD3D-Proton)..."
+            bash "$local_gestor_lib" instalar_vkd3d "$WINEPREFIX" >/dev/null 2>&1 || true
+        fi
+    fi
     if [ -d "${DIR}/wineprefix/drive_c/windows" ] && [ "$WINEPREFIX" != "${DIR}/wineprefix" ]; then
         bash "$local_gestor_lib" propagar "$WINEPREFIX" >/dev/null 2>&1 || true
     fi
@@ -2033,10 +2039,10 @@ fi
 
 echo ""
 if [ "$IS_PROGRAM" -eq 1 ] || [ "${PE_CATEGORY:-juego}" = "programa" ]; then
-    echo "[+] Ejecutando Programa de Windows [Modo Ventana Nativa - ClearType HD] (Vessel v1.2)..."
+    echo "[+] Ejecutando Programa de Windows [Modo Ventana Nativa - ClearType HD] (Vessel v1.3)..."
     echo "    - CPU: ${CPU_MODEL} (${CPU_CORES} Hilos)"
     echo "    - GPU: ${DETECTED_GPU}"
-    echo "    - Versión de Vessel: v1.2 (Producción)"
+    echo "    - Versión de Vessel: v1.3 (Producción)"
     echo "    - Modo de Ejecución: Ventana Nativa X11 / Wayland (Redimensionable)"
     echo "    - Renderizado de Texto: ClearType HD Subpixel Antialiasing"
     echo "    - Consumo de Recursos: Mínimo (~25-40 MB RAM, 0% CPU adicional)"
@@ -2048,10 +2054,10 @@ if [ "$IS_PROGRAM" -eq 1 ] || [ "${PE_CATEGORY:-juego}" = "programa" ]; then
     echo "    - Prefijo Wine: ${WINEPREFIX}"
     echo "    - Productividad: RichEdit, MSXML, GDI+ y DirectWrite habilitados"
 else
-    echo "[+] Ejecutando con Perfil [${perf_label}] (Vessel v1.2)..."
+    echo "[+] Ejecutando con Perfil [${perf_label}] (Vessel v1.3)..."
     echo "    - CPU: ${CPU_MODEL} (${CPU_CORES} Hilos)"
     echo "    - GPU: ${DETECTED_GPU}"
-    echo "    - Versión de Vessel: v1.2 (Producción)"
+    echo "    - Versión de Vessel: v1.3 (Producción)"
     echo "    - Renderizador: ${RENDERER_IN_USE:-DXVK (Vulkan)}"
     echo "    - Consumo RAM / CPU: Ultra-Liviano (WINEDEBUG silenciado, Pipelines dinámicos)"
     echo "    - Fidelidad 3D & Shaders: Filtrado Anisotrópico 16x | D3D8to9 Vulkan | NVAPI: ${NVAPI_ACTIVO}"
@@ -2440,7 +2446,7 @@ if [ "$HUBO_ERROR" -eq 1 ]; then
 
     {
         echo "================================================================================"
-        echo "VESSEL v1.2 - INFORME DETALLADO DE ERROR / CIERRE INESPERADO"
+        echo "VESSEL v1.3 - INFORME DETALLADO DE ERROR / CIERRE INESPERADO"
         echo "================================================================================"
         echo "Fecha y Hora          : $(date '+%Y-%m-%d %H:%M:%S')"
         echo "Juego / Ejecutable    : ${TARGET_FILE}"

@@ -71,8 +71,8 @@ VERSION_FILE = os.path.join(DIR, "version.txt")
 INSTALADO_MARKER = os.path.join(DIR, ".instalado")
 SMART_PERF_MARKER = os.path.join(DIR, ".smart_perf_listo")
 WINVER_CONF_FILE = os.path.join(DIR, ".winver_configurados")
-VERSION_ACTUAL = "1.2"
-SMART_PERF_VERSION_ACTUAL = "1.2"
+VERSION_ACTUAL = "1.3"
+SMART_PERF_VERSION_ACTUAL = "1.3"
 
 # Helpers de scripts internos
 SCRIPT_DXVK = os.path.join(CORE_DIR, "generar_dxvk_conf.sh") if os.path.exists(os.path.join(CORE_DIR, "generar_dxvk_conf.sh")) else os.path.join(DIR, "generar_dxvk_conf.sh")
@@ -956,6 +956,8 @@ def gestionar_o_iniciar_juego(item, hw, cfg):
     pe_tag = ""
     if pe_info and pe_info.get("is_pe"):
         pe_tag = f" [{pe_info['bits']}-bit | {pe_info['api'].upper()}]"
+        if pe_info.get("anti_cheat_warning"):
+            pe_tag += f" {YELLOW}⚠️ Anti-Cheat{RESET}"
 
     opts_juego = [
         ("1", f"🚀 Iniciar {nombre} (Máximo Rendimiento Nativo en Hardware)"),
@@ -971,6 +973,14 @@ def gestionar_o_iniciar_juego(item, hw, cfg):
     accion = submenu_interactivo(f"🎮  Acciones para: {nombre}", opts_juego, hw, cfg)
 
     if accion == "1":
+        if pe_info and pe_info.get("anti_cheat_warning"):
+            ac_name = pe_info.get("anti_cheat_name", "Kernel Ring 0")
+            print(f"\n{YELLOW}⚠️  ADVERTENCIA DE COMPATIBILIDAD - ANTI-CHEAT DE KERNEL DETECTADO{RESET}")
+            print(f"{WHITE}Este título utiliza un sistema Anti-Cheat a nivel de Kernel exclusivo de Windows ({ac_name}).{RESET}")
+            print(f"{GRAY}Podrás ejecutar pruebas o modo sin conexión / un jugador, pero los servidores oficiales en línea bloquearán el acceso en Linux.{RESET}\n")
+            continuar = input(f"{CYAN}¿Deseas intentar ejecutar de todos modos? (S/n): {RESET}").strip().lower()
+            if continuar == 'n':
+                return
         os.system("clear")
         print(f"{GREEN}🚀 Iniciando: {BOLD}{nombre}{RESET} de forma nativa en tu computadora...\n")
         if not os.path.exists(ruta) and "gameranger" in ruta.lower():
@@ -985,6 +995,14 @@ def gestionar_o_iniciar_juego(item, hw, cfg):
         cmd_args.append(ruta)
         ejecutar_juego_y_liberar_ram(cmd_args, con_hud=False)
     elif accion == "2":
+        if pe_info and pe_info.get("anti_cheat_warning"):
+            ac_name = pe_info.get("anti_cheat_name", "Kernel Ring 0")
+            print(f"\n{YELLOW}⚠️  ADVERTENCIA DE COMPATIBILIDAD - ANTI-CHEAT DE KERNEL DETECTADO{RESET}")
+            print(f"{WHITE}Este título utiliza un sistema Anti-Cheat a nivel de Kernel exclusivo de Windows ({ac_name}).{RESET}")
+            print(f"{GRAY}Podrás ejecutar pruebas o modo sin conexión / un jugador, pero los servidores oficiales en línea bloquearán el acceso en Linux.{RESET}\n")
+            continuar = input(f"{CYAN}¿Deseas intentar ejecutar de todos modos? (S/n): {RESET}").strip().lower()
+            if continuar == 'n':
+                return
         os.system("clear")
         print(f"{PURPLE}📊 Iniciando: {BOLD}{nombre}{RESET} con HUD de FPS activo...\n")
         if not os.path.exists(ruta) and "gameranger" in ruta.lower():
@@ -1614,6 +1632,15 @@ def menu_agregar_item_especifico(tipo_forzado, hw, cfg):
 
     ini = input(f"\n{PURPLE}¿Deseas iniciar '{nombre_custom}' ahora mismo? (s/N): {RESET}").strip().lower()
     if ini == 's':
+        if pe_inf and pe_inf.get("anti_cheat_warning"):
+            ac_name = pe_inf.get("anti_cheat_name", "Kernel Ring 0")
+            print(f"\n{YELLOW}⚠️  ADVERTENCIA DE COMPATIBILIDAD - ANTI-CHEAT DE KERNEL DETECTADO{RESET}")
+            print(f"{WHITE}Este título utiliza un sistema Anti-Cheat a nivel de Kernel exclusivo de Windows ({ac_name}).{RESET}")
+            print(f"{GRAY}Podrás ejecutar pruebas o modo sin conexión / un jugador, pero los servidores oficiales en línea bloquearán el acceso en Linux.{RESET}\n")
+            continuar = input(f"{CYAN}¿Deseas intentar ejecutar de todos modos? (S/n): {RESET}").strip().lower()
+            if continuar == 'n':
+                pausar()
+                return
         os.system("clear")
         print(f"{GREEN}🚀 Iniciando: {BOLD}{nombre_custom}{RESET}...\n")
         args_launch = []
@@ -2188,7 +2215,8 @@ def menu_herramientas(hw, cfg):
                 ("7", "🌐 .NET Framework 4.8 (dotnet48 para launchers y mods)"),
                 ("8", "🔊 Audio 3D OpenAL + DSOAL (EAX binaural espacial)"),
                 ("9", "🕹️  DirectDraw Retro OpenGL (cnc-ddraw para clásicos 1995-2003)"),
-                ("10", "⚡ Apartado Modular de Drivers (DXVK, VKD3D-Proton, GPU y Pantalla)\n• Revisa el estado de drivers abiertos y configuración de pantalla objetivo"),
+                ("10", "⚡ VKD3D-Proton: DirectX 12 a Vulkan (Resident Evil 4 Remake y juegos DX12)"),
+                ("11", "🛠️  Apartado Modular de Drivers (DXVK, VKD3D-Proton, GPU y Pantalla)\n• Revisa el estado de drivers abiertos y configuración de pantalla objetivo"),
                 ("0", "↩️  Cancelar")
             ]
             w_sel = submenu_interactivo("📦  Instalar Dependencias y DLLs de Windows", sub_winetricks, hw, cfg)
@@ -2231,6 +2259,10 @@ def menu_herramientas(hw, cfg):
                 subprocess.run(["bash", script_lib, "instalar_ddraw", target_dest])
                 pausar()
             elif w_sel == "10":
+                os.system("clear")
+                subprocess.run(["bash", script_lib, "instalar_vkd3d", WINEPREFIX])
+                pausar()
+            elif w_sel == "11":
                 os.system("clear")
                 script_drv = os.path.join(CORE_DIR, "gestor_drivers.sh") if os.path.exists(os.path.join(CORE_DIR, "gestor_drivers.sh")) else os.path.join(DIR, "core", "gestor_drivers.sh")
                 subprocess.run(["bash", script_drv, "estado"])
@@ -2594,6 +2626,79 @@ def comprobar_configuracion_smart_performance(hw, cfg):
     print(f"  {WHITE}Presiona {BOLD}{GREEN}[Enter]{RESET}{WHITE} para continuar al Menú Principal...{RESET}")
     read_key()
 
+def comprobar_librerias_esenciales(hw, cfg):
+    """
+    Verifica si las librerías fundamentales están presentes en el prefijo principal:
+    d3dx9_43.dll y msvcp140.dll en system32 o syswow64.
+    Si faltan y no se ha omitido la verificación, ofrece un asistente en 1-clic
+    para instalar el Paquete Esencial de Compatibilidad (DirectX, Visual C++, VKD3D-Proton).
+    """
+    pfx_win = os.path.join(WINEPREFIX, "drive_c", "windows")
+    if not os.path.isdir(pfx_win):
+        return
+
+    sys32 = os.path.join(pfx_win, "system32")
+    syswow = os.path.join(pfx_win, "syswow64")
+
+    tiene_dx = (
+        os.path.exists(os.path.join(sys32, "d3dx9_43.dll")) or
+        os.path.exists(os.path.join(syswow, "d3dx9_43.dll"))
+    )
+    tiene_vc = (
+        os.path.exists(os.path.join(sys32, "msvcp140.dll")) or
+        os.path.exists(os.path.join(syswow, "msvcp140.dll"))
+    )
+
+    if tiene_dx and tiene_vc:
+        return
+
+    if cfg.get("OMITIR_VERIFICACION_LIBRERIAS") == "1":
+        return
+
+    total_w = get_terminal_width()
+    inner_w = max(total_w - 2, 70)
+
+    os.system("clear")
+    print(f"{PURPLE}╭{'─' * inner_w}╮{RESET}")
+    title = "⚡  VESSEL: ASISTENTE PLUG & PLAY DE COMPATIBILIDAD  ⚡"
+    pad = max((inner_w - visual_width(title)) // 2, 0)
+    print(f"{PURPLE}│{RESET}{' ' * pad}{BOLD}{CYAN}{title}{RESET}{' ' * max(inner_w - pad - visual_width(title), 0)}{PURPLE}│{RESET}")
+    print(f"{PURPLE}│{' ' * inner_w}│{RESET}")
+
+    msg1 = "Se ha detectado que faltan librerías nativas clave en tu entorno Wine."
+    msg2 = "Para garantizar que el 100% de tus juegos y programas arranquen sin errores"
+    msg3 = "de DLLs faltantes, se recomienda instalar el Paquete Esencial de Compatibilidad:"
+    msg4 = "• DirectX 9 / 10 / 11 (+100 DLLs nativas oficiales de Microsoft)"
+    msg5 = "• Microsoft Visual C++ 2005 a 2022 AIO (32 y 64 bits)"
+    msg6 = "• VKD3D-Proton (DirectX 12 oficial HansKristian) y DXVK-NVAPI"
+
+    for m in (msg1, msg2, msg3, "", msg4, msg5, msg6, ""):
+        if not m:
+            print(f"{PURPLE}│{' ' * inner_w}│{RESET}")
+            continue
+        color = GREEN if m.startswith("•") else WHITE
+        print(f"{PURPLE}│{RESET}  {color}{m}{RESET}{' ' * max(inner_w - 2 - visual_width(m), 0)}{PURPLE}│{RESET}")
+
+    print(f"{PURPLE}├{'─' * inner_w}┤{RESET}")
+    print(f"{PURPLE}│{RESET}  {BOLD}[1]{RESET} {GREEN}{BOLD}Instalar ahora automáticamente (Recomendado - 1 Clic){RESET}{' ' * max(inner_w - 55, 0)}{PURPLE}│{RESET}")
+    print(f"{PURPLE}│{RESET}  {BOLD}[2]{RESET} {GRAY}Continuar sin instalar por ahora{RESET}{' ' * max(inner_w - 34, 0)}{PURPLE}│{RESET}")
+    print(f"{PURPLE}╰{'─' * inner_w}╯{RESET}\n")
+
+    print(f"{WHITE}Selecciona una opción [1-2] (Enter = 1): {RESET}", end="", flush=True)
+    k = read_key()
+    if k in ('1', 'ENTER', 'SPACE', ''):
+        print(f"\n\n{CYAN}🚀 Instalando Paquete Maestro de Compatibilidad de forma automática...{RESET}\n")
+        gestor_lib = os.path.join(CORE_DIR, "gestor_librerias.sh")
+        if not os.path.exists(gestor_lib):
+            gestor_lib = os.path.join(DIR, "gestor_librerias.sh")
+        if os.path.exists(gestor_lib):
+            subprocess.run(["bash", gestor_lib, "paquete_maestro", WINEPREFIX])
+        print(f"\n{GREEN}✔ ¡Paquete Esencial de Compatibilidad configurado con éxito!{RESET}")
+        time.sleep(1.5)
+    else:
+        print(f"\n{YELLOW}Continuando al Menú Principal...{RESET}")
+        time.sleep(0.5)
+
 def verificar_actualizacion_automatica_github(mostrar_notif=True, cfg=None):
     """Verifica e instala actualizaciones desde GitHub automáticamente para todos los usuarios.
     Muestra mensajes claros al usuario: buscando actualización, nueva versión encontrada o al día.
@@ -2779,6 +2884,9 @@ def main():
 
     # Comprobar configuración inicial de Smart Performance (primera vez o tras actualización)
     comprobar_configuracion_smart_performance(hw, cfg)
+
+    # Comprobar librerías esenciales (DirectX y Visual C++) para garantizar 100% Plug & Play
+    comprobar_librerias_esenciales(hw, cfg)
 
     # Preinstalar e integrar GameRanger portable listo en opción 1
     desplegar_gameranger_portable()

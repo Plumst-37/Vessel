@@ -1,9 +1,9 @@
 <div align="center">
 
-# ⚡ VESSEL v1.2
+# ⚡ VESSEL v1.3
 ### *Advanced Windows Compatibility & High-Performance Gaming Environment for Linux*
 
-[![Version](https://img.shields.io/badge/Version-1.2%20Official-8b5cf6.svg?style=for-the-badge&logo=rocket)](https://github.com/Plumst-37/Vessel)
+[![Version](https://img.shields.io/badge/Version-1.3%20Official-8b5cf6.svg?style=for-the-badge&logo=rocket)](https://github.com/Plumst-37/Vessel)
 [![Linux](https://img.shields.io/badge/Platform-GNU%2FLinux-3b82f6.svg?style=for-the-badge&logo=linux)](https://github.com/Plumst-37/Vessel)
 [![Bash Core](https://img.shields.io/badge/Core-Native%20Bash-10b981.svg?style=for-the-badge&logo=gnubash)](https://github.com/Plumst-37/Vessel)
 [![Vulkan](https://img.shields.io/badge/Graphics-Vulkan%20%7C%20DXVK%202.x-e11d48.svg?style=for-the-badge&logo=vulkan)](https://github.com/Plumst-37/Vessel)
@@ -11,7 +11,7 @@
 
 <br/>
 
-**VESSEL v1.2** es un entorno universal de ejecución y optimización para videojuegos y aplicaciones de Windows en GNU/Linux.  
+**VESSEL v1.3** es un entorno universal de ejecución y optimización para videojuegos y aplicaciones de Windows en GNU/Linux.  
 Diseñado con una filosofía **Plug & Play**: detecta automáticamente tu hardware, analiza los binarios PE/COFF de Windows, calibra los traductores gráficos (DXVK, VKD3D-Proton, Zink, CNC-DDraw) y ejecuta con **cero consumo en segundo plano** y latencia ultrabaja.
 
 ---
@@ -125,7 +125,7 @@ Al iniciar, Vessel te presenta una interfaz clara y estructurada en dos áreas 1
 
 ## 📊 Comparativa de Rendimiento
 
-| Característica / Métrica | ⚡ VESSEL v1.2 | Lutris / Bottles | Windows 11 Nativo |
+| Característica / Métrica | ⚡ VESSEL v1.3 | Lutris / Bottles | Windows 11 Nativo |
 | :--- | :---: | :---: | :---: |
 | **Núcleo de Ejecución** | **Bash Puro (Cero Bloat)** | Python / Electron | C++ / Win32 / Telemetría |
 | **Consumo de RAM en Reposo** | **< 8 MB** | ~180 MB - 400 MB | ~3.5 GB - 5.0 GB |
@@ -255,5 +255,5 @@ Este proyecto es software libre y de código abierto, licenciado bajo los térmi
 ---
 
 <div align="center">
-<b>VESSEL v1.2</b> — Creado con pasión por y para la comunidad de gaming en GNU/Linux.
+<b>VESSEL v1.3</b> — Creado con pasión por y para la comunidad de gaming en GNU/Linux.
 </div>

@@ -15,6 +15,8 @@
 set -euo pipefail
 
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+CORE_DIR="${DIR}/core"
+[ ! -d "$CORE_DIR" ] && CORE_DIR="${DIR}"
 CACHE_DIR="${DIR}/librerias"
 [ ! -d "$CACHE_DIR" ] && CACHE_DIR="${DIR}/librerias_cache"
 [ ! -d "$CACHE_DIR" ] && [ -d "/home/plumst/Documentos/Win/Modificar para pc/librerias_cache" ] && CACHE_DIR="/home/plumst/Documentos/Win/Modificar para pc/librerias_cache"
@@ -163,7 +165,7 @@ configurar_dlloverrides() {
         xactengine2_6 xactengine2_7 xactengine2_8 xactengine2_9
         xactengine3_0 xactengine3_1 xactengine3_2 xactengine3_3 xactengine3_4 xactengine3_5
         xactengine3_6 xactengine3_7
-        dplayx d3d8 nvapi nvapi64
+        dplayx d3d8 nvapi nvapi64 d3d12 d3d12core
     )
 
     local vc_overrides=(
@@ -398,6 +400,75 @@ instalar_dxvk_nvapi() {
     fi
 }
 
+# 9.3 INSTALAR VKD3D-PROTON (Traductor Oficial DirectX 12 a Vulkan)
+instalar_vkd3d_proton() {
+    local target_prefix="${1:-${DIR}/wineprefix}"
+    echo -e "\n${CYAN}⚡ [ DIRECTX 12 ] Configurando VKD3D-Proton (DirectX 12 -> Vulkan)...${RESET}"
+    local vkd3d_cache="${CACHE_DIR}/vkd3d-proton"
+    mkdir -p "$vkd3d_cache"
+
+    # 1. Comprobar si ya existen DLLs extraídas en drivers/ o librerias_cache
+    if [ ! -f "${vkd3d_cache}/x64/d3d12.dll" ] || [ ! -f "${vkd3d_cache}/x86/d3d12.dll" ]; then
+        if [ -f "${DIR}/drivers/vkd3d-proton/x64/d3d12.dll" ]; then
+            mkdir -p "${vkd3d_cache}/x64" "${vkd3d_cache}/x86"
+            cp -f "${DIR}/drivers/vkd3d-proton/x64"/*.dll "${vkd3d_cache}/x64/" 2>/dev/null || true
+            cp -f "${DIR}/drivers/vkd3d-proton/x32"/*.dll "${vkd3d_cache}/x86/" 2>/dev/null || true
+        elif [ -f "${DIR}/librerias_cache/vkd3d-proton/x64/d3d12.dll" ]; then
+            mkdir -p "${vkd3d_cache}/x64" "${vkd3d_cache}/x86"
+            cp -f "${DIR}/librerias_cache/vkd3d-proton/x64"/*.dll "${vkd3d_cache}/x64/" 2>/dev/null || true
+            cp -f "${DIR}/librerias_cache/vkd3d-proton/x86"/*.dll "${vkd3d_cache}/x86/" 2>/dev/null || true
+        fi
+    fi
+
+    # 2. Si no están en caché, descargar paquete oficial de HansKristian-Work/vkd3d-proton
+    if [ ! -f "${vkd3d_cache}/x64/d3d12.dll" ] || [ ! -f "${vkd3d_cache}/x86/d3d12.dll" ]; then
+        echo -e "${CYAN}  📦 Descargando VKD3D-Proton oficial v2.14.1 desde GitHub...${RESET}"
+        local zst_file="${vkd3d_cache}/vkd3d-proton-2.14.1.tar.zst"
+        local url="https://github.com/HansKristian-Work/vkd3d-proton/releases/download/v2.14.1/vkd3d-proton-2.14.1.tar.zst"
+        if curl -sL --connect-timeout 15 --max-time 180 "$url" -o "$zst_file"; then
+            mkdir -p "${vkd3d_cache}/extract_tmp"
+            local decompressed=false
+            if command -v tar &>/dev/null && tar --help 2>&1 | grep -q "zstd"; then
+                tar --zstd -xf "$zst_file" -C "${vkd3d_cache}/extract_tmp" 2>/dev/null && decompressed=true || true
+            fi
+            if [ "$decompressed" = false ] && command -v zstd &>/dev/null; then
+                zstd -dc "$zst_file" 2>/dev/null | tar -xf - -C "${vkd3d_cache}/extract_tmp" 2>/dev/null && decompressed=true || true
+            fi
+            if [ "$decompressed" = true ]; then
+                local ext_dir
+                ext_dir=$(find "${vkd3d_cache}/extract_tmp" -maxdepth 1 -type d -name "vkd3d-proton-*" | head -n 1)
+                if [ -d "$ext_dir" ]; then
+                    mkdir -p "${vkd3d_cache}/x64" "${vkd3d_cache}/x86"
+                    cp -f "$ext_dir/x64"/*.dll "${vkd3d_cache}/x64/" 2>/dev/null || true
+                    cp -f "$ext_dir/x86"/*.dll "${vkd3d_cache}/x86/" 2>/dev/null || true
+                fi
+            fi
+            rm -rf "${vkd3d_cache}/extract_tmp" "$zst_file"
+        fi
+    fi
+
+    local instalado=0
+    local sys32="${target_prefix}/drive_c/windows/system32"
+    local syswow="${target_prefix}/drive_c/windows/syswow64"
+
+    if [ -d "$sys32" ] && [ -f "${vkd3d_cache}/x64/d3d12.dll" ]; then
+        cp -f "${vkd3d_cache}/x64/d3d12.dll" "${sys32}/d3d12.dll" 2>/dev/null || true
+        [ -f "${vkd3d_cache}/x64/d3d12core.dll" ] && cp -f "${vkd3d_cache}/x64/d3d12core.dll" "${sys32}/d3d12core.dll" 2>/dev/null || true
+        instalado=1
+    fi
+    if [ -d "$syswow" ] && [ -f "${vkd3d_cache}/x86/d3d12.dll" ]; then
+        cp -f "${vkd3d_cache}/x86/d3d12.dll" "${syswow}/d3d12.dll" 2>/dev/null || true
+        [ -f "${vkd3d_cache}/x86/d3d12core.dll" ] && cp -f "${vkd3d_cache}/x86/d3d12core.dll" "${syswow}/d3d12core.dll" 2>/dev/null || true
+        instalado=1
+    fi
+
+    if [ "$instalado" -eq 1 ]; then
+        echo -e "${GREEN}✓ VKD3D-Proton inyectado: Soporte DirectX 12 nativo sobre Vulkan activo.${RESET}"
+    else
+        echo -e "${YELLOW}⚠ VKD3D-Proton no disponible en este momento.${RESET}"
+    fi
+}
+
 # 10. PROPAGAR AUTOMÁTICAMENTE LIBRERÍAS A PREFIJOS AISLADOS (0 EXTRA DISCO VÍA HARDLINKS)
 propagar_librerias_a_prefijo() {
     local dest_prefix="${1:-}"
@@ -442,7 +513,7 @@ instalar_paquete_maestro() {
     echo -e "${BOLD}${PURPLE}   VESSEL - INSTALADOR MAESTRO DE DLLs Y RUNTIMES PARA JUEGOS          ${RESET}"
     echo -e "${BOLD}${PURPLE}========================================================================${RESET}"
     echo -e "  ${WHITE}Prefijo objetivo : ${CYAN}${target_prefix}${RESET}"
-    echo -e "  ${WHITE}Librerías        : DirectX 9/10/11 (+100 DLLs), VC++ 2005-2022 AIO,${RESET}"
+    echo -e "  ${WHITE}Librerías        : DirectX 9/10/11/12 (DXVK + VKD3D-Proton), VC++ 2005-2022 AIO,${RESET}"
     echo -e "                     OpenAL 3D, DirectPlay, Corefonts, cnc-ddraw, SDL2 DB${RESET}"
     echo -e "${BOLD}${PURPLE}========================================================================${RESET}\n"
 
@@ -450,6 +521,7 @@ instalar_paquete_maestro() {
     instalar_vcredist_aio "$target_prefix"
     instalar_d3d8to9 "$target_prefix"
     instalar_dxvk_nvapi "$target_prefix"
+    instalar_vkd3d_proton "$target_prefix"
     instalar_corefonts "$target_prefix"
     instalar_directplay "$target_prefix"
     instalar_openal "$target_prefix"
@@ -539,6 +611,13 @@ mostrar_estado() {
         echo -e "  [${YELLOW}○${RESET}] ${BOLD}DXVK-NVAPI:${RESET} Disponible para instalación bajo demanda"
     fi
 
+    # VKD3D-Proton (DirectX 12)
+    if [ -f "${DIR}/wineprefix/drive_c/windows/system32/d3d12.dll" ] || [ -f "${CACHE_DIR}/vkd3d-proton/x64/d3d12.dll" ]; then
+        echo -e "  [${GREEN}✓${RESET}] ${BOLD}VKD3D-Proton (DirectX 12 -> Vulkan):${RESET} Instalado y listo (RE4 Remake y juegos DX12)"
+    else
+        echo -e "  [${YELLOW}○${RESET}] ${BOLD}VKD3D-Proton:${RESET} Disponible para instalación bajo demanda"
+    fi
+
     # vkBasalt
     if command -v vkbasalt &>/dev/null || [ -f "/usr/lib/x86_64-linux-gnu/libvkbasalt.so" ] || [ -f "/usr/lib64/libvkbasalt.so" ] || [ -f "/usr/lib/libvkbasalt.so" ]; then
         echo -e "  [${GREEN}✓${RESET}] ${BOLD}vkBasalt (Post-procesado Vulkan):${RESET} Instalado en el sistema"
@@ -585,6 +664,10 @@ case "${1:-menu}" in
         instalar_dxvk_nvapi "${2:-${DIR}/wineprefix}"
         configurar_dlloverrides "${2:-${DIR}/wineprefix}"
         ;;
+    instalar_vkd3d|instalar_vkd3d_proton)
+        instalar_vkd3d_proton "${2:-${DIR}/wineprefix}"
+        configurar_dlloverrides "${2:-${DIR}/wineprefix}"
+        ;;
     propagar)
         propagar_librerias_a_prefijo "${2:-}"
         ;;
@@ -614,27 +697,29 @@ case "${1:-menu}" in
         echo "  [3] ⚙️  Instalar Visual C++ 2005 a 2022 AIO (32 y 64 bits)"
         echo "  [4] 🕹️  Instalar D3D8to9 (DirectX 8 -> Vulkan 60 FPS fijos)"
         echo "  [5] 🟢 Instalar DXVK-NVAPI (Puente nativo NVIDIA GeForce)"
-        echo "  [6] 🔤 Instalar Fuentes Oficiales de Windows (Corefonts: Arial, Times, Tahoma)"
-        echo "  [7] 🔊 Descargar / Preparar DSOAL (Audio 3D Espacial EAX)"
-        echo "  [8] 🕹️  Descargar / Preparar cnc-ddraw (DirectDraw OpenGL)"
-        echo "  [9] 🎮 Actualizar base de datos de mandos (gamecontrollerdb.txt)"
-        echo "  [10] 🎨 Generar configuración optimizada de vkBasalt (AMD CAS)"
-        echo "  [11] 🚀 Panel Modular de Drivers (DXVK, VKD3D-Proton, GPU y Pantalla)"
+        echo "  [6] ⚡ Instalar VKD3D-Proton (DirectX 12 -> Vulkan para juegos modernos)"
+        echo "  [7] 🔤 Instalar Fuentes Oficiales de Windows (Corefonts: Arial, Times, Tahoma)"
+        echo "  [8] 🔊 Descargar / Preparar DSOAL (Audio 3D Espacial EAX)"
+        echo "  [9] 🕹️  Descargar / Preparar cnc-ddraw (DirectDraw OpenGL)"
+        echo "  [10] 🎮 Actualizar base de datos de mandos (gamecontrollerdb.txt)"
+        echo "  [11] 🎨 Generar configuración optimizada de vkBasalt (AMD CAS)"
+        echo "  [12] 🚀 Panel Modular de Drivers (DXVK, VKD3D-Proton, GPU y Pantalla)"
         echo "  [0] ↩️  Salir"
         echo ""
-        read -rp "Selecciona una opción [0-11]: " opc
+        read -rp "Selecciona una opción [0-12]: " opc
         case "$opc" in
             1) instalar_paquete_maestro "${DIR}/wineprefix" ;;
             2) instalar_directx_completo "${DIR}/wineprefix" && configurar_dlloverrides "${DIR}/wineprefix" ;;
             3) instalar_vcredist_aio "${DIR}/wineprefix" && configurar_dlloverrides "${DIR}/wineprefix" ;;
             4) instalar_d3d8to9 "${DIR}/wineprefix" && configurar_dlloverrides "${DIR}/wineprefix" ;;
             5) instalar_dxvk_nvapi "${DIR}/wineprefix" && configurar_dlloverrides "${DIR}/wineprefix" ;;
-            6) instalar_corefonts "${DIR}/wineprefix" ;;
-            7) instalar_dsoal ;;
-            8) instalar_cnc_ddraw ;;
-            9) actualizar_gamecontrollerdb ;;
-            10) configurar_vkbasalt ;;
-            11) bash "${CORE_DIR}/gestor_drivers.sh" estado ;;
+            6) instalar_vkd3d_proton "${DIR}/wineprefix" && configurar_dlloverrides "${DIR}/wineprefix" ;;
+            7) instalar_corefonts "${DIR}/wineprefix" ;;
+            8) instalar_dsoal ;;
+            9) instalar_cnc_ddraw ;;
+            10) actualizar_gamecontrollerdb ;;
+            11) configurar_vkbasalt ;;
+            12) bash "${CORE_DIR}/gestor_drivers.sh" estado ;;
             *) echo "Saliendo..." ;;
         esac
         ;;
