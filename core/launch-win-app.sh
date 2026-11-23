@@ -2368,16 +2368,23 @@ EXEC_DURATION=$(( $(date +%s) - EXEC_START_TIME ))
 # mantenemos la sesión activa mientras existan procesos de juego en el WINEPREFIX.
 if [ -n "$WINEPREFIX" ] && [ -d "$WINEPREFIX" ]; then
     while true; do
-        active_children=$(pgrep -f "$WINEPREFIX" 2>/dev/null | while read -r c_pid; do
-            [ "$c_pid" -eq "$$" ] && continue
-            [ "$c_pid" -eq "$PPID" ] && continue
-            cmdline=$(cat /proc/"$c_pid"/cmdline 2>/dev/null | tr '\0' ' ' || true)
-            if echo "$cmdline" | grep -qiE '\.exe' && \
-               ! echo "$cmdline" | grep -qiE 'services\.exe|winedevice\.exe|plugplay\.exe|explorer\.exe|rpcss\.exe|conhost\.exe'; then
-                echo "$c_pid"
+        has_active_game=false
+        for pid_env in /proc/[0-9]*/environ; do
+            [ -r "$pid_env" ] || continue
+            if grep -qF "WINEPREFIX=${WINEPREFIX}" "$pid_env" 2>/dev/null; then
+                c_pid="${pid_env#/proc/}"
+                c_pid="${c_pid%/environ}"
+                [ "$c_pid" -eq "$$" ] 2>/dev/null && continue
+                [ "$c_pid" -eq "$PPID" ] 2>/dev/null && continue
+                cmdline=$(cat "/proc/${c_pid}/cmdline" 2>/dev/null | tr '\0' ' ' || true)
+                if echo "$cmdline" | grep -qiE '\.exe' && \
+                   ! echo "$cmdline" | grep -qiE 'services\.exe|winedevice\.exe|plugplay\.exe|explorer\.exe|rpcss\.exe|conhost\.exe|svchost\.exe|wineboot\.exe'; then
+                    has_active_game=true
+                    break
+                fi
             fi
-        done || true)
-        [ -z "$active_children" ] && break
+        done
+        [ "$has_active_game" = false ] && break
         sleep 1
     done
 fi
@@ -2420,8 +2427,6 @@ elif [ -s "$TEMP_GAME_LOG" ] && grep -qiE 'Unhandled exception: [0-9a-fA-F]|wine
 # 3. Código de salida de error temprano (< 4 segundos de ejecución) excluyendo salidas voluntarias conocidas (0, 58, 130, 143)
 elif [ "$EXIT_STATUS" -ne 0 ] && [ "$EXIT_STATUS" -ne 58 ] && [ "$EXIT_STATUS" -ne 130 ] && [ "$EXIT_STATUS" -ne 143 ]; then
     if [ "$EXEC_DURATION" -lt 4 ]; then
-        HUBO_ERROR=1
-    elif [ -s "$TEMP_GAME_LOG" ] && grep -qiE 'err:|error:' "$TEMP_GAME_LOG" 2>/dev/null; then
         HUBO_ERROR=1
     fi
 fi
