@@ -275,7 +275,7 @@ else
     if [ -f "$MOTOR_INFERENCIA" ] && [ -f "$TARGET" ]; then
         motor_eval=$(python3 "$MOTOR_INFERENCIA" "$TARGET" --env 2>/dev/null || true)
         if [ -n "$motor_eval" ]; then
-            eval "$motor_eval"
+            eval "$motor_eval" || true
         fi
     fi
 

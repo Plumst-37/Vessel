@@ -673,13 +673,13 @@ class InferenceEngine:
             env["DXVK"] = "1"
             env["DXVK_ASYNC"] = "1"
             env["DXVK_STATE_CACHE"] = "1"
-            env["d3d11.maxFrameLatency"] = "1"
+            env["DXVK_FRAME_LATENCY"] = "1"
             reasons.append("DirectX 10/11: DXVK con compilación asíncrona de pipelines y State Cache para erradicar el shader stuttering.")
 
         elif api_final == "dx9":
             env["DXVK_D3D9"] = "1"
             env["DXVK_ASYNC"] = "1"
-            env["d3d9.maxFrameLatency"] = "1"
+            env["DXVK_FRAME_LATENCY"] = "1"
             env["PBA_ENABLE"] = "1"
             reasons.append("DirectX 9: DXVK nativo a 60+ FPS fijos con búferes persistentes (PBA) para eliminación de micro-tirones.")
 
@@ -772,7 +772,9 @@ def print_env_output(analysis: dict):
     """Imprime variables en sintaxis lista para eval de Bash."""
     env_vars = analysis["prescriptions"]["environment_variables"]
     for k, v in env_vars.items():
-        print(f'export {k}="{v}"')
+        # Validar que k sea un identificador POSIX válido para bash [a-zA-Z_][a-zA-Z0-9_]*
+        if re.match(r'^[a-zA-Z_][a-zA-Z0-9_]*$', k):
+            print(f'export {k}="{v}"')
     # Metadatos del análisis
     print(f'export VESSEL_INFERRED_API="{analysis["prescriptions"]["api"]}"')
     print(f'export VESSEL_INFERRED_WINVER="{analysis["prescriptions"]["winver"]}"')
