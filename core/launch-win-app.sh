@@ -1162,7 +1162,7 @@ detectar_pantalla_activa() {
     fi
 
     # Si se especificó una resolución forzada en gpu_env.conf
-    if [ -n "${FORCE_RESOLUTION:-}" ]; then
+    if [ -n "${FORCE_RESOLUTION:-}" ] && [ "${FORCE_RESOLUTION}" != "auto" ]; then
         ACTIVE_MON_W=$(echo "$FORCE_RESOLUTION" | cut -dx -f1)
         ACTIVE_MON_H=$(echo "$FORCE_RESOLUTION" | cut -dx -f2)
     fi

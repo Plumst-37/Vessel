@@ -1,7 +1,7 @@
 #!/bin/bash
 # ==============================================================================
 # VESSEL - GESTOR MODULAR DE CONTROLADORES Y TRADUCTORES GRÁFICOS (OPEN-SOURCE)
-# DXVK (D3D8-11), VKD3D-Proton (D3D12), DXVK-NVAPI y Optimizaciones de GPU/CPU
+# DXVK (D3D8-11), VKD3D-Proton (D3D12), DXVK-NVAPI, Mesa Zink y Optimizaciones
 # Compatible 100% con GNU GPL-3.0 - Descargas limpias y dinamismo modular
 # ==============================================================================
 
@@ -56,20 +56,85 @@ cargar_gpu_env() {
         export HAS_VULKAN_GPL=true
     fi
 
-    # Forzado de GPU dedicada (NVIDIA PRIME / AMD DRI_PRIME)
-    if [ "${GPU_FORCE_DEDICATED:-1}" = "1" ]; then
-        export __NV_PRIME_RENDER_OFFLOAD=1
-        export __GLX_VENDOR_LIBRARY_NAME=nvidia
-        export __VK_LAYER_NV_optimus=NVIDIA_only
-        export DXVK_FILTER_DEVICE_NAME="${DXVK_DEVICE_FILTER:-NVIDIA}"
-        if [ -n "${MESA_DEVICE_SELECT_OVERRIDE:-}" ]; then
-            export MESA_VK_DEVICE_SELECT="${MESA_DEVICE_SELECT_OVERRIDE}"
+    # Soporte Mesa Zink (Traductor oficial OpenGL -> Vulkan)
+    case "${OPENGL_TRANSLATION:-auto}" in
+        zink)
+            export MESA_LOADER_DRIVER_OVERRIDE=zink
+            export GALLIUM_DRIVER=zink
+            ;;
+        native)
+            unset MESA_LOADER_DRIVER_OVERRIDE 2>/dev/null || true
+            unset GALLIUM_DRIVER 2>/dev/null || true
+            ;;
+        auto|*)
+            # Modo automático: se mantiene el driver nativo con aceleración por defecto
+            ;;
+    esac
+
+    # Topología de CPU y compilación en segundo plano (100% de núcleos e hilos)
+    local num_threads="${CPU_COMPILER_THREADS:-auto}"
+    if [ "$num_threads" = "auto" ] || [ -z "$num_threads" ]; then
+        local detected_threads
+        detected_threads=$(nproc 2>/dev/null || getconf _NPROCESSORS_ONLN 2>/dev/null || echo 4)
+        export DXVK_NUM_COMPILER_THREADS="$detected_threads"
+    else
+        export DXVK_NUM_COMPILER_THREADS="$num_threads"
+    fi
+
+    # Selección Dinámica de GPU Dedicada / Híbrida (NVIDIA / AMD / Intel Arc)
+    local force_ded="${GPU_FORCE_DEDICATED:-auto}"
+    if [ "$force_ded" = "auto" ] || [ "$force_ded" = "1" ]; then
+        local has_nvidia=0
+        local has_amd=0
+        local has_intel_arc=0
+        local is_hybrid=0
+
+        # Contar adaptadores gráficos disponibles en bus PCI
+        local vga_count
+        vga_count=$(lspci 2>/dev/null | grep -Ei "vga|3d controller|display" | wc -l)
+        [ "$vga_count" -gt 1 ] && is_hybrid=1
+
+        if lspci 2>/dev/null | grep -Ei "vga|3d" | grep -qi "nvidia" || [ -d "/proc/driver/nvidia" ]; then
+            has_nvidia=1
+        fi
+
+        if lspci 2>/dev/null | grep -Ei "vga|3d" | grep -qiE "amd|radeon|advanced micro devices"; then
+            has_amd=1
+        fi
+
+        if lspci 2>/dev/null | grep -Ei "vga|3d" | grep -qi "intel" && lspci 2>/dev/null | grep -Ei "vga|3d" | grep -qiE "arc|dg[1-2]|alchemist|battlemage"; then
+            has_intel_arc=1
+        fi
+
+        # Inyectar variables de alto rendimiento si se forzó o si es sistema híbrido
+        if [ "$force_ded" = "1" ] || [ "$is_hybrid" -eq 1 ]; then
+            if [ "$has_nvidia" -eq 1 ]; then
+                export __NV_PRIME_RENDER_OFFLOAD=1
+                export __GLX_VENDOR_LIBRARY_NAME=nvidia
+                export __VK_LAYER_NV_optimus=NVIDIA_only
+                if [ -n "${DXVK_DEVICE_FILTER:-}" ] && [ "${DXVK_DEVICE_FILTER}" != "auto" ]; then
+                    export DXVK_FILTER_DEVICE_NAME="${DXVK_DEVICE_FILTER}"
+                fi
+            elif [ "$has_amd" -eq 1 ]; then
+                export DRI_PRIME=1
+                export AMD_VULKAN_ICD=RADV
+                export RADV_PERFTEST=gpl,sam
+                if [ -n "${DXVK_DEVICE_FILTER:-}" ] && [ "${DXVK_DEVICE_FILTER}" != "auto" ]; then
+                    export DXVK_FILTER_DEVICE_NAME="${DXVK_DEVICE_FILTER}"
+                fi
+            elif [ "$has_intel_arc" -eq 1 ]; then
+                export DRI_PRIME=1
+                export ANV_QUEUE_THREAD_DISABLE=0
+                if [ -n "${DXVK_DEVICE_FILTER:-}" ] && [ "${DXVK_DEVICE_FILTER}" != "auto" ]; then
+                    export DXVK_FILTER_DEVICE_NAME="${DXVK_DEVICE_FILTER}"
+                fi
+            fi
         fi
     fi
 
-    # Control de Hilos de CPU
-    if [ -n "${CPU_COMPILER_THREADS:-}" ]; then
-        export DXVK_NUM_COMPILER_THREADS="${CPU_COMPILER_THREADS}"
+    # Filtro específico en capa Mesa si el usuario lo configuró explícitamente
+    if [ -n "${MESA_DEVICE_SELECT_OVERRIDE:-}" ] && [ "${MESA_DEVICE_SELECT_OVERRIDE}" != "auto" ]; then
+        export MESA_VK_DEVICE_SELECT="${MESA_DEVICE_SELECT_OVERRIDE}"
     fi
 }
 
@@ -139,11 +204,19 @@ instalar_vkd3d_modular() {
         echo -e "${YELLOW}  🌐 Descargando VKD3D-Proton oficial desde GitHub...${RESET}"
         local tmp_tar="/tmp/vkd3d_vessel_temp.tar.zst"
         local tmp_extract="/tmp/vkd3d_vessel_extract"
-        # Intentar paquete de release oficial
+        local dl_ok=0
         if curl -sL --connect-timeout 10 --max-time 120 "https://github.com/HansKristian-Work/vkd3d-proton/releases/download/v2.14.1/vkd3d-proton-2.14.1.tar.zst" -o "$tmp_tar"; then
-            if command -v tar &>/dev/null && tar --help 2>&1 | grep -q "zstd"; then
-                mkdir -p "$tmp_extract"
-                tar --zstd -xf "$tmp_tar" -C "$tmp_extract" 2>/dev/null || true
+            mkdir -p "$tmp_extract"
+            if command -v tar &>/dev/null && tar --help 2>&1 | grep -q -- "--zstd"; then
+                tar --zstd -xf "$tmp_tar" -C "$tmp_extract" 2>/dev/null && dl_ok=1
+            elif command -v zstd >/dev/null 2>&1; then
+                zstd -dc "$tmp_tar" | tar -xf - -C "$tmp_extract" 2>/dev/null && dl_ok=1
+            else
+                echo -e "${RED}  ✗ No se puede descomprimir .tar.zst: falta la utilidad zstd en el sistema.${RESET}"
+                echo -e "${YELLOW}  👉 Instala zstd con: sudo apt install zstd (Debian/Ubuntu) o sudo pacman -S zstd (Arch)${RESET}"
+            fi
+
+            if [ "$dl_ok" -eq 1 ]; then
                 local extracted_dir
                 extracted_dir=$(find "$tmp_extract" -maxdepth 1 -type d -name "vkd3d-*" | head -n 1)
                 if [ -d "$extracted_dir" ]; then
@@ -151,8 +224,8 @@ instalar_vkd3d_modular() {
                     cp -f "$extracted_dir/x86"/*.dll "${vkd3d_base}/x32/" 2>/dev/null || true
                     echo -e "${GREEN}  ✓ VKD3D-Proton instalado correctamente en drivers/vkd3d-proton/${RESET}"
                 fi
-                rm -rf "$tmp_tar" "$tmp_extract"
             fi
+            rm -rf "$tmp_tar" "$tmp_extract"
         fi
     fi
 
@@ -216,28 +289,97 @@ instalar_nvapi_modular() {
 }
 
 # ==============================================================================
-# 5. SINCRONIZACIÓN Y TARGETING DE PANTALLA PARA JUEGOS (eDP-1 / 1280x720)
+# 5. SINCRONIZACIÓN MODULAR DE PERFILES ESPECÍFICOS DE JUEGO (GTA V, etc.)
+# ==============================================================================
+sincronizar_perfil_especifico_juego() {
+    local target_game="${1:-}"
+    local target_dir="${2:-}"
+    local target_w="${3:-1920}"
+    local target_h="${4:-1080}"
+    local is_forced_res="${5:-0}"
+
+    # Sincronización para Grand Theft Auto V / PlayGTAV
+    if [[ "$target_game" =~ [Gg][Tt][Aa]5|[Pp]lay[Gg][Tt][Aa] ]]; then
+        # 1. commandline.txt
+        local cmdline="${target_dir}/commandline.txt"
+        if [ -f "$cmdline" ]; then
+            if [ "$is_forced_res" -eq 1 ]; then
+                sed -i "s/-width [0-9]*/-width ${target_w}/" "$cmdline" 2>/dev/null || true
+                sed -i "s/-height [0-9]*/-height ${target_h}/" "$cmdline" 2>/dev/null || true
+            fi
+            grep -q -- "-windowed" "$cmdline" 2>/dev/null || echo "-windowed" >> "$cmdline"
+            grep -q -- "-borderless" "$cmdline" 2>/dev/null || echo "-borderless" >> "$cmdline"
+        fi
+
+        # 2. settings.xml
+        local rsg_doc="$HOME/Documentos/Rockstar Games/GTA V"
+        [ ! -d "$rsg_doc" ] && rsg_doc="${WINEPREFIX:-${DIR}/wineprefix}/drive_c/users/${USER}/Documents/Rockstar Games/GTA V"
+        for sxml in "$rsg_doc/settings.xml" "${target_dir}/settings.xml" "${WINEPREFIX:-${DIR}/wineprefix}/drive_c/users/${USER}/Documents/Rockstar Games/GTA V/settings.xml"; do
+            if [ -f "$sxml" ]; then
+                if [ "$is_forced_res" -eq 1 ]; then
+                    sed -i "s/<ScreenWidth value=\"[0-9]*\"/<ScreenWidth value=\"${target_w}\"/" "$sxml" 2>/dev/null || true
+                    sed -i "s/<ScreenHeight value=\"[0-9]*\"/<ScreenHeight value=\"${target_h}\"/" "$sxml" 2>/dev/null || true
+                fi
+                sed -i 's/<Windowed value="[0-9]*"/<Windowed value="2"/' "$sxml" 2>/dev/null || true
+            fi
+        done
+    fi
+}
+
+# ==============================================================================
+# 6. DETECCIÓN DINÁMICA DE PANTALLA Y GEOMETRÍA UNIVERSAL
 # ==============================================================================
 sincronizar_pantalla_juego() {
     local target_game="${1:-}"
     local target_dir="${2:-}"
     cargar_gpu_env
 
-    local mon="${TARGET_MONITOR:-eDP-1}"
-    local target_w="1280"
-    local target_h="720"
-    local target_x="1920"
-    local target_y="0"
+    local mon_req="${TARGET_MONITOR:-auto}"
+    local target_w=1920
+    local target_h=1080
+    local target_x=0
+    local target_y=0
+    local is_forced_res=0
 
-    # Si se especificó HDMI-A-1 o auto, calibrar coordenadas
-    if [ "$mon" = "HDMI-A-1" ]; then
-        target_w="1920"
-        target_h="1080"
-        target_x="0"
-        target_y="0"
-    elif [ -n "${FORCE_RESOLUTION:-}" ]; then
+    # 1. Detección dinámica de monitor y geometría con xrandr
+    if command -v xrandr >/dev/null 2>&1; then
+        local mon_line=""
+        if [ "$mon_req" != "auto" ] && [ -n "$mon_req" ]; then
+            # Buscar el monitor específico solicitado por el usuario
+            mon_line=$(xrandr --current 2>/dev/null | grep -E "^${mon_req} connected" | head -n 1)
+        fi
+
+        # Si mon_req es "auto" o el monitor solicitado no fue encontrado
+        if [ -z "$mon_line" ]; then
+            mon_line=$(xrandr --current 2>/dev/null | grep -E " connected primary [0-9]+x[0-9]+" | head -n 1)
+            [ -z "$mon_line" ] && mon_line=$(xrandr --current 2>/dev/null | grep -E " connected [0-9]+x[0-9]+" | head -n 1)
+        fi
+
+        if [ -n "$mon_line" ]; then
+            local geom
+            geom=$(echo "$mon_line" | grep -oE "[0-9]+x[0-9]+\+[0-9]+\+[0-9]+" | head -n 1)
+            if [ -n "$geom" ]; then
+                target_w=$(echo "$geom" | cut -dx -f1)
+                target_h=$(echo "$geom" | cut -dx -f2 | cut -d+ -f1)
+                target_x=$(echo "$geom" | cut -d+ -f2)
+                target_y=$(echo "$geom" | cut -d+ -f3)
+            fi
+        fi
+    elif [ -f "/sys/class/drm/*/modes" ]; then
+        # Fallback a sysfs de DRM
+        local raw_res
+        raw_res=$(head -n 1 /sys/class/drm/*/modes 2>/dev/null | head -n 1)
+        if [ -n "$raw_res" ]; then
+            target_w=$(echo "$raw_res" | cut -dx -f1)
+            target_h=$(echo "$raw_res" | cut -dx -f2)
+        fi
+    fi
+
+    # 2. Resolución Forzada si el usuario la fijó expresamente
+    if [ -n "${FORCE_RESOLUTION:-}" ] && [ "${FORCE_RESOLUTION}" != "auto" ]; then
         target_w=$(echo "$FORCE_RESOLUTION" | cut -dx -f1)
         target_h=$(echo "$FORCE_RESOLUTION" | cut -dx -f2)
+        is_forced_res=1
     fi
 
     export ACTIVE_MON_W="$target_w"
@@ -248,32 +390,12 @@ sincronizar_pantalla_juego() {
     export best_h="$target_h"
     export best_res="${target_w}x${target_h}"
 
-    # Sincronización específica para GTA V / PlayGTAV
-    if [[ "$target_game" =~ [Gg][Tt][Aa]5|[Pp]lay[Gg][Tt][Aa] ]]; then
-        # 1. commandline.txt
-        local cmdline="${target_dir}/commandline.txt"
-        if [ -f "$cmdline" ]; then
-            sed -i "s/-width [0-9]*/-width ${target_w}/" "$cmdline" 2>/dev/null || true
-            sed -i "s/-height [0-9]*/-height ${target_h}/" "$cmdline" 2>/dev/null || true
-            grep -q -- "-windowed" "$cmdline" || echo "-windowed" >> "$cmdline"
-            grep -q -- "-borderless" "$cmdline" || echo "-borderless" >> "$cmdline"
-        fi
-
-        # 2. settings.xml
-        local rsg_doc="$HOME/Documentos/Rockstar Games/GTA V"
-        [ ! -d "$rsg_doc" ] && rsg_doc="${WINEPREFIX:-${DIR}/wineprefix}/drive_c/users/${USER}/Documents/Rockstar Games/GTA V"
-        for sxml in "$rsg_doc/settings.xml" "${target_dir}/settings.xml" "${WINEPREFIX:-${DIR}/wineprefix}/drive_c/users/${USER}/Documents/Rockstar Games/GTA V/settings.xml"; do
-            if [ -f "$sxml" ]; then
-                sed -i "s/<ScreenWidth value=\"[0-9]*\"/<ScreenWidth value=\"${target_w}\"/" "$sxml" 2>/dev/null || true
-                sed -i "s/<ScreenHeight value=\"[0-9]*\"/<ScreenHeight value=\"${target_h}\"/" "$sxml" 2>/dev/null || true
-                sed -i 's/<Windowed value="[0-9]*"/<Windowed value="2"/' "$sxml" 2>/dev/null || true
-            fi
-        done
-    fi
+    # 3. Aplicar perfil específico de juego desacoplado
+    sincronizar_perfil_especifico_juego "$target_game" "$target_dir" "$target_w" "$target_h" "$is_forced_res"
 }
 
 # ==============================================================================
-# 6. ESTADO GENERAL DE LOS DRIVERS
+# 7. ESTADO GENERAL DE LOS DRIVERS Y CAPAS DE TRADUCCIÓN
 # ==============================================================================
 mostrar_estado_drivers() {
     cargar_gpu_env
@@ -281,18 +403,51 @@ mostrar_estado_drivers() {
     echo -e "${BOLD}${CYAN}   VESSEL - PANEL DE ESTADO DE DRIVERS Y CAPAS DE TRADUCCIÓN${RESET}"
     echo -e "${BOLD}${PURPLE}========================================================================${RESET}\n"
 
-    echo -e "${BOLD}Configuración Activa (drivers/gpu_env.conf):${RESET}"
-    echo -e "  • Pantalla Objetivo:      ${GREEN}${TARGET_MONITOR:-eDP-1}${RESET} (${FORCE_RESOLUTION:-1280x720})"
-    echo -e "  • GPU Forzada:            ${GREEN}${DXVK_DEVICE_FILTER:-NVIDIA}${RESET} (PRIME Offload al 100%)"
-    echo -e "  • Vulkan GPL (Anti-stutter): ${GREEN}$([ "${ENABLE_VULKAN_GPL:-1}" = "1" ] && echo "Activo (Caché dinámica)" || echo "Desactivado")${RESET}"
-    echo -e "  • Hilos de CPU Compilador: ${GREEN}${CPU_COMPILER_THREADS:-8} Hilos${RESET}\n"
+    # Detección en caliente del monitor actual
+    local active_mon_name="Desconocido"
+    local active_geom="1920x1080"
+    if command -v xrandr >/dev/null 2>&1; then
+        local ml
+        ml=$(xrandr --current 2>/dev/null | grep -E " connected primary [0-9]+x[0-9]+" | head -n 1)
+        [ -z "$ml" ] && ml=$(xrandr --current 2>/dev/null | grep -E " connected [0-9]+x[0-9]+" | head -n 1)
+        if [ -n "$ml" ]; then
+            active_mon_name=$(echo "$ml" | awk '{print $1}')
+            active_geom=$(echo "$ml" | grep -oE "[0-9]+x[0-9]+\+[0-9]+\+[0-9]+" | head -n 1)
+        fi
+    fi
+
+    echo -e "${BOLD}Configuración de Hardware y Entorno (drivers/gpu_env.conf):${RESET}"
+    echo -e "  • Monitor Activo / Objetivo:  ${GREEN}${active_mon_name}${RESET} [Configurado: ${TARGET_MONITOR:-auto}]"
+    echo -e "  • Resolución Nativa / Forzada: ${GREEN}${active_geom}${RESET} [Configurado: ${FORCE_RESOLUTION:-auto}]"
+    
+    # GPU y Offload
+    local gpu_summary="Auto-detección"
+    if [ "${__NV_PRIME_RENDER_OFFLOAD:-0}" = "1" ]; then
+        gpu_summary="NVIDIA GeForce (PRIME Offload Activo)"
+    elif [ "${DRI_PRIME:-0}" = "1" ]; then
+        gpu_summary="AMD Radeon / Intel Arc (DRI_PRIME Activo)"
+    elif [ "${GPU_FORCE_DEDICATED:-auto}" = "0" ]; then
+        gpu_summary="GPU Integrada (Bajo Consumo)"
+    fi
+    echo -e "  • GPU Seleccionada:           ${GREEN}${gpu_summary}${RESET}"
+
+    # Zink
+    local zink_info="Desactivado (Nativo)"
+    if [ "${MESA_LOADER_DRIVER_OVERRIDE:-}" = "zink" ] || [ "${GALLIUM_DRIVER:-}" = "zink" ]; then
+        zink_info="Mesa Zink (OpenGL sobre Vulkan ACTIVO)"
+    fi
+    echo -e "  • Traducción OpenGL:          ${GREEN}${zink_info}${RESET} [Configurado: ${OPENGL_TRANSLATION:-auto}]"
+
+    # Vulkan GPL y Hilos de CPU
+    echo -e "  • Vulkan GPL (Anti-stutter):  ${GREEN}$([ "${ENABLE_VULKAN_GPL:-1}" = "1" ] && echo "Activo (Caché dinámica)" || echo "Desactivado")${RESET}"
+    echo -e "  • Hilos de CPU Compilador:    ${GREEN}${DXVK_NUM_COMPILER_THREADS:-$(nproc 2>/dev/null || echo 4)} Hilos${RESET} (100% de CPU física)\n"
 
     echo -e "${BOLD}Librerías de Código Abierto Instaladas en drivers/:${RESET}"
     # DXVK
     if [ -f "${DRIVERS_DIR}/dxvk/x64/d3d11.dll" ]; then
         echo -e "  [${GREEN}✓${RESET}] ${BOLD}DXVK (D3D8/9/10/11 -> Vulkan):${RESET} Instalado y Listo"
     else
-        echo -e "  [${YELLOW}○${RESET}] ${BOLD}DXVK:${RESET} No encontrado localmente (se usará del sistema o descarga automática)"
+        echo -e "  [${YELLOW}○${RESET}] ${BOLD}DXVK:${RESET} No encontrado localmente (se usará del sistema o descarga bajo demanda)"
     fi
 
     # VKD3D-Proton
@@ -313,7 +468,7 @@ mostrar_estado_drivers() {
 }
 
 # ==============================================================================
-# 7. EJECUCIÓN DIRECTA O PARÁMETROS
+# 8. EJECUCIÓN DIRECTA O PARÁMETROS
 # ==============================================================================
 case "${1:-}" in
     cargar_env)

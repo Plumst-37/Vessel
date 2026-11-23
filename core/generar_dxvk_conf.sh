@@ -29,11 +29,7 @@ mkdir -p "$CONFIG_DIR" 2>/dev/null || true
 
 CONF_FILE="${CONFIG_DIR}/dxvk.conf"
 DRIVERS_DXVK_CONF="${DIR}/drivers/dxvk/dxvk.conf"
-if [ -f "$DRIVERS_DXVK_CONF" ] && [ -s "$DRIVERS_DXVK_CONF" ]; then
-    # Preservar configuración modular editada por el usuario en drivers/dxvk/dxvk.conf
-    cp -f "$DRIVERS_DXVK_CONF" "$CONF_FILE" 2>/dev/null || true
-    exit 0
-fi
+
 CONFIG_USER="${CONFIG_DIR}/config_rendimiento.cfg"
 [ ! -f "$CONFIG_USER" ] && CONFIG_USER="${DIR}/config_rendimiento.cfg"
 
@@ -43,6 +39,44 @@ if [ -f "${CORE_DIR}/hardware_detect.sh" ]; then
     source "${CORE_DIR}/hardware_detect.sh"
 else
     source "${DIR}/hardware_detect.sh"
+fi
+
+# Cargar gpu_env.conf si existe
+if [ -f "${DIR}/drivers/gpu_env.conf" ]; then
+    source "${DIR}/drivers/gpu_env.conf"
+fi
+
+# Calibración de recursos reales de hardware
+REAL_THREADS=$(nproc 2>/dev/null || echo "${CPU_CORES:-4}")
+if [ -n "${CPU_COMPILER_THREADS:-}" ] && [ "${CPU_COMPILER_THREADS}" != "auto" ]; then
+    REAL_THREADS="${CPU_COMPILER_THREADS}"
+fi
+
+REAL_D3D9_MEM="2048"
+if [ -n "$RAM_TOTAL_MB" ]; then
+    if [ "$RAM_TOTAL_MB" -le 4608 ]; then
+        REAL_D3D9_MEM="1024"
+    elif [ "$RAM_TOTAL_MB" -gt 13312 ]; then
+        REAL_D3D9_MEM="4096"
+    fi
+fi
+
+REAL_CHUNK_SIZE="64"
+if [ "${GPU_VRAM_MB:-0}" -le 2048 ]; then
+    REAL_CHUNK_SIZE="32"
+elif [ "${GPU_VRAM_MB:-0}" -gt 4096 ]; then
+    REAL_CHUNK_SIZE="128"
+fi
+
+if [ -f "$DRIVERS_DXVK_CONF" ] && [ -s "$DRIVERS_DXVK_CONF" ]; then
+    # Procesar configuración modular preservando ediciones del usuario e inyectando valores dinámicos
+    cp -f "$DRIVERS_DXVK_CONF" "$CONF_FILE" 2>/dev/null || true
+    if grep -qE "=\s*auto" "$CONF_FILE" 2>/dev/null; then
+        sed -i "s/dxvk.numCompilerThreads\s*=\s*auto/dxvk.numCompilerThreads = ${REAL_THREADS}/" "$CONF_FILE" 2>/dev/null || true
+        sed -i "s/d3d9.maxAvailableMemory\s*=\s*auto/d3d9.maxAvailableMemory = ${REAL_D3D9_MEM}/" "$CONF_FILE" 2>/dev/null || true
+        sed -i "s/dxvk.maxChunkSize\s*=\s*auto/dxvk.maxChunkSize = ${REAL_CHUNK_SIZE}/" "$CONF_FILE" 2>/dev/null || true
+    fi
+    exit 0
 fi
 
 # Definir límite de FPS
