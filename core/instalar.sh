@@ -787,10 +787,11 @@ EOF
 fi
 
 # Comando directo 'vessel' en el PATH del sistema o usuario
+mkdir -p "$TARGET_HOME/.local/bin" 2>/dev/null || true
+ln -sf "${DIR}/vessel.sh" "$TARGET_HOME/.local/bin/vessel" 2>/dev/null || true
+chown -h "$TARGET_USER:$TARGET_USER" "$TARGET_HOME/.local/bin/vessel" 2>/dev/null || true
 if [ "$EUID" -eq 0 ] && [ -d "/usr/local/bin" ]; then
     ln -sf "${DIR}/vessel.sh" /usr/local/bin/vessel 2>/dev/null || true
-elif [ -d "$TARGET_HOME/.local/bin" ]; then
-    ln -sf "${DIR}/vessel.sh" "$TARGET_HOME/.local/bin/vessel" 2>/dev/null || true
 fi
 
 echo "1.3" > "${DIR}/.instalado" 2>/dev/null || true
@@ -802,6 +803,8 @@ chown "$TARGET_USER:$TARGET_USER" "${DIR}/version.txt" 2>/dev/null || true
 echo ""
 echo -e "${C_BOLD}${C_GREEN}🎉 ¡INSTALACIÓN COMPLETADA CON ÉXITO! 🎉${C_RESET}"
 echo -e "${C_WHITE}Tu PC ahora está optimizada y lista para correr cualquier juego o programa con Vessel.${C_RESET}"
-echo -e "${C_CYAN}Puedes iniciar Vessel haciendo doble clic en el acceso directo 'Vessel' en tu Escritorio o ejecutando:${C_RESET}"
+echo -e "${C_CYAN}Puedes iniciar Vessel desde la terminal con:${C_RESET}"
+echo -e "   ${C_BOLD}${C_GREEN}vessel run programa.exe${C_RESET}   (Ejecuta inmediatamente cualquier juego/app)"
+echo -e "   ${C_BOLD}${C_CYAN}vessel${C_RESET}                    (Abre el menú interactivo completo)"
 echo -e "   ${C_BOLD}${DIR}/menu-win.sh${C_RESET}  o  ${C_BOLD}vessel${C_RESET}"
 echo ""

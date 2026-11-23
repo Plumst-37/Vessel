@@ -89,13 +89,37 @@ cd Vessel && ./instalar.sh
 
 ## 🎮 Inicio Rápido
 
-Una vez completada la instalación, puedes abrir Vessel de cualquiera de estas formas:
+Una vez completada la instalación, puedes ejecutar juegos y software de Windows y Linux de dos formas:
 
-1. **Desde tu Escritorio:** Doble clic en el lanzador oficial **`Vessel`**.
-2. **Desde la Terminal:**
+### ⚡ 1. Desde la Terminal (Vessel CLI - Ultrarrápido)
+Ejecuta directamente cualquier juego o programa desde cualquier carpeta de tu terminal:
+
 ```bash
-cd ~/Vessel && ./menu-win.sh
+# Ejecuta cualquier juego o software inmediatamente (resuelve DXVK y dependencias al vuelo):
+vessel run programa.exe
+
+# Ejecutar por ruta absoluta o con argumentos:
+vessel run /ruta/al/juego.exe -novid -fullscreen
+
+# Ejecutar aplicaciones nativas de Linux (AppImage, scripts, binarios con GameMode):
+vessel run aplicacion.AppImage
+vessel run script_lanzador.sh
+
+# Ejecutar por nombre registrado o por número de ID en tu lista:
+vessel run "GTA San Andres"
+vessel run 2
+
+# Comandos de gestión rápida:
+vessel list        # Lista todos los juegos y programas registrados
+vessel status      # Muestra el estado de la GPU, monitor y librerías DXVK/VKD3D
+vessel kill        # Cierra de inmediato cualquier proceso colgado de Wine
+vessel add <ruta>  # Registra un ejecutable en tu biblioteca
+vessel --help      # Muestra el manual de opciones y comandos de la CLI
 ```
+
+### 🪟 2. Desde la Interfaz TUI o Menú Gráfico
+- **Desde tu Escritorio:** Abre el lanzador oficial **`Vessel`** en tu menú de aplicaciones o escritorio.
+- **Desde la Terminal:** Escribe simplemente `vessel` (sin argumentos) o `menu-win.sh`.
 
 ### 🪟 Menú Intuitivo Dual (Juegos y Programas)
 
