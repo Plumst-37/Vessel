@@ -203,11 +203,6 @@ if [[ "$TARGET" =~ \.([bB][aA][tT]|[cC][mM][dD])$ ]]; then
     done
 fi
 
-# Priorización inteligente de ejecutables directos (evitar launchers intermediarios propensos a fallo en Wine)
-if [[ "$(basename "$TARGET")" =~ ^(PlayGTAV\.exe|playgtav\.exe)$ ]] && [ -f "$(dirname "$TARGET")/GTA5.exe" ]; then
-    echo "[+] Ejecutable directo de GTA V detectado: GTA5.exe (priorizado para ejecución nativa en Wine sin dependencia de launcher)"
-    TARGET="$(dirname "$TARGET")/GTA5.exe"
-fi
 
 # 4. Definir la ruta del WINEPREFIX (Soporte Dual: Prefijo Compartido o Prefijo Aislado por Juego)
 if [ -n "$CUSTOM_PREFIX" ]; then
