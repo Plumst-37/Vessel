@@ -61,6 +61,9 @@ RESOLVER_BAT="${CORE_DIR}/resolver_bat.py"
 ANALIZADOR_PE="${CORE_DIR}/analizador_pe.py"
 [ ! -f "$ANALIZADOR_PE" ] && ANALIZADOR_PE="${DIR}/analizador_pe.py"
 
+MOTOR_INFERENCIA="${CORE_DIR}/motor_inferencia.py"
+[ ! -f "$MOTOR_INFERENCIA" ] && MOTOR_INFERENCIA="${DIR}/motor_inferencia.py"
+
 GESTOR_DRIVERS="${CORE_DIR}/gestor_drivers.sh"
 [ ! -f "$GESTOR_DRIVERS" ] && GESTOR_DRIVERS="${DIR}/gestor_drivers.sh"
 if [ -f "$GESTOR_DRIVERS" ]; then
@@ -265,6 +268,14 @@ else
             if [ -n "$PE_TARGET" ] && [ -f "$PE_TARGET" ] && [ "$TARGET" != "$PE_TARGET" ]; then
                 TARGET="$PE_TARGET"
             fi
+        fi
+    fi
+
+    # Inferencia heurística experta de variables de entorno de rendimiento y memoria (sub-5ms)
+    if [ -f "$MOTOR_INFERENCIA" ] && [ -f "$TARGET" ]; then
+        motor_eval=$(python3 "$MOTOR_INFERENCIA" "$TARGET" --env 2>/dev/null || true)
+        if [ -n "$motor_eval" ]; then
+            eval "$motor_eval"
         fi
     fi
 

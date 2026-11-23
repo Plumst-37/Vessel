@@ -2181,6 +2181,7 @@ def menu_herramientas(hw, cfg):
             ("10", "🎮 Gestor de Librerías y Mandos (SDL2 Gamepad, cnc-ddraw, DSOAL 3D, vkBasalt)"),
             ("11", "🖥️  Regenerar y Validar Acceso Directo de Vessel en el Escritorio"),
             ("12", "📋 Ver Informe de Errores de Juegos (Crash Reports)"),
+            ("13", "⚡ Motor de Inferencia Heurística y Diagnóstico de Ejecutables (.exe)\n• Analiza cualquier binario PE en <5 ms, detecta arquitectura, LAA, motor y calcula variables óptimas"),
             ("0", "↩️  Volver al Menú Principal")
         ]
         sel = submenu_interactivo("🔧  Herramientas de Windows y Reparación", opciones, hw, cfg)
@@ -2330,6 +2331,18 @@ def menu_herramientas(hw, cfg):
                 print(f"{PURPLE}📋 [ REGISTRO DE ERRORES / CRASH REPORTS ]{RESET}\n")
                 print(f"{GREEN}✔ No se han detectado errores recientes.{RESET}")
                 print(f"{WHITE}Todos los juegos se han ejecutado y cerrado limpiamente sin generar registros residuales.{RESET}\n")
+            pausar()
+        elif sel == "13":
+            os.system("clear")
+            print(f"{PURPLE}⚡ [ MOTOR DE INFERENCIA HEURÍSTICA Y RENDIMIENTO PE ]{RESET}\n")
+            print(f"{WHITE}Escribe o pega la ruta completa al archivo .exe que deseas inspeccionar:{RESET}")
+            ruta_test = input(f"{CYAN}Ruta (.exe): {RESET}").strip().strip('"').strip("'")
+            if ruta_test and os.path.exists(ruta_test):
+                os.system("clear")
+                script_inf = os.path.join(CORE_DIR, "motor_inferencia.py") if os.path.exists(os.path.join(CORE_DIR, "motor_inferencia.py")) else os.path.join(DIR, "core", "motor_inferencia.py")
+                subprocess.run(["python3", script_inf, ruta_test, "--summary"])
+            else:
+                print(f"\n{YELLOW}⚠ Archivo no encontrado o ruta vacía.{RESET}")
             pausar()
 
 # ==============================================================================

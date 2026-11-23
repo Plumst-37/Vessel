@@ -201,6 +201,7 @@ Vessel/
 │   ├── hardware_detect.sh      # Detector de CPU, GPU, Vulkan, NTSync y VRAM
 │   ├── generar_dxvk_conf.sh    # Generador dinámico adaptativo de dxvk.conf
 │   ├── analizador_pe.py        # Analizador de cabeceras binarias PE/COFF
+│   ├── motor_inferencia.py     # Motor heurístico de inferencia y optimización de rendimiento
 │   ├── resolver_lnk.py         # Decodificador de accesos directos .lnk/.ink
 │   ├── resolver_bat.py         # Intérprete y traductor de scripts .bat/.cmd
 │   ├── gestor_runners.sh       # Gestor y descargador de versiones Wine/Proton
