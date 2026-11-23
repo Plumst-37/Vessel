@@ -71,8 +71,8 @@ VERSION_FILE = os.path.join(DIR, "version.txt")
 INSTALADO_MARKER = os.path.join(DIR, ".instalado")
 SMART_PERF_MARKER = os.path.join(DIR, ".smart_perf_listo")
 WINVER_CONF_FILE = os.path.join(DIR, ".winver_configurados")
-VERSION_ACTUAL = "2.0"
-SMART_PERF_VERSION_ACTUAL = "2.0"
+VERSION_ACTUAL = "1.2"
+SMART_PERF_VERSION_ACTUAL = "1.2"
 
 # Helpers de scripts internos
 SCRIPT_DXVK = os.path.join(CORE_DIR, "generar_dxvk_conf.sh") if os.path.exists(os.path.join(CORE_DIR, "generar_dxvk_conf.sh")) else os.path.join(DIR, "generar_dxvk_conf.sh")

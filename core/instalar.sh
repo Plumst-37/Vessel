@@ -791,7 +791,7 @@ elif [ -d "$TARGET_HOME/.local/bin" ]; then
     ln -sf "${DIR}/vessel.sh" "$TARGET_HOME/.local/bin/vessel" 2>/dev/null || true
 fi
 
-echo "2.0" > "${DIR}/.instalado" 2>/dev/null || true
+echo "1.2" > "${DIR}/.instalado" 2>/dev/null || true
 chown "$TARGET_USER:$TARGET_USER" "${DIR}/.instalado" 2>/dev/null || true
 # version.txt se mantiene limpio (0 bytes) para sincronización con git
 > "${DIR}/version.txt" 2>/dev/null || true

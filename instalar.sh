@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ==============================================================================
-# VESSEL v2.0 - INSTALADOR UNIVERSAL EN 1-CLIC PARA GNU/LINUX
+# VESSEL v1.2 - INSTALADOR UNIVERSAL EN 1-CLIC PARA GNU/LINUX
 # ==============================================================================
 set -e
 
@@ -14,7 +14,7 @@ else
     REAL_HOME=$(eval echo "~$REAL_USER")
     TARGET_DIR="$REAL_HOME/Vessel"
 
-    echo -e "\033[1;36m[+] Descargando y preparando Vessel v2.0 en: ${TARGET_DIR}...\033[0m"
+    echo -e "\033[1;36m[+] Descargando y preparando Vessel v1.2 en: ${TARGET_DIR}...\033[0m"
     if ! command -v git &>/dev/null; then
         if command -v apt-get &>/dev/null; then
             sudo apt-get update && sudo apt-get install -y git curl
