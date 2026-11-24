@@ -16,7 +16,7 @@
 Diseñado con una filosofía **Plug & Play**: detecta automáticamente tu hardware, analiza los binarios PE/COFF de Windows, calibra los traductores gráficos (DXVK, VKD3D-Proton, Zink, CNC-DDraw) y ejecuta con **cero consumo en segundo plano** y latencia ultrabaja.
 
 > 🌐 **Sitio Web Oficial y Documentación:** [https://www.vessel.qd.je/](https://www.vessel.qd.je/)  
-> ⚡ **¿Buscas una alternativa ligera a Lutris o Bottles?** Vessel elimina la sobrecarga de interfaces pesadas en Python o Flatpak (que retienen 150–350 MB de RAM). Ejecuta directo en el proceso del juego con **0 MB en reposo**, inyección automática de Vulkan y aislamiento seguro en tu `$HOME`.
+> ⚡ **¿Buscas una alternativa ligera a Lutris o Bottles?** Vessel elimina la sobrecarga de interfaces pesadas en Python o Flatpak (que retienen 150–350 MB de RAM). Ejecuta directo en el proceso del juego con **solo 25 MB de RAM en reposo**, inyección automática de Vulkan y aislamiento seguro en tu `$HOME`. Web oficial: [vessel.qd.je](https://www.vessel.qd.je/).
 
 ---
 
