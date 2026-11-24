@@ -826,6 +826,8 @@ mostrar_estado_drivers() {
         win10_status="${GREEN}✓ Windows 10 Pro 22H2 (Build 19045.3826) | MMCSS y Servicios Core Activos${RESET}"
     fi
     echo -e "  • Compatibilidad Windows 10:  ${win10_status}"
+    echo -e "  • Acelerador Turbo Hardware:  ${GREEN}$([ "${ENABLE_CPU_TURBO:-1}" = "1" ] && echo "Activo (CPU/GPU Clocks Máximos en Vivo)" || echo "Estándar")${RESET}"
+    echo -e "  • Transparent Huge Pages THP: ${GREEN}$([ "${ENABLE_THP:-1}" = "1" ] && echo "Activo (Cero tirones de caché TLB)" || echo "Desactivado")${RESET}"
 
     echo -e "\n${BOLD}${PURPLE}========================================================================${RESET}\n"
 }

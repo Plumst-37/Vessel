@@ -402,12 +402,15 @@ if [ -w /etc/sysctl.d ] || sudo -n true 2>/dev/null || [ "$EUID" -eq 0 ]; then
     sudo bash -c 'cat <<EOF > /etc/sysctl.d/99-win-gaming.conf
 # Optimizaciones de memoria y red para juegos pesados y multiplayer
 vm.max_map_count = 2147483642
+vm.swappiness = 10
+vm.vfs_cache_pressure = 50
+kernel.split_lock_mitigate = 0
 net.ipv4.ping_group_range = 0 2147483647
 net.ipv4.ip_unprivileged_port_start = 0
 fs.file-max = 2097152
 EOF' 2>/dev/null || true
     sudo /sbin/sysctl --system > /dev/null 2>&1 || sudo sysctl --system > /dev/null 2>&1 || true
-    echo -e "${C_GREEN}✔ Parámetros del Kernel aplicados permanentemente (vm.max_map_count = 2.1M).${C_RESET}"
+    echo -e "${C_GREEN}✔ Parámetros del Kernel aplicados (vm.max_map_count = 2.1M, swappiness = 10, split_lock_mitigate = 0).${C_RESET}"
 fi
 
 # Apertura opcional de firewall para multijugador, GameRanger, DirectPlay y servidores de juegos
@@ -434,13 +437,19 @@ fi
 
 if [ -w /etc/security/limits.d ] || sudo -n true 2>/dev/null || [ "$EUID" -eq 0 ]; then
     sudo bash -c 'cat <<EOF > /etc/security/limits.d/99-wine-gaming.conf
-# Limites de archivos abiertos para Wine Esync y Fsync (Maximo rendimiento)
-* hard nofile 524288
-* soft nofile 524288
-root hard nofile 524288
-root soft nofile 524288
+# Limites de archivos abiertos y prioridades para Wine Esync, Fsync y baja latencia
+* hard nofile 1048576
+* soft nofile 1048576
+root hard nofile 1048576
+root soft nofile 1048576
+* hard memlock unlimited
+* soft memlock unlimited
+* hard nice -20
+* soft nice -20
+* hard rtprio 99
+* soft rtprio 99
 EOF' 2>/dev/null || true
-    echo -e "${C_GREEN}✔ Límites de archivos para Esync y Fsync configurados (nofile = 524288).${C_RESET}"
+    echo -e "${C_GREEN}✔ Límites de archivos, memoria y tiempo real para Esync y Fsync configurados (nofile = 1M, rtprio = 99).${C_RESET}"
 fi
 echo ""
 

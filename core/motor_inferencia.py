@@ -716,19 +716,28 @@ class InferenceEngine:
         if hw["gpu"]["vendor"] == "nvidia":
             env["__GL_SHADER_DISK_CACHE"] = "1"
             env["__GL_SHADER_DISK_CACHE_SKIP_CLEANUP"] = "1"
+            env["__GL_THREADED_OPTIMIZATIONS"] = "1"
+            env["__GL_YIELD"] = "NOTHING"
             env["DXVK_ENABLE_NVAPI"] = "1"
-            reasons.append("GPU NVIDIA: Desbloqueo de caché de shaders ilimitada en disco y soporte DXVK-NVAPI.")
+            reasons.append("GPU NVIDIA: Desbloqueo de caché ilimitada, multithreading OpenGL/Vulkan, cero latencia de espera y DXVK-NVAPI.")
 
         elif hw["gpu"]["vendor"] == "amd":
             env["AMD_VULKAN_ICD"] = "RADV"
-            env["RADV_PERFTEST"] = "gpl,aco"
-            reasons.append("GPU AMD: Forzado de controlador de alto rendimiento Mesa RADV con compilador rápido ACO y Vulkan GPL.")
+            env["RADV_PERFTEST"] = "gpl,aco,sam,dcc"
+            reasons.append("GPU AMD: Forzado de Mesa RADV con compilador ACO, Smart Access Memory (SAM) y Vulkan GPL.")
 
-        # E) Sincronización de Hilos del Kernel (Fsync / Esync)
+        elif hw["gpu"]["vendor"] == "intel":
+            env["ANV_QUEUE_THREAD_DISABLE"] = "0"
+            env["ANV_ENABLE_PIPELINE_CACHE"] = "1"
+            reasons.append("GPU Intel: Multithreading de colas de renderizado Vulkan ANV y caché de pipelines.")
+
+        # E) Sincronización de Hilos del Kernel (Fsync / Esync) y Páginas Gigantes (THP)
         env["WINEFSYNC"] = "1"
         env["WINEESYNC"] = "1"
         env["STAGING_SHARED_MEMORY"] = "1"
-        reasons.append("Sincronización: Fsync / Esync activo para latencia ultrabaja en comunicación inter-hilo de Wine.")
+        env["WINE_THP"] = "1"
+        env["MESA_SHADER_CACHE_MAX_SIZE"] = "4096MB"
+        reasons.append("Kernel & Memoria: Fsync/Esync activo y Transparent Huge Pages (THP) para cero tirones de caché TLB.")
 
         # F) Audio de Baja Latencia
         env["PULSE_LATENCY_MSEC"] = "60"

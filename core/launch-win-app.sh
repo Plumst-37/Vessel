@@ -1016,13 +1016,20 @@ if [ "$IS_PROGRAM" -ne 1 ] && [ "$PERFIL_RENDIMIENTO" != "ahorro" ] && command -
     GAMEMODE="gamemoderun"
 fi
 
-# Activar modo alto rendimiento de energía en CPU (desbloquea Turbo Boost sin throttling agresivo en cualquier distro)
-PREV_POWER_PROFILE=""
-if [ "$IS_PROGRAM" -ne 1 ] && [ "$PERFIL_RENDIMIENTO" != "ahorro" ]; then
-    if command -v powerprofilesctl &> /dev/null; then
+# ==============================================================================
+# MOTOR TURBO DE ACELERACIÓN DE HARDWARE Y RECURSOS EN VIVO (CPU / GPU / KERNEL)
+# ==============================================================================
+acelerar_hardware_sistema() {
+    [ "$IS_PROGRAM" -eq 1 ] && return 0
+    [ "$PERFIL_RENDIMIENTO" = "ahorro" ] && return 0
+
+    echo "[⚡] Acelerador Turbo: Maximizando CPU, GPU, prioridad de hilos y memoria..."
+
+    # 1. CPU Power Governor & Frecuencia Máxima (Desbloquea Turbo Boost sin caídas)
+    if command -v powerprofilesctl &>/dev/null; then
         PREV_POWER_PROFILE=$(powerprofilesctl get 2>/dev/null || true)
         powerprofilesctl set performance 2>/dev/null || true
-    elif command -v cpupower &> /dev/null; then
+    elif command -v cpupower &>/dev/null; then
         cpupower frequency-set -g performance 2>/dev/null || true
     fi
     for gov in /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor; do
@@ -1031,7 +1038,74 @@ if [ "$IS_PROGRAM" -ne 1 ] && [ "$PERFIL_RENDIMIENTO" != "ahorro" ]; then
     for epp in /sys/devices/system/cpu/cpu*/cpufreq/energy_performance_preference; do
         [ -w "$epp" ] && echo performance > "$epp" 2>/dev/null || true
     done
-fi
+
+    # 2. Desbloqueo y Persistencia de Relojes de GPU
+    if [ "${HAS_NVIDIA:-false}" = true ] || lspci 2>/dev/null | grep -qi "NVIDIA" || [ -d "/proc/driver/nvidia" ]; then
+        # Activar Persistence Mode (elimina la latencia de despertar del chip NVIDIA)
+        nvidia-smi -pm 1 >/dev/null 2>&1 || true
+        # Forzar estado de máximo rendimiento P0 en PowerMizer (elimina caídas de reloj)
+        if command -v nvidia-settings &>/dev/null && [ -n "${DISPLAY:-}" ]; then
+            nvidia-settings -a '[gpu:0]/GPUPowerMizerMode=1' >/dev/null 2>&1 || true
+        fi
+        export __GL_THREADED_OPTIMIZATIONS=1
+        export __GL_YIELD="NOTHING"
+    elif [ "${HAS_AMD_DEDICATED:-false}" = true ] || lspci 2>/dev/null | grep -qiE "amd|radeon"; then
+        for dpm in /sys/class/drm/card*/device/power_dpm_force_performance_level; do
+            [ -w "$dpm" ] && echo high > "$dpm" 2>/dev/null || true
+        done
+        export RADV_PERFTEST="gpl,aco,sam,dcc"
+    elif [ "${HAS_INTEL:-false}" = true ]; then
+        export ANV_QUEUE_THREAD_DISABLE=0
+        export ANV_ENABLE_PIPELINE_CACHE=1
+    fi
+
+    # 3. Optimización de Memoria y Kernel en Caliente (Sin bloqueo si no es root)
+    if [ -w /sys/kernel/mm/transparent_hugepage/enabled ]; then
+        echo madvise > /sys/kernel/mm/transparent_hugepage/enabled 2>/dev/null || true
+    fi
+    export WINE_THP=1
+    export MESA_SHADER_CACHE_MAX_SIZE="4096MB"
+
+    if [ -w /proc/sys/kernel/split_lock_mitigate ]; then
+        echo 0 > /proc/sys/kernel/split_lock_mitigate 2>/dev/null || true
+    fi
+    if [ -w /proc/sys/vm/swappiness ]; then
+        echo 10 > /proc/sys/vm/swappiness 2>/dev/null || true
+    fi
+    if [ -w /proc/sys/vm/vfs_cache_pressure ]; then
+        echo 50 > /proc/sys/vm/vfs_cache_pressure 2>/dev/null || true
+    fi
+    if [ -w /proc/sys/vm/max_map_count ]; then
+        echo 2147483642 > /proc/sys/vm/max_map_count 2>/dev/null || true
+    fi
+
+    # 4. Descriptores de Archivos y Bloqueo de Memoria en Proceso
+    ulimit -n 1048576 2>/dev/null || ulimit -n 524288 2>/dev/null || true
+    ulimit -l unlimited 2>/dev/null || true
+}
+
+restaurar_hardware_sistema() {
+    [ "$IS_PROGRAM" -eq 1 ] && return 0
+
+    # 1. Restaurar perfil de energía de CPU
+    if [ -n "$PREV_POWER_PROFILE" ] && command -v powerprofilesctl &>/dev/null; then
+        powerprofilesctl set "$PREV_POWER_PROFILE" 2>/dev/null || true
+    fi
+
+    # 2. Restaurar GPU a modo Adaptativo / Ahorro
+    if [ "${HAS_NVIDIA:-false}" = true ] || lspci 2>/dev/null | grep -qi "NVIDIA" || [ -d "/proc/driver/nvidia" ]; then
+        if command -v nvidia-settings &>/dev/null && [ -n "${DISPLAY:-}" ]; then
+            nvidia-settings -a '[gpu:0]/GPUPowerMizerMode=0' >/dev/null 2>&1 || true
+        fi
+    elif [ "${HAS_AMD_DEDICATED:-false}" = true ] || lspci 2>/dev/null | grep -qiE "amd|radeon"; then
+        for dpm in /sys/class/drm/card*/device/power_dpm_force_performance_level; do
+            [ -w "$dpm" ] && echo auto > "$dpm" 2>/dev/null || true
+        done
+    fi
+}
+
+PREV_POWER_PROFILE=""
+acelerar_hardware_sistema
 
 # 11. Obtener directorio y nombre del archivo
 TARGET_DIR="$(cd "$(dirname "$TARGET")" 2>/dev/null && pwd || dirname "$TARGET")"
@@ -2481,9 +2555,22 @@ if [[ ! "$TARGET_FILE" =~ \.([mM][sS][iI]|[rR][eE][gG]|[vV][bB][sS]|[jJ][sS]|[pP
     FINAL_CMD+=("${GS_OPTS[@]}")
 fi
 
-# 2. GameMode
+# 2. GameMode o Elevación Nativa de Prioridad en Tiempo Real (nice / ionice)
 if [ -n "$GAMEMODE" ] && command -v "$GAMEMODE" &>/dev/null && [[ ! "$TARGET_FILE" =~ \.([rR][eE][gG]|[vV][bB][sS]|[jJ][sS])$ ]]; then
     FINAL_CMD+=("$GAMEMODE")
+elif [ "$IS_PROGRAM" -ne 1 ] && [[ ! "$TARGET_FILE" =~ \.([rR][eE][gG]|[vV][bB][sS]|[jJ][sS])$ ]]; then
+    if command -v nice &>/dev/null; then
+        if nice -n -10 true 2>/dev/null; then
+            FINAL_CMD=("nice" "-n" "-10" "${FINAL_CMD[@]}")
+        elif nice -n -5 true 2>/dev/null; then
+            FINAL_CMD=("nice" "-n" "-5" "${FINAL_CMD[@]}")
+        fi
+    fi
+    if command -v ionice &>/dev/null; then
+        if ionice -c 2 -n 0 true 2>/dev/null; then
+            FINAL_CMD=("ionice" "-c" "2" "-n" "0" "${FINAL_CMD[@]}")
+        fi
+    fi
 fi
 
 # 3. Binario principal de Wine
@@ -2563,6 +2650,9 @@ if [ -n "$WINEPREFIX" ] && [ -d "$WINEPREFIX" ]; then
                 if echo "$cmdline" | grep -qiE '\.exe' && \
                    ! echo "$cmdline" | grep -qiE 'services\.exe|winedevice\.exe|plugplay\.exe|explorer\.exe|rpcss\.exe|conhost\.exe|svchost\.exe|wineboot\.exe'; then
                     has_active_game=true
+                    # Elevar prioridad del proceso hijo del juego en tiempo real
+                    renice -n -10 -p "$c_pid" >/dev/null 2>&1 || renice -n -5 -p "$c_pid" >/dev/null 2>&1 || true
+                    ionice -c 2 -n 0 -p "$c_pid" >/dev/null 2>&1 || true
                     break
                 fi
             fi
@@ -2572,10 +2662,8 @@ if [ -n "$WINEPREFIX" ] && [ -d "$WINEPREFIX" ]; then
     done
 fi
 
-# Restaurar perfil de energía previo del CPU
-if [ -n "$PREV_POWER_PROFILE" ] && command -v powerprofilesctl &>/dev/null; then
-    powerprofilesctl set "$PREV_POWER_PROFILE" 2>/dev/null || true
-fi
+# Restaurar estado del hardware y perfiles de energía al finalizar el juego
+restaurar_hardware_sistema
 
 # Terminar vigilantes en segundo plano si siguen activos
 [ -n "$WATCHDOG_PID" ] && kill "$WATCHDOG_PID" 2>/dev/null || true
