@@ -266,12 +266,18 @@ instalar_nvapi_modular() {
         if curl -sL --connect-timeout 10 --max-time 60 "https://github.com/jp7677/dxvk-nvapi/releases/download/v0.9.3/dxvk-nvapi-v0.9.3.tar.gz" -o "$tmp_tar"; then
             mkdir -p "$tmp_extract"
             tar -xzf "$tmp_tar" -C "$tmp_extract" 2>/dev/null || true
-            local extracted_dir
-            extracted_dir=$(find "$tmp_extract" -maxdepth 1 -type d -name "dxvk-nvapi-*" | head -n 1)
-            if [ -d "$extracted_dir" ]; then
-                cp -f "$extracted_dir/x64"/*.dll "${nvapi_base}/x64/" 2>/dev/null || true
-                cp -f "$extracted_dir/x32"/*.dll "${nvapi_base}/x32/" 2>/dev/null || true
+            if [ -d "$tmp_extract/x64" ]; then
+                cp -f "$tmp_extract/x64"/*.dll "${nvapi_base}/x64/" 2>/dev/null || true
+                cp -f "$tmp_extract/x32"/*.dll "${nvapi_base}/x32/" 2>/dev/null || true
                 echo -e "${GREEN}  ✓ DXVK-NVAPI v0.9.3 instalado en drivers/dxvk-nvapi/${RESET}"
+            else
+                local extracted_dir
+                extracted_dir=$(find "$tmp_extract" -maxdepth 1 -type d -name "dxvk-nvapi-*" | head -n 1)
+                if [ -d "$extracted_dir" ]; then
+                    cp -f "$extracted_dir/x64"/*.dll "${nvapi_base}/x64/" 2>/dev/null || true
+                    cp -f "$extracted_dir/x32"/*.dll "${nvapi_base}/x32/" 2>/dev/null || true
+                    echo -e "${GREEN}  ✓ DXVK-NVAPI v0.9.3 instalado en drivers/dxvk-nvapi/${RESET}"
+                fi
             fi
             rm -rf "$tmp_tar" "$tmp_extract"
         fi
@@ -315,6 +321,10 @@ sincronizar_perfil_especifico_juego() {
             fi
             grep -qi -- "-windowed" "$cmdline" 2>/dev/null || echo "-windowed" >> "$cmdline"
             grep -qi -- "-borderless" "$cmdline" 2>/dev/null || echo "-borderless" >> "$cmdline"
+            grep -qi -- "-nopause" "$cmdline" 2>/dev/null || echo "-nopause" >> "$cmdline"
+            grep -qi -- "-disallowResizeWindow" "$cmdline" 2>/dev/null || echo "-disallowResizeWindow" >> "$cmdline"
+            grep -qi -- "-norestrictions" "$cmdline" 2>/dev/null || echo "-norestrictions" >> "$cmdline"
+            grep -qi -- "-nomemrestrict" "$cmdline" 2>/dev/null || echo "-nomemrestrict" >> "$cmdline"
             # Eliminar directiva -DX10 obsoleta que causa corrupción de color y artefactos en Vulkan
             sed -i "/-DX10/Id; /-dx10/Id" "$cmdline" 2>/dev/null || true
         fi
@@ -329,6 +339,16 @@ sincronizar_perfil_especifico_juego() {
                 sed -i 's/<Windowed value="[0-9]*"/<Windowed value="2"/' "$sxml" 2>/dev/null || true
                 # Forzar DirectX 11 (value="2") para eliminar colores psicodélicos causados por el backend DX10
                 sed -i 's/<DX_Version value="[0-1]"/<DX_Version value="2"/' "$sxml" 2>/dev/null || true
+                # Blindaje geométrico 3D: curar valores de LOD negativos que deforman modelos y rompen mallas
+                sed -i 's/<LodScale value="-[0-9\.]*"/<LodScale value="0.800000"/' "$sxml" 2>/dev/null || true
+                sed -i 's/<MaxLodScale value="0.000000"/<MaxLodScale value="1.000000"/' "$sxml" 2>/dev/null || true
+                sed -i 's/<PedLodBias value="-[0-9\.]*"/<PedLodBias value="0.500000"/' "$sxml" 2>/dev/null || true
+                sed -i 's/<VehicleLodBias value="-[0-9\.]*"/<VehicleLodBias value="0.500000"/' "$sxml" 2>/dev/null || true
+                sed -i 's/<Tessellation value="[1-9]"/<Tessellation value="0"/' "$sxml" 2>/dev/null || true
+                sed -i 's/<MSAA value="[1-9]"/<MSAA value="0"/' "$sxml" 2>/dev/null || true
+                sed -i 's/<TXAA_Enabled value="true"/<TXAA_Enabled value="false"/' "$sxml" 2>/dev/null || true
+                sed -i 's/<FXAA_Enabled value="false"/<FXAA_Enabled value="true"/' "$sxml" 2>/dev/null || true
+                sed -i 's/<Audio3d value="[a-zA-Z]*"/<Audio3d value="false"/' "$sxml" 2>/dev/null || true
             fi
         done
     fi

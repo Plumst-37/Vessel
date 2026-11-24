@@ -1285,20 +1285,18 @@ aplicar_perfil_aislado_juego() {
             local ped_variety="0.800000"
             local veh_variety="0.800000"
 
-            if [ "$is_gta_lite" = true ]; then
+            if [ "$is_gta_lite" = true ] || [ "$IS_LOW_SPEC_GPU" = true ]; then
                 dx_ver="2"
                 quality_val="0"
                 shadow_val="0"
                 soft_shadow="0"
-                lod_scale="-0.200000"
-                max_lod_scale="0.000000"
-                ped_lod="-0.200000"
-                veh_lod="-0.400000"
-                ped_variety="0.000000"
-                veh_variety="0.000000"
-            elif [ "$IS_LOW_SPEC_GPU" = true ]; then
-                ped_variety="0.400000"
-                veh_variety="0.400000"
+                # Geometría 3D blindada: valores positivos para erradicar deformación de mallas y vertex explosion
+                lod_scale="0.800000"
+                max_lod_scale="1.000000"
+                ped_lod="0.500000"
+                veh_lod="0.500000"
+                ped_variety="0.300000"
+                veh_variety="0.300000"
             fi
 
             # Si no existe ningún settings.xml, generar uno inicial con geometría 3D blindada (sin vertex explosion)
@@ -1446,6 +1444,9 @@ EOF_SXML
                 grep -qi -- "-mouseRawInput" "$gta_cmdline" || echo "-mouseRawInput" >> "$gta_cmdline"
                 grep -qi -- "-norestrictions" "$gta_cmdline" || echo "-norestrictions" >> "$gta_cmdline"
                 grep -qi -- "-nomemrestrict" "$gta_cmdline" || echo "-nomemrestrict" >> "$gta_cmdline"
+                grep -qi -- "-nopause" "$gta_cmdline" || echo "-nopause" >> "$gta_cmdline"
+                grep -qi -- "-disallowResizeWindow" "$gta_cmdline" || echo "-disallowResizeWindow" >> "$gta_cmdline"
+                grep -qi -- "-percentVidMem" "$gta_cmdline" || echo "-percentVidMem 90" >> "$gta_cmdline"
                 # Erradicar forzado de DirectX 10 que rompe el backend Vulkan y causa líneas de colores
                 sed -i '/-DX10/Id; /-dx10/Id' "$gta_cmdline" 2>/dev/null || true
                 if grep -qi -- "-width" "$gta_cmdline"; then
@@ -1477,6 +1478,9 @@ EOF_SXML
 -shadowSoftness 1
 -norestrictions
 -nomemrestrict
+-nopause
+-disallowResizeWindow
+-percentVidMem 90
 EOF
             fi
             echo "[+] GTA V optimizado: Geometría 3D calibrada (DirectX 11 nativo, Teselación 0, sin deformación ni vertex explosion, frame pacing 60 FPS, Social Club offline activado)."

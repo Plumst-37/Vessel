@@ -160,7 +160,7 @@ aplicar_entorno_hardware() {
     elif [ "$CPU_CORES" -le 4 ]; then
         export DXVK_NUM_COMPILER_THREADS=3
     elif [ "$CPU_CORES" -le 8 ]; then
-        export DXVK_NUM_COMPILER_THREADS="$CPU_CORES"
+        export DXVK_NUM_COMPILER_THREADS=$((CPU_CORES - 2))
     elif [ "$CPU_CORES" -le 16 ]; then
         export DXVK_NUM_COMPILER_THREADS=$((CPU_CORES - 2))
     else

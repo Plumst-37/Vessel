@@ -47,7 +47,14 @@ if [ -f "${DIR}/drivers/gpu_env.conf" ]; then
 fi
 
 # Calibración de recursos reales de hardware
-REAL_THREADS=$(nproc 2>/dev/null || echo "${CPU_CORES:-4}")
+NPROCS=$(nproc 2>/dev/null || echo "${CPU_CORES:-4}")
+if [ "$NPROCS" -gt 4 ]; then
+    REAL_THREADS=$((NPROCS - 1))
+elif [ "$NPROCS" -gt 2 ]; then
+    REAL_THREADS=$((NPROCS - 1))
+else
+    REAL_THREADS=1
+fi
 if [ -n "${CPU_COMPILER_THREADS:-}" ] && [ "${CPU_COMPILER_THREADS}" != "auto" ]; then
     REAL_THREADS="${CPU_COMPILER_THREADS}"
 fi
@@ -200,7 +207,7 @@ dxvk.allowFse = False
 d3d9.invariantPosition = True
 d3d11.invariantPosition = True
 d3d9.floatEmulation = Strict
-d3d11.floatEmulation = Strict
+d3d11.floatEmulation = Fast
 d3d9.clampNegativeLodBias = True
 d3d11.clampNegativeLodBias = True
 d3d9.samplerAnisotropy = ${SAMPLER_ANISO}
