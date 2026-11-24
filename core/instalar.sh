@@ -478,6 +478,13 @@ if [ -f "$local_gestor" ]; then
     echo -e "${C_GREEN}✔ Entorno base optimizado con todas las librerías nativas para juegos.${C_RESET}"
 fi
 
+# 4.1.1 Asegurar instalación y auto-descarga de drivers gráficos (DXVK, VKD3D-Proton, DXVK-NVAPI)
+if [ -f "${DIR}/core/gestor_drivers.sh" ]; then
+    echo -e "${C_CYAN}      Preparando drivers gráficos y capas de traducción (DXVK / VKD3D / NVAPI)...${C_RESET}"
+    bash "${DIR}/core/gestor_drivers.sh" instalar_todo "${DIR}/wineprefix" >/dev/null 2>&1 || true
+    echo -e "${C_GREEN}✔ Controladores y capas de traducción gráfica instalados en el entorno.${C_RESET}"
+fi
+
 # 4.2 Optimización de hilos gráficos Direct3D (CSMT multithread) y supresión de fallos
 WINEPREFIX="${DIR}/wineprefix" wine reg add "HKEY_CURRENT_USER\Software\Wine\Direct3D" /v "csmt" /t REG_DWORD /d 1 /f >/dev/null 2>&1 || true
 WINEPREFIX="${DIR}/wineprefix" wine reg add "HKEY_CURRENT_USER\Software\Wine\WineDbg" /v ShowCrashDialog /t REG_DWORD /d 0 /f >/dev/null 2>&1 || true

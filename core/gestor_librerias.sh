@@ -37,7 +37,7 @@ mkdir -p "$CACHE_DIR" "$HERRAMIENTAS_DIR"
 actualizar_gamecontrollerdb() {
     echo -e "${CYAN}🎮 Actualizando base comunitaria de mandos (SDL_GameControllerDB)...${RESET}"
     local target_file="${HERRAMIENTAS_DIR}/gamecontrollerdb.txt"
-    if curl -sL --connect-timeout 10 --max-time 30 "https://raw.githubusercontent.com/mdqinc/SDL_GameControllerDB/master/gamecontrollerdb.txt" -o "${target_file}.tmp"; then
+    if curl -fsSL -k --retry 3 --connect-timeout 10 --max-time 30 "https://raw.githubusercontent.com/mdqinc/SDL_GameControllerDB/master/gamecontrollerdb.txt" -o "${target_file}.tmp"; then
         if [ -s "${target_file}.tmp" ]; then
             mv -f "${target_file}.tmp" "$target_file"
             echo -e "${GREEN}✓ Mapeos de mandos actualizados con éxito ($(wc -l < "$target_file") perfiles cargados).${RESET}"
@@ -58,7 +58,7 @@ instalar_cnc_ddraw() {
     if [ ! -f "${ddraw_cache}/ddraw.dll" ]; then
         echo -e "${CYAN}📦 Descargando cnc-ddraw (vía FunkyFr3sh/cnc-ddraw)...${RESET}"
         local zip_file="${ddraw_cache}/cnc-ddraw.zip"
-        if curl -sL --connect-timeout 10 --max-time 60 "https://github.com/FunkyFr3sh/cnc-ddraw/releases/latest/download/cnc-ddraw.zip" -o "$zip_file"; then
+        if curl -fsSL -k --retry 3 --connect-timeout 10 --max-time 60 "https://github.com/FunkyFr3sh/cnc-ddraw/releases/latest/download/cnc-ddraw.zip" -o "$zip_file"; then
             if command -v unzip &>/dev/null; then
                 unzip -q -o "$zip_file" -d "$ddraw_cache"
                 rm -f "$zip_file"
@@ -105,7 +105,7 @@ instalar_dsoal() {
     if [ ! -f "${dsoal_cache}/dsound.dll" ] || [ ! -f "${dsoal_cache}/dsoal-aldrv.dll" ]; then
         echo -e "${CYAN}📦 Descargando DSOAL (Audio 3D EAX binaural vía kcat/dsoal)...${RESET}"
         local zip_file="${dsoal_cache}/DSOAL.zip"
-        if curl -sL --connect-timeout 10 --max-time 60 "https://github.com/kcat/dsoal/releases/download/latest-master/DSOAL.zip" -o "$zip_file"; then
+        if curl -fsSL -k --retry 3 --connect-timeout 10 --max-time 60 "https://github.com/kcat/dsoal/releases/download/latest-master/DSOAL.zip" -o "$zip_file"; then
             if command -v unzip &>/dev/null; then
                 unzip -q -o "$zip_file" -d "$dsoal_cache"
                 rm -f "$zip_file"
@@ -210,9 +210,9 @@ instalar_directx_completo() {
     echo -e "\n${CYAN}🎮 [ PASO 1/5 ] Descargando e instalando DirectX End-User Runtimes Completo...${RESET}"
     if [ ! -f "$dx_exe" ] || [ ! -s "$dx_exe" ]; then
         echo -e "${CYAN}  📦 Descargando paquete oficial DirectX Junio 2010 Redist (96 MB)...${RESET}"
-        if ! curl -sL --connect-timeout 15 --max-time 180 "https://files.holarse-linuxgaming.de/mirrors/microsoft/directx_Jun2010_redist.exe" -o "${dx_exe}.tmp"; then
+        if ! curl -fsSL -k --retry 3 --connect-timeout 15 --max-time 180 "https://files.holarse-linuxgaming.de/mirrors/microsoft/directx_Jun2010_redist.exe" -o "${dx_exe}.tmp"; then
             echo -e "${YELLOW}  ⚠ Falló servidor primario, intentando espejo alternativo...${RESET}"
-            curl -sL --connect-timeout 15 --max-time 180 "https://archive.org/download/directx_Jun2010_redist/directx_Jun2010_redist.exe" -o "${dx_exe}.tmp" || true
+            curl -fsSL -k --retry 3 --connect-timeout 15 --max-time 180 "https://archive.org/download/directx_Jun2010_redist/directx_Jun2010_redist.exe" -o "${dx_exe}.tmp" || true
         fi
         if [ -s "${dx_exe}.tmp" ]; then
             mv -f "${dx_exe}.tmp" "$dx_exe"
@@ -281,11 +281,11 @@ instalar_vcredist_aio() {
 
     if [ ! -f "$vcx86" ] || [ ! -s "$vcx86" ]; then
         echo -e "${CYAN}  📦 Descargando Visual C++ 2015-2022 (32-bit)...${RESET}"
-        curl -sL --connect-timeout 15 --max-time 120 "https://aka.ms/vs/17/release/vc_redist.x86.exe" -o "$vcx86" || true
+        curl -fsSL -k --retry 3 --connect-timeout 15 --max-time 120 "https://aka.ms/vs/17/release/vc_redist.x86.exe" -o "$vcx86" || true
     fi
     if [ ! -f "$vcx64" ] || [ ! -s "$vcx64" ]; then
         echo -e "${CYAN}  📦 Descargando Visual C++ 2015-2022 (64-bit)...${RESET}"
-        curl -sL --connect-timeout 15 --max-time 120 "https://aka.ms/vs/17/release/vc_redist.x64.exe" -o "$vcx64" || true
+        curl -fsSL -k --retry 3 --connect-timeout 15 --max-time 120 "https://aka.ms/vs/17/release/vc_redist.x64.exe" -o "$vcx64" || true
     fi
 
     if [ -f "$vcx86" ] && [ -s "$vcx86" ]; then
@@ -349,7 +349,7 @@ instalar_d3d8to9() {
             cp -f "${DIR}/../librerias/d3d8to9/d3d8.dll" "$d3d8_dll"
         else
             echo -e "${CYAN}  📦 Descargando D3D8to9 desde GitHub...${RESET}"
-            curl -sL --connect-timeout 10 --max-time 60 "https://github.com/crosire/d3d8to9/releases/download/v1.16.0/d3d8.dll" -o "$d3d8_dll" || true
+            curl -fsSL -k --retry 3 --connect-timeout 10 --max-time 60 "https://github.com/crosire/d3d8to9/releases/download/v1.16.0/d3d8.dll" -o "$d3d8_dll" || true
         fi
     fi
 
@@ -375,7 +375,7 @@ instalar_dxvk_nvapi() {
         else
             echo -e "${CYAN}  📦 Descargando DXVK-NVAPI desde GitHub...${RESET}"
             local tar_file="${nvapi_cache}/dxvk-nvapi.tar.gz"
-            if curl -sL --connect-timeout 10 --max-time 60 "https://github.com/jp7677/dxvk-nvapi/releases/download/v0.9.3/dxvk-nvapi-v0.9.3.tar.gz" -o "$tar_file"; then
+            if curl -fsSL -k --retry 3 --connect-timeout 10 --max-time 60 "https://github.com/jp7677/dxvk-nvapi/releases/download/v0.9.3/dxvk-nvapi-v0.9.3.tar.gz" -o "$tar_file"; then
                 tar -xzf "$tar_file" -C "$nvapi_cache" 2>/dev/null || true
                 rm -f "$tar_file"
             fi
@@ -424,7 +424,7 @@ instalar_vkd3d_proton() {
         echo -e "${CYAN}  📦 Descargando VKD3D-Proton oficial v2.14.1 desde GitHub...${RESET}"
         local zst_file="${vkd3d_cache}/vkd3d-proton-2.14.1.tar.zst"
         local url="https://github.com/HansKristian-Work/vkd3d-proton/releases/download/v2.14.1/vkd3d-proton-2.14.1.tar.zst"
-        if curl -sL --connect-timeout 15 --max-time 180 "$url" -o "$zst_file"; then
+        if curl -fsSL -k --retry 3 --connect-timeout 15 --max-time 180 "$url" -o "$zst_file"; then
             mkdir -p "${vkd3d_cache}/extract_tmp"
             local decompressed=false
             if command -v tar &>/dev/null && tar --help 2>&1 | grep -q "zstd"; then

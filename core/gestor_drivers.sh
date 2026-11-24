@@ -162,17 +162,20 @@ instalar_dxvk_modular() {
         echo -e "${YELLOW}  🌐 Descargando DXVK oficial v2.6 desde GitHub...${RESET}"
         local tmp_tar="/tmp/dxvk_vessel_temp.tar.gz"
         local tmp_extract="/tmp/dxvk_vessel_extract"
-        if curl -sL --connect-timeout 10 --max-time 120 "https://github.com/doitsujin/dxvk/releases/download/v2.6/dxvk-2.6.tar.gz" -o "$tmp_tar"; then
-            mkdir -p "$tmp_extract"
-            tar -xzf "$tmp_tar" -C "$tmp_extract" 2>/dev/null || true
-            local extracted_dir
-            extracted_dir=$(find "$tmp_extract" -maxdepth 1 -type d -name "dxvk-*" | head -n 1)
-            if [ -d "$extracted_dir" ]; then
-                cp -f "$extracted_dir/x64"/*.dll "${dxvk_base}/x64/" 2>/dev/null || true
-                cp -f "$extracted_dir/x32"/*.dll "${dxvk_base}/x32/" 2>/dev/null || true
-                echo -e "${GREEN}  ✓ DXVK v2.6 instalado correctamente en drivers/dxvk/${RESET}"
+        if curl -fsSL -k --retry 3 --connect-timeout 10 --max-time 120 "https://github.com/doitsujin/dxvk/releases/download/v2.6/dxvk-2.6.tar.gz" -o "$tmp_tar"; then
+            if [ -s "$tmp_tar" ]; then
+                mkdir -p "$tmp_extract"
+                tar -xzf "$tmp_tar" -C "$tmp_extract" 2>/dev/null || true
+                local extracted_dir
+                extracted_dir=$(find "$tmp_extract" -maxdepth 1 -type d -name "dxvk-*" | head -n 1)
+                if [ -d "$extracted_dir" ]; then
+                    cp -f "$extracted_dir/x64"/*.dll "${dxvk_base}/x64/" 2>/dev/null || true
+                    cp -f "$extracted_dir/x32"/*.dll "${dxvk_base}/x32/" 2>/dev/null || true
+                    echo -e "${GREEN}  ✓ DXVK v2.6 instalado correctamente en drivers/dxvk/${RESET}"
+                fi
+                rm -rf "$tmp_extract"
             fi
-            rm -rf "$tmp_tar" "$tmp_extract"
+            rm -f "$tmp_tar"
         fi
     fi
 
@@ -205,27 +208,30 @@ instalar_vkd3d_modular() {
         local tmp_tar="/tmp/vkd3d_vessel_temp.tar.zst"
         local tmp_extract="/tmp/vkd3d_vessel_extract"
         local dl_ok=0
-        if curl -sL --connect-timeout 10 --max-time 120 "https://github.com/HansKristian-Work/vkd3d-proton/releases/download/v2.14.1/vkd3d-proton-2.14.1.tar.zst" -o "$tmp_tar"; then
-            mkdir -p "$tmp_extract"
-            if command -v tar &>/dev/null && tar --help 2>&1 | grep -q -- "--zstd"; then
-                tar --zstd -xf "$tmp_tar" -C "$tmp_extract" 2>/dev/null && dl_ok=1
-            elif command -v zstd >/dev/null 2>&1; then
-                zstd -dc "$tmp_tar" | tar -xf - -C "$tmp_extract" 2>/dev/null && dl_ok=1
-            else
-                echo -e "${RED}  ✗ No se puede descomprimir .tar.zst: falta la utilidad zstd en el sistema.${RESET}"
-                echo -e "${YELLOW}  👉 Instala zstd con: sudo apt install zstd (Debian/Ubuntu) o sudo pacman -S zstd (Arch)${RESET}"
-            fi
-
-            if [ "$dl_ok" -eq 1 ]; then
-                local extracted_dir
-                extracted_dir=$(find "$tmp_extract" -maxdepth 1 -type d -name "vkd3d-*" | head -n 1)
-                if [ -d "$extracted_dir" ]; then
-                    cp -f "$extracted_dir/x64"/*.dll "${vkd3d_base}/x64/" 2>/dev/null || true
-                    cp -f "$extracted_dir/x86"/*.dll "${vkd3d_base}/x32/" 2>/dev/null || true
-                    echo -e "${GREEN}  ✓ VKD3D-Proton instalado correctamente en drivers/vkd3d-proton/${RESET}"
+        if curl -fsSL -k --retry 3 --connect-timeout 10 --max-time 120 "https://github.com/HansKristian-Work/vkd3d-proton/releases/download/v2.14.1/vkd3d-proton-2.14.1.tar.zst" -o "$tmp_tar"; then
+            if [ -s "$tmp_tar" ]; then
+                mkdir -p "$tmp_extract"
+                if command -v tar &>/dev/null && tar --help 2>&1 | grep -q -- "--zstd"; then
+                    tar --zstd -xf "$tmp_tar" -C "$tmp_extract" 2>/dev/null && dl_ok=1
+                elif command -v zstd >/dev/null 2>&1; then
+                    zstd -dc "$tmp_tar" | tar -xf - -C "$tmp_extract" 2>/dev/null && dl_ok=1
+                else
+                    echo -e "${RED}  ✗ No se puede descomprimir .tar.zst: falta la utilidad zstd en el sistema.${RESET}"
+                    echo -e "${YELLOW}  👉 Instala zstd con: sudo apt install zstd (Debian/Ubuntu) o sudo pacman -S zstd (Arch)${RESET}"
                 fi
+
+                if [ "$dl_ok" -eq 1 ]; then
+                    local extracted_dir
+                    extracted_dir=$(find "$tmp_extract" -maxdepth 1 -type d -name "vkd3d-*" | head -n 1)
+                    if [ -d "$extracted_dir" ]; then
+                        cp -f "$extracted_dir/x64"/*.dll "${vkd3d_base}/x64/" 2>/dev/null || true
+                        cp -f "$extracted_dir/x86"/*.dll "${vkd3d_base}/x32/" 2>/dev/null || true
+                        echo -e "${GREEN}  ✓ VKD3D-Proton instalado correctamente en drivers/vkd3d-proton/${RESET}"
+                    fi
+                fi
+                rm -rf "$tmp_extract"
             fi
-            rm -rf "$tmp_tar" "$tmp_extract"
+            rm -f "$tmp_tar"
         fi
     fi
 
@@ -263,23 +269,26 @@ instalar_nvapi_modular() {
         echo -e "${YELLOW}  🌐 Descargando DXVK-NVAPI oficial desde GitHub...${RESET}"
         local tmp_tar="/tmp/nvapi_vessel_temp.tar.gz"
         local tmp_extract="/tmp/nvapi_vessel_extract"
-        if curl -sL --connect-timeout 10 --max-time 60 "https://github.com/jp7677/dxvk-nvapi/releases/download/v0.9.3/dxvk-nvapi-v0.9.3.tar.gz" -o "$tmp_tar"; then
-            mkdir -p "$tmp_extract"
-            tar -xzf "$tmp_tar" -C "$tmp_extract" 2>/dev/null || true
-            if [ -d "$tmp_extract/x64" ]; then
-                cp -f "$tmp_extract/x64"/*.dll "${nvapi_base}/x64/" 2>/dev/null || true
-                cp -f "$tmp_extract/x32"/*.dll "${nvapi_base}/x32/" 2>/dev/null || true
-                echo -e "${GREEN}  ✓ DXVK-NVAPI v0.9.3 instalado en drivers/dxvk-nvapi/${RESET}"
-            else
-                local extracted_dir
-                extracted_dir=$(find "$tmp_extract" -maxdepth 1 -type d -name "dxvk-nvapi-*" | head -n 1)
-                if [ -d "$extracted_dir" ]; then
-                    cp -f "$extracted_dir/x64"/*.dll "${nvapi_base}/x64/" 2>/dev/null || true
-                    cp -f "$extracted_dir/x32"/*.dll "${nvapi_base}/x32/" 2>/dev/null || true
+        if curl -fsSL -k --retry 3 --connect-timeout 10 --max-time 60 "https://github.com/jp7677/dxvk-nvapi/releases/download/v0.9.3/dxvk-nvapi-v0.9.3.tar.gz" -o "$tmp_tar"; then
+            if [ -s "$tmp_tar" ]; then
+                mkdir -p "$tmp_extract"
+                tar -xzf "$tmp_tar" -C "$tmp_extract" 2>/dev/null || true
+                if [ -d "$tmp_extract/x64" ]; then
+                    cp -f "$tmp_extract/x64"/*.dll "${nvapi_base}/x64/" 2>/dev/null || true
+                    cp -f "$tmp_extract/x32"/*.dll "${nvapi_base}/x32/" 2>/dev/null || true
                     echo -e "${GREEN}  ✓ DXVK-NVAPI v0.9.3 instalado en drivers/dxvk-nvapi/${RESET}"
+                else
+                    local extracted_dir
+                    extracted_dir=$(find "$tmp_extract" -maxdepth 1 -type d -name "dxvk-nvapi-*" | head -n 1)
+                    if [ -d "$extracted_dir" ]; then
+                        cp -f "$extracted_dir/x64"/*.dll "${nvapi_base}/x64/" 2>/dev/null || true
+                        cp -f "$extracted_dir/x32"/*.dll "${nvapi_base}/x32/" 2>/dev/null || true
+                        echo -e "${GREEN}  ✓ DXVK-NVAPI v0.9.3 instalado en drivers/dxvk-nvapi/${RESET}"
+                    fi
                 fi
+                rm -rf "$tmp_extract"
             fi
-            rm -rf "$tmp_tar" "$tmp_extract"
+            rm -f "$tmp_tar"
         fi
     fi
 
