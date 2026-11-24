@@ -179,6 +179,14 @@ if [ -n "$RAM_TOTAL_MB" ]; then
     fi
 fi
 
+# Ocultar GPU integrada SOLO si coexiste con una GPU dedicada real (NVIDIA o AMD dedicada)
+# Si la PC solo tiene gráficos integrados (Intel HD/UHD o AMD APU), DEBE ser False para no dejar al sistema sin GPU
+if { [ "${HAS_NVIDIA:-false}" = "true" ] || [ "${HAS_AMD_DEDICATED:-false}" = "true" ]; } && { [ "${HAS_INTEL:-false}" = "true" ] || [ "${HAS_AMD_INTEGRATED:-false}" = "true" ]; }; then
+    HIDE_IGPU="True"
+else
+    HIDE_IGPU="False"
+fi
+
 # Generar archivo dxvk.conf universal
 cat <<EOF > "$CONF_FILE"
 # ==============================================================================
@@ -203,8 +211,8 @@ dxvk.enableStateCache = True
 # Modo Pantalla Completa: False para compatibilidad universal (evita fallos de EDID/swapchains en Wayland/PRIME)
 dxvk.allowFse = False
 
-# Ocultar GPU integrada para que los juegos solo detecten la GPU dedicada
-dxvk.hideIntegratedGraphics = True
+# Ocultar GPU integrada (solo en sistemas híbridos con GPU dedicada activa)
+dxvk.hideIntegratedGraphics = ${HIDE_IGPU}
 
 # No ocultar GPU de fabricante real
 dxgi.hideNvidiaGpu = False

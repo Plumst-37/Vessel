@@ -723,13 +723,12 @@ class InferenceEngine:
 
         elif hw["gpu"]["vendor"] == "amd":
             env["AMD_VULKAN_ICD"] = "RADV"
-            env["RADV_PERFTEST"] = "gpl,aco,sam,dcc"
-            reasons.append("GPU AMD: Forzado de Mesa RADV con compilador ACO, Smart Access Memory (SAM) y Vulkan GPL.")
+            env["RADV_PERFTEST"] = "gpl"
+            reasons.append("GPU AMD: Forzado de Mesa RADV con compilador rápido ACO y Vulkan GPL.")
 
         elif hw["gpu"]["vendor"] == "intel":
-            env["ANV_QUEUE_THREAD_DISABLE"] = "0"
             env["ANV_ENABLE_PIPELINE_CACHE"] = "1"
-            reasons.append("GPU Intel: Multithreading de colas de renderizado Vulkan ANV y caché de pipelines.")
+            reasons.append("GPU Intel: Optimización de caché de pipelines Vulkan ANV para eliminar stuttering.")
 
         # E) Sincronización de Hilos del Kernel (Fsync / Esync) y Páginas Gigantes (THP)
         env["WINEFSYNC"] = "1"

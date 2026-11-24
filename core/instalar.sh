@@ -796,12 +796,27 @@ EOF
 fi
 
 # Comando directo 'vessel' en el PATH del sistema o usuario
+chmod +x "${DIR}/vessel.sh" 2>/dev/null || true
+chmod +x "${DIR}/menu-win.sh" 2>/dev/null || true
+chmod +x "${DIR}/core/launch-win-app.sh" 2>/dev/null || true
+chmod +x "${DIR}/core/gestor_drivers.sh" 2>/dev/null || true
 mkdir -p "$TARGET_HOME/.local/bin" 2>/dev/null || true
 ln -sf "${DIR}/vessel.sh" "$TARGET_HOME/.local/bin/vessel" 2>/dev/null || true
 chown -h "$TARGET_USER:$TARGET_USER" "$TARGET_HOME/.local/bin/vessel" 2>/dev/null || true
+
+# Asegurar enlace global en /usr/local/bin si se cuenta con privilegios
 if [ "$EUID" -eq 0 ] && [ -d "/usr/local/bin" ]; then
     ln -sf "${DIR}/vessel.sh" /usr/local/bin/vessel 2>/dev/null || true
+elif command -v sudo &>/dev/null && [ -d "/usr/local/bin" ]; then
+    sudo ln -sf "${DIR}/vessel.sh" /usr/local/bin/vessel 2>/dev/null || true
 fi
+
+# Garantizar que ~/.local/bin esté en el PATH del usuario (.bashrc, .zshrc, .profile)
+for rc in "$TARGET_HOME/.bashrc" "$TARGET_HOME/.zshrc" "$TARGET_HOME/.profile"; do
+    if [ -f "$rc" ] && ! grep -q '\.local/bin' "$rc" 2>/dev/null; then
+        echo 'export PATH="$HOME/.local/bin:$PATH"' >> "$rc" 2>/dev/null || true
+    fi
+done
 
 echo "1.3" > "${DIR}/.instalado" 2>/dev/null || true
 chown "$TARGET_USER:$TARGET_USER" "${DIR}/.instalado" 2>/dev/null || true

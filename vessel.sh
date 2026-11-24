@@ -14,6 +14,12 @@ while [ -L "$SOURCE" ]; do
 done
 DIR="$(cd -P "$(dirname "$SOURCE")" >/dev/null 2>&1 && pwd)"
 
+# Auto-registro en ~/.local/bin/vessel para acceso directo permanente desde cualquier terminal
+if [ ! -L "$HOME/.local/bin/vessel" ] && [ ! -f "$HOME/.local/bin/vessel" ]; then
+    mkdir -p "$HOME/.local/bin" 2>/dev/null || true
+    ln -sf "${DIR}/vessel.sh" "$HOME/.local/bin/vessel" 2>/dev/null || true
+fi
+
 # Colores y estilo de terminal
 CYAN='\033[1;36m'
 GREEN='\033[1;32m'

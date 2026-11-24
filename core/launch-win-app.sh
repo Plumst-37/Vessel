@@ -1053,9 +1053,8 @@ acelerar_hardware_sistema() {
         for dpm in /sys/class/drm/card*/device/power_dpm_force_performance_level; do
             [ -w "$dpm" ] && echo high > "$dpm" 2>/dev/null || true
         done
-        export RADV_PERFTEST="gpl,aco,sam,dcc"
+        export RADV_PERFTEST="gpl"
     elif [ "${HAS_INTEL:-false}" = true ]; then
-        export ANV_QUEUE_THREAD_DISABLE=0
         export ANV_ENABLE_PIPELINE_CACHE=1
     fi
 
@@ -2559,15 +2558,23 @@ fi
 if [ -n "$GAMEMODE" ] && command -v "$GAMEMODE" &>/dev/null && [[ ! "$TARGET_FILE" =~ \.([rR][eE][gG]|[vV][bB][sS]|[jJ][sS])$ ]]; then
     FINAL_CMD+=("$GAMEMODE")
 elif [ "$IS_PROGRAM" -ne 1 ] && [[ ! "$TARGET_FILE" =~ \.([rR][eE][gG]|[vV][bB][sS]|[jJ][sS])$ ]]; then
+    # Solo agregar 'nice' si el usuario actual tiene permisos efectivos para bajar el valor nice (sin arrojar "Permiso denegado")
     if command -v nice &>/dev/null; then
-        if nice -n -10 true 2>/dev/null; then
+        local nice_test
+        nice_test=$(nice -n -10 true 2>&1 || true)
+        if [ -z "$nice_test" ]; then
             FINAL_CMD=("nice" "-n" "-10" "${FINAL_CMD[@]}")
-        elif nice -n -5 true 2>/dev/null; then
-            FINAL_CMD=("nice" "-n" "-5" "${FINAL_CMD[@]}")
+        else
+            nice_test=$(nice -n -5 true 2>&1 || true)
+            if [ -z "$nice_test" ]; then
+                FINAL_CMD=("nice" "-n" "-5" "${FINAL_CMD[@]}")
+            fi
         fi
     fi
     if command -v ionice &>/dev/null; then
-        if ionice -c 2 -n 0 true 2>/dev/null; then
+        local ionice_test
+        ionice_test=$(ionice -c 2 -n 0 true 2>&1 || true)
+        if [ -z "$ionice_test" ]; then
             FINAL_CMD=("ionice" "-c" "2" "-n" "0" "${FINAL_CMD[@]}")
         fi
     fi

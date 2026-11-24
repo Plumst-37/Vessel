@@ -19,7 +19,6 @@ CORE_DIR="${DIR}/core"
 [ ! -d "$CORE_DIR" ] && CORE_DIR="${DIR}"
 CACHE_DIR="${DIR}/librerias"
 [ ! -d "$CACHE_DIR" ] && CACHE_DIR="${DIR}/librerias_cache"
-[ ! -d "$CACHE_DIR" ] && [ -d "/home/plumst/Documentos/Win/Modificar para pc/librerias_cache" ] && CACHE_DIR="/home/plumst/Documentos/Win/Modificar para pc/librerias_cache"
 HERRAMIENTAS_DIR="${DIR}/herramientas"
 
 RED='\033[0;31m'

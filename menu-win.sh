@@ -1355,7 +1355,13 @@ agregar_programa_instalable() {
 crear_archivo_desktop() {
     local nombre="$1"
     local ruta="$2"
-    local desktop_path="/home/plumst/Escritorio/${nombre}.desktop"
+    local target_user="${SUDO_USER:-$USER}"
+    local target_home
+    target_home=$(eval echo "~$target_user")
+    local desk_dir="$target_home/Escritorio"
+    [ ! -d "$desk_dir" ] && desk_dir="$target_home/Desktop"
+    mkdir -p "$desk_dir" 2>/dev/null || true
+    local desktop_path="${desk_dir}/${nombre}.desktop"
     local carpeta_juego
     carpeta_juego="$(dirname "$ruta")"
 
@@ -1381,6 +1387,7 @@ Exec=xdg-open "${carpeta_juego}"
 Icon=folder-open
 EOF
 
+    chown "$target_user:$target_user" "$desktop_path" 2>/dev/null || true
     chmod +x "$desktop_path"
     gio set "$desktop_path" metadata::trusted true 2>/dev/null || true
     echo -e "${C_GREEN}✔ Acceso directo creado en tu Escritorio:${C_RESET} ${nombre}.desktop"
