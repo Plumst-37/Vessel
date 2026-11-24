@@ -792,7 +792,7 @@ if [ "$IS_PROGRAM" -eq 1 ] || [ "${PE_CATEGORY:-juego}" = "programa" ]; then
     "$WINE_CMD" reg add "HKEY_CURRENT_USER\Software\Wine\AppDefaults\\${TARGET_FILE}\X11 Driver" /v UseTakeFocus /t REG_SZ /d Y /f >/dev/null 2>&1 || true
 else
     "$WINE_CMD" reg add "HKEY_CURRENT_USER\Software\Wine\AppDefaults\\${TARGET_FILE}\X11 Driver" /v Decorated /t REG_SZ /d N /f >/dev/null 2>&1 || true
-    "$WINE_CMD" reg add "HKEY_CURRENT_USER\Software\Wine\AppDefaults\\${TARGET_FILE}\X11 Driver" /v GrabFullscreen /t REG_SZ /d Y /f >/dev/null 2>&1 || true
+    "$WINE_CMD" reg add "HKEY_CURRENT_USER\Software\Wine\AppDefaults\\${TARGET_FILE}\X11 Driver" /v GrabFullscreen /t REG_SZ /d N /f >/dev/null 2>&1 || true
     "$WINE_CMD" reg add "HKEY_CURRENT_USER\Software\Wine\AppDefaults\\${TARGET_FILE}\X11 Driver" /v UseTakeFocus /t REG_SZ /d N /f >/dev/null 2>&1 || true
 fi
 
@@ -848,6 +848,11 @@ if [ "$ACTIVAR_FSR_FINAL" -eq 1 ]; then
     export WINE_FULLSCREEN_FSR=1
     export WINE_FULLSCREEN_FSR_MODE="$MODO_FSR_FINAL"
     export WINE_FULLSCREEN_FSR_STRENGTH="${FSR_STRENGTH:-2}"
+else
+    export WINE_FULLSCREEN_FSR=0
+    unset WINE_FULLSCREEN_FSR 2>/dev/null || true
+    unset WINE_FULLSCREEN_FSR_MODE 2>/dev/null || true
+    unset WINE_FULLSCREEN_FSR_STRENGTH 2>/dev/null || true
 fi
 
 # 11. Uso condicional de GameMode según perfil

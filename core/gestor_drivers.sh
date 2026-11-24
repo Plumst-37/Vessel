@@ -309,6 +309,8 @@ sincronizar_perfil_especifico_juego() {
             fi
             grep -q -- "-windowed" "$cmdline" 2>/dev/null || echo "-windowed" >> "$cmdline"
             grep -q -- "-borderless" "$cmdline" 2>/dev/null || echo "-borderless" >> "$cmdline"
+            # Eliminar directiva -DX10 obsoleta que causa corrupción de color y artefactos en Vulkan
+            sed -i "/-DX10/Id" "$cmdline" 2>/dev/null || true
         fi
 
         # 2. settings.xml
@@ -321,6 +323,8 @@ sincronizar_perfil_especifico_juego() {
                     sed -i "s/<ScreenHeight value=\"[0-9]*\"/<ScreenHeight value=\"${target_h}\"/" "$sxml" 2>/dev/null || true
                 fi
                 sed -i 's/<Windowed value="[0-9]*"/<Windowed value="2"/' "$sxml" 2>/dev/null || true
+                # Forzar DirectX 11 (value="2") para eliminar colores psicodélicos causados por el backend DX10
+                sed -i 's/<DX_Version value="[0-1]"/<DX_Version value="2"/' "$sxml" 2>/dev/null || true
             fi
         done
     fi

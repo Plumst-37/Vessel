@@ -620,7 +620,7 @@ class InferenceEngine:
         api_final = "dx11"  # Default seguro para 64-bit
         if "dx12" in detected_apis or engine_id == "re_engine":
             api_final = "dx12"
-        elif "dx11" in detected_apis or "dx10" in detected_apis:
+        elif "dx11" in detected_apis or "dx10" in detected_apis or (pe.get("is_64") and engine_id in ("rockstar_rage", "unreal_engine", "unity")):
             api_final = "dx11"
         elif "vulkan" in detected_apis:
             api_final = "vulkan"
@@ -704,11 +704,14 @@ class InferenceEngine:
 
         # D) Optimizaciones de GPU
         if hw["gpu"]["is_dual_gpu"]:
-            env["__NV_PRIME_RENDER_OFFLOAD"] = "1"
-            env["__GLX_VENDOR_LIBRARY_NAME"] = "nvidia"
-            env["__VK_LAYER_NV_optimus"] = "NVIDIA_only"
-            env["DRI_PRIME"] = "1"
-            reasons.append("Gráficos duales detectados (Laptop híbrida): Forzado de renderizado en GPU dedicada NVIDIA/AMD con PRIME offload.")
+            if hw["gpu"]["vendor"] == "nvidia":
+                env["__NV_PRIME_RENDER_OFFLOAD"] = "1"
+                env["__GLX_VENDOR_LIBRARY_NAME"] = "nvidia"
+                env["__VK_LAYER_NV_optimus"] = "NVIDIA_only"
+                reasons.append("Gráficos duales detectados (Laptop híbrida NVIDIA): Forzado de renderizado en GPU dedicada NVIDIA GeForce con PRIME offload.")
+            elif hw["gpu"]["vendor"] in ("amd", "intel"):
+                env["DRI_PRIME"] = "1"
+                reasons.append("Gráficos duales detectados (Laptop híbrida AMD/Intel): Forzado de renderizado en GPU dedicada con DRI_PRIME=1.")
 
         if hw["gpu"]["vendor"] == "nvidia":
             env["__GL_SHADER_DISK_CACHE"] = "1"
@@ -727,13 +730,7 @@ class InferenceEngine:
         env["STAGING_SHARED_MEMORY"] = "1"
         reasons.append("Sincronización: Fsync / Esync activo para latencia ultrabaja en comunicación inter-hilo de Wine.")
 
-        # F) Reescalado FSR para GPUs modestas
-        if hw["gpu"]["vram_mb"] <= 2048 or hw["gpu"]["vendor"] == "intel":
-            env["WINE_FULLSCREEN_FSR"] = "1"
-            env["WINE_FULLSCREEN_FSR_STRENGTH"] = "2"
-            reasons.append("GPU con VRAM <= 2 GB o Integrada: Se habilita AMD FidelityFX Super Resolution (FSR) para ganar hasta +50% FPS.")
-
-        # G) Audio de Baja Latencia
+        # F) Audio de Baja Latencia
         env["PULSE_LATENCY_MSEC"] = "60"
 
         # 6. Versión de Windows Sugerida
