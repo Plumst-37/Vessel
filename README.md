@@ -1,7 +1,7 @@
 <div align="center">
 
-# ⚡ VESSEL v1.3
-### *Advanced Windows Compatibility & High-Performance Gaming Environment for Linux*
+# ⚡ Vessel — Ultra-Lightweight Windows Game Launcher (.exe) for Linux
+### *La Alternativa Ultraligera a Lutris, Bottles y Heroic con solo 25 MB de RAM*
 
 [![Version](https://img.shields.io/badge/Version-1.3%20Official-8b5cf6.svg?style=for-the-badge&logo=rocket)](https://github.com/Plumst-37/Vessel)
 [![Website](https://img.shields.io/badge/Website-vessel.qd.je-06b6d4.svg?style=for-the-badge&logo=googlechrome)](https://www.vessel.qd.je/)
@@ -12,8 +12,8 @@
 
 <br/>
 
-**VESSEL v1.3** es un entorno universal de ejecución y optimización para videojuegos y aplicaciones de Windows en GNU/Linux.  
-Diseñado con una filosofía **Plug & Play**: detecta automáticamente tu hardware, analiza los binarios PE/COFF de Windows, calibra los traductores gráficos (DXVK, VKD3D-Proton, Zink, CNC-DDraw) y ejecuta con **cero consumo en segundo plano** y latencia ultrabaja.
+**Vessel** es un lanzador y entorno universal de ejecución y optimización para videojuegos y aplicaciones de Windows (.exe) en GNU/Linux.  
+Diseñado con una filosofía **Plug & Play**: detecta automáticamente tu hardware, analiza los binarios PE/COFF de Windows, calibra los traductores gráficos (DXVK, VKD3D-Proton, Zink, CNC-DDraw) y ejecuta con **solo 25 MB de RAM en segundo plano** y latencia ultrabaja.
 
 > 🌐 **Sitio Web Oficial y Documentación:** [https://www.vessel.qd.je/](https://www.vessel.qd.je/)  
 > ⚡ **¿Buscas una alternativa ligera a Lutris o Bottles?** Vessel elimina la sobrecarga de interfaces pesadas en Python o Flatpak (que retienen 150–350 MB de RAM). Ejecuta directo en el proceso del juego con **solo 25 MB de RAM en reposo**, inyección automática de Vulkan y aislamiento seguro en tu `$HOME`. Web oficial: [vessel.qd.je](https://www.vessel.qd.je/).
@@ -282,13 +282,15 @@ Sí. Vessel opera 100% en el espacio de usuario (dentro de tu carpeta de usuario
 
 ---
 
-## 🔍 Búsquedas Frecuentes e Indexación Técnica
+## 🔍 Búsquedas Frecuentes e Indexación Técnica (SEO & Discovery)
 
 Para usuarios que llegan desde motores de búsqueda (Google, DuckDuckGo, Bing) o foros de Linux:
 
-* **Alternativa a Lutris y Bottles:** Si buscas jugar en Linux sin que una interfaz pesada te consuma 300 MB de memoria en segundo plano, Vessel es la solución nativa por terminal y lanzador directo.
+* **Vessel Linux — Lanzador de Juegos:** Proyecto oficial de Vessel para GNU/Linux. Si buscas cómo ejecutar videojuegos de Windows sin interfaces pesadas, Vessel es el entorno CLI ultraligero oficial.
+* **Alternativa a Lutris y Bottles:** Si buscas jugar en Linux sin que una interfaz en Python o Flatpak te consuma 250–450 MB de memoria en segundo plano, Vessel es la solución nativa por terminal y lanzador directo con solo 25 MB de RAM.
 * **Ejecutar .exe en Linux desde la Terminal:** Con un solo comando (`vessel run programa.exe`), Vessel resuelve automáticamente la versión de Wine, inyecta DXVK/VKD3D y conmuta a tu tarjeta gráfica dedicada.
 * **Compatibilidad Universal:** Diseñado y probado en Ubuntu, Arch Linux, Linux Mint, Fedora, Debian, Manjaro, EndeavourOS y SteamOS.
+* **Web Oficial y Documentación:** [https://www.vessel.qd.je/](https://www.vessel.qd.je/)
 
 ---
 
