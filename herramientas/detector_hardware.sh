@@ -201,8 +201,9 @@ if [ "$XDG_SESSION_TYPE" = "wayland" ] || [ -n "$WAYLAND_DISPLAY" ]; then
 fi
 
 # 5. Resolución Nativa de Pantalla y Resolución Recomendada para Juegos
-NATIVE_RES=$(cat /sys/class/drm/*/modes 2>/dev/null | head -n 1)
-[ -z "$NATIVE_RES" ] && NATIVE_RES=$(xrandr 2>/dev/null | grep -E ' connected primary| connected' | head -n 1 | grep -oE '[0-9]+x[0-9]+' | head -n 1)
+NATIVE_RES=$(xrandr --current 2>/dev/null | grep -E ' connected primary [0-9]+x[0-9]+' | head -n 1 | grep -oE '[0-9]+x[0-9]+' | head -n 1)
+[ -z "$NATIVE_RES" ] && NATIVE_RES=$(xrandr --current 2>/dev/null | grep -E ' connected [0-9]+x[0-9]+' | head -n 1 | grep -oE '[0-9]+x[0-9]+' | head -n 1)
+[ -z "$NATIVE_RES" ] && NATIVE_RES=$(cat /sys/class/drm/*/modes 2>/dev/null | head -n 1)
 [ -z "$NATIVE_RES" ] && NATIVE_RES="1920x1080"
 
 NATIVE_RES_W=$(echo "$NATIVE_RES" | cut -d'x' -f1)

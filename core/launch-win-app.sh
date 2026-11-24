@@ -1267,11 +1267,11 @@ aplicar_perfil_aislado_juego() {
             [ ! -d "$rsg_doc" ] && rsg_doc="${WINEPREFIX}/drive_c/users/${USER}/Documents/Rockstar Games/GTA V"
             mkdir -p "$rsg_doc"
 
-            # Detección inteligente de versión GTA V Lite (OptiJuegos / recursos optimizados para DX10)
+            # Detección inteligente de versión GTA V Lite (OptiJuegos / recursos optimizados para bajo consumo)
             local is_gta_lite=false
             if [ -f "${TARGET_DIR}/bonus/settings.xml" ] || [ -f "${TARGET_DIR}/bonus/settings_ultra.xml" ] || [ -f "${TARGET_DIR}/optiprojects.asi" ]; then
                 is_gta_lite=true
-                echo "    - Edición GTA V Lite detectada: Calibrando para DirectX 10, animaciones fluidas y assets ligeros."
+                echo "    - Edición GTA V Lite detectada: Calibrando para DirectX 11, animaciones fluidas y assets ligeros."
             fi
 
             local dx_ver="2"
@@ -1286,7 +1286,7 @@ aplicar_perfil_aislado_juego() {
             local veh_variety="0.800000"
 
             if [ "$is_gta_lite" = true ]; then
-                dx_ver="0"
+                dx_ver="2"
                 quality_val="0"
                 shadow_val="0"
                 soft_shadow="0"
@@ -1446,10 +1446,8 @@ EOF_SXML
                 grep -qi -- "-mouseRawInput" "$gta_cmdline" || echo "-mouseRawInput" >> "$gta_cmdline"
                 grep -qi -- "-norestrictions" "$gta_cmdline" || echo "-norestrictions" >> "$gta_cmdline"
                 grep -qi -- "-nomemrestrict" "$gta_cmdline" || echo "-nomemrestrict" >> "$gta_cmdline"
-                if [ "$is_gta_lite" = true ]; then
-                    sed -i '/-DX11/d; /-dx11/d' "$gta_cmdline" 2>/dev/null || true
-                    grep -qi -- "-DX10" "$gta_cmdline" || echo "-DX10" >> "$gta_cmdline"
-                fi
+                # Erradicar forzado de DirectX 10 que rompe el backend Vulkan y causa líneas de colores
+                sed -i '/-DX10/Id; /-dx10/Id' "$gta_cmdline" 2>/dev/null || true
                 if grep -qi -- "-width" "$gta_cmdline"; then
                     sed -i "s/^-width .*/-width ${gta_w}/I" "$gta_cmdline" 2>/dev/null || true
                 else
@@ -1479,10 +1477,14 @@ EOF_SXML
 -shadowSoftness 1
 -norestrictions
 -nomemrestrict
-$([ "$is_gta_lite" = true ] && echo "-DX10")
 EOF
             fi
-            echo "[+] GTA V optimizado: Geometría 3D calibrada (Teselación 0, sin deformación ni vertex explosion, frame pacing 60 FPS, Social Club offline activado)."
+            echo "[+] GTA V optimizado: Geometría 3D calibrada (DirectX 11 nativo, Teselación 0, sin deformación ni vertex explosion, frame pacing 60 FPS, Social Club offline activado)."
+
+            # Sincronización modular de geometría y resolución con el monitor activo
+            if [ -f "${CORE_DIR}/gestor_drivers.sh" ]; then
+                bash "${CORE_DIR}/gestor_drivers.sh" sincronizar "$TARGET_FILE" "$TARGET_DIR" >/dev/null 2>&1 || true
+            fi
 
             # Garantizar steam_settings completo para emulador Goldberg (evita bloqueos de red e inicialización de perfil)
             if [ ! -d "${TARGET_DIR}/steam_settings" ]; then

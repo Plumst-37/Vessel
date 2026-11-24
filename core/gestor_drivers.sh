@@ -303,14 +303,20 @@ sincronizar_perfil_especifico_juego() {
         # 1. commandline.txt
         local cmdline="${target_dir}/commandline.txt"
         if [ -f "$cmdline" ]; then
-            if [ "$is_forced_res" -eq 1 ]; then
-                sed -i "s/-width [0-9]*/-width ${target_w}/" "$cmdline" 2>/dev/null || true
-                sed -i "s/-height [0-9]*/-height ${target_h}/" "$cmdline" 2>/dev/null || true
+            if grep -qi -- "-width" "$cmdline"; then
+                sed -i "s/-width [0-9]*/-width ${target_w}/I" "$cmdline" 2>/dev/null || true
+            else
+                echo "-width ${target_w}" >> "$cmdline"
             fi
-            grep -q -- "-windowed" "$cmdline" 2>/dev/null || echo "-windowed" >> "$cmdline"
-            grep -q -- "-borderless" "$cmdline" 2>/dev/null || echo "-borderless" >> "$cmdline"
+            if grep -qi -- "-height" "$cmdline"; then
+                sed -i "s/-height [0-9]*/-height ${target_h}/I" "$cmdline" 2>/dev/null || true
+            else
+                echo "-height ${target_h}" >> "$cmdline"
+            fi
+            grep -qi -- "-windowed" "$cmdline" 2>/dev/null || echo "-windowed" >> "$cmdline"
+            grep -qi -- "-borderless" "$cmdline" 2>/dev/null || echo "-borderless" >> "$cmdline"
             # Eliminar directiva -DX10 obsoleta que causa corrupción de color y artefactos en Vulkan
-            sed -i "/-DX10/Id" "$cmdline" 2>/dev/null || true
+            sed -i "/-DX10/Id; /-dx10/Id" "$cmdline" 2>/dev/null || true
         fi
 
         # 2. settings.xml
@@ -318,10 +324,8 @@ sincronizar_perfil_especifico_juego() {
         [ ! -d "$rsg_doc" ] && rsg_doc="${WINEPREFIX:-${DIR}/wineprefix}/drive_c/users/${USER}/Documents/Rockstar Games/GTA V"
         for sxml in "$rsg_doc/settings.xml" "${target_dir}/settings.xml" "${WINEPREFIX:-${DIR}/wineprefix}/drive_c/users/${USER}/Documents/Rockstar Games/GTA V/settings.xml"; do
             if [ -f "$sxml" ]; then
-                if [ "$is_forced_res" -eq 1 ]; then
-                    sed -i "s/<ScreenWidth value=\"[0-9]*\"/<ScreenWidth value=\"${target_w}\"/" "$sxml" 2>/dev/null || true
-                    sed -i "s/<ScreenHeight value=\"[0-9]*\"/<ScreenHeight value=\"${target_h}\"/" "$sxml" 2>/dev/null || true
-                fi
+                sed -i "s/<ScreenWidth value=\"[0-9]*\"/<ScreenWidth value=\"${target_w}\"/" "$sxml" 2>/dev/null || true
+                sed -i "s/<ScreenHeight value=\"[0-9]*\"/<ScreenHeight value=\"${target_h}\"/" "$sxml" 2>/dev/null || true
                 sed -i 's/<Windowed value="[0-9]*"/<Windowed value="2"/' "$sxml" 2>/dev/null || true
                 # Forzar DirectX 11 (value="2") para eliminar colores psicodélicos causados por el backend DX10
                 sed -i 's/<DX_Version value="[0-1]"/<DX_Version value="2"/' "$sxml" 2>/dev/null || true

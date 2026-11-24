@@ -96,7 +96,7 @@ if [ "$VSYNC_ENABLED" = "0" ]; then
     NUM_BUFFERS="2"
     FRAME_LATENCY="1"
 else
-    TEAR_FREE="True"
+    TEAR_FREE="False"
     SYNC_INT="1"
     NUM_BUFFERS="3"
     FRAME_LATENCY="2"
@@ -230,8 +230,8 @@ dxvk.enableNvapi = True
 
 # Perfiles específicos por ejecutable para máxima fidelidad 3D, estabilidad y rendimiento
 [GTA5.exe]
-dxgi.maxFrameLatency = 2
-dxgi.hideNvidiaGpu = False
+dxgi.maxFrameLatency = 1
+dxgi.hideNvidiaGpu = True
 d3d11.disableMsaa = True
 d3d11.clampNegativeLodBias = True
 d3d11.constantBufferRangeCheck = True
@@ -243,12 +243,12 @@ dxvk.allowMemoryOvercommit = ${ALLOW_OVERCOMMIT}
 d3d11.maxTessellationFactor = ${MAX_TESSELLATION}
 dxvk.gpl = ${GPL_VAL}
 dxvk.allowFse = False
-dxvk.tearFree = True
+dxvk.tearFree = False
 dxgi.syncInterval = 1
 
 [PlayGTAV.exe]
-dxgi.maxFrameLatency = 2
-dxgi.hideNvidiaGpu = False
+dxgi.maxFrameLatency = 1
+dxgi.hideNvidiaGpu = True
 d3d11.disableMsaa = True
 d3d11.clampNegativeLodBias = True
 d3d11.constantBufferRangeCheck = True
@@ -260,7 +260,7 @@ dxvk.allowMemoryOvercommit = ${ALLOW_OVERCOMMIT}
 d3d11.maxTessellationFactor = ${MAX_TESSELLATION}
 dxvk.gpl = ${GPL_VAL}
 dxvk.allowFse = False
-dxvk.tearFree = True
+dxvk.tearFree = False
 dxgi.syncInterval = 1
 
 [speed.exe]
