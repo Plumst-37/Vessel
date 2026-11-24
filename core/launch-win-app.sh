@@ -618,8 +618,8 @@ fi
 # CALIBRACIÓN UNIVERSAL DE COMPATIBILIDAD WINDOWS 10/11, DIRECT2D, DIRECT3D Y VRAM
 # ==============================================================================
 optimizar_entorno_windows_completo() {
-    # Si ya fue calibrado en este prefijo con la versión 2, retornar inmediatamente (0.01s)
-    if [ -f "${WINEPREFIX}/.vessel_win_full_v2" ]; then
+    # Si ya fue calibrado en este prefijo con la versión 3 (Windows 10 22H2 Pro), retornar inmediatamente (0.01s)
+    if [ -f "${WINEPREFIX}/.vessel_win_full_v3" ]; then
         return 0
     fi
 
@@ -656,18 +656,32 @@ optimizar_entorno_windows_completo() {
     cat << EOF > "$reg_full"
 Windows Registry Editor Version 5.00
 
+[HKEY_CURRENT_USER\Software\Wine]
+"Version"="win10"
+
 [HKEY_LOCAL_MACHINE\Software\Microsoft\Windows NT\CurrentVersion]
 "ProductName"="Windows 10 Pro"
 "CurrentBuild"="19045"
 "CurrentBuildNumber"="19045"
 "ReleaseId"="22H2"
 "DisplayVersion"="22H2"
+"BuildBranch"="vb_release"
+"BuildLab"="19041.vb_release.191206-1406"
+"BuildLabEx"="19041.1.amd64fre.vb_release.191206-1406"
+"CurrentMajorVersionNumber"=dword:0000000a
+"CurrentMinorVersionNumber"=dword:00000000
+"CurrentVersion"="6.3"
 "UBR"=dword:00000ef2
 "EditionID"="Professional"
 "InstallationType"="Client"
-"CurrentMajorVersionNumber"=dword:0000000a
-"CurrentMinorVersionNumber"=dword:00000000
 "CompositionVersion"="10.0.19045.3826"
+"CSDVersion"=""
+"PathName"="C:\\Windows"
+"SystemRoot"="C:\\Windows"
+"ProgramFilesDir"="C:\\Program Files"
+"ProgramFilesDir (x86)"="C:\\Program Files (x86)"
+"CommonFilesDir"="C:\\Program Files\\Common Files"
+"CommonFilesDir (x86)"="C:\\Program Files (x86)\\Common Files"
 
 [HKEY_LOCAL_MACHINE\Software\WOW6432Node\Microsoft\Windows NT\CurrentVersion]
 "ProductName"="Windows 10 Pro"
@@ -675,11 +689,112 @@ Windows Registry Editor Version 5.00
 "CurrentBuildNumber"="19045"
 "ReleaseId"="22H2"
 "DisplayVersion"="22H2"
+"BuildBranch"="vb_release"
+"BuildLab"="19041.vb_release.191206-1406"
+"BuildLabEx"="19041.1.amd64fre.vb_release.191206-1406"
+"CurrentMajorVersionNumber"=dword:0000000a
+"CurrentMinorVersionNumber"=dword:00000000
+"CurrentVersion"="6.3"
 "UBR"=dword:00000ef2
 "EditionID"="Professional"
 "InstallationType"="Client"
-"CurrentMajorVersionNumber"=dword:0000000a
-"CurrentMinorVersionNumber"=dword:00000000
+"CompositionVersion"="10.0.19045.3826"
+"CSDVersion"=""
+"PathName"="C:\\Windows"
+"SystemRoot"="C:\\Windows"
+"ProgramFilesDir"="C:\\Program Files"
+"ProgramFilesDir (x86)"="C:\\Program Files (x86)"
+"CommonFilesDir"="C:\\Program Files\\Common Files"
+"CommonFilesDir (x86)"="C:\\Program Files (x86)\\Common Files"
+
+[HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Control\Windows]
+"CSDVersion"=dword:00000000
+
+[HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Control\ProductOptions]
+"ProductType"="WinNT"
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Multimedia\SystemProfile]
+"SystemResponsiveness"=dword:00000000
+"NetworkThrottlingIndex"=dword:ffffffff
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Multimedia\SystemProfile\Tasks\Games]
+"Affinity"=dword:00000000
+"Background Only"="False"
+"Clock Rate"=dword:00002710
+"GPU Priority"=dword:00000008
+"Priority"=dword:00000006
+"Scheduling Category"="High"
+"SFIO Priority"="High"
+
+[HKEY_CURRENT_USER\System\GameConfigStore]
+"GameDVR_Enabled"=dword:00000000
+"GameDVR_FSEBehaviorMode"=dword:00000002
+"GameDVR_HonorUserFSEBehaviorMode"=dword:00000001
+"GameDVR_DXGIHonorFSEWindowsCompatible"=dword:00000001
+"GameDVR_EFSEFeatureFlags"=dword:00000000
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Microsoft\Windows\GameDVR]
+"AllowGameDVR"=dword:00000000
+
+[HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Control\Session Manager\Memory Management]
+"LargeSystemCache"=dword:00000001
+"DisablePagingExecutive"=dword:00000001
+
+[HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\AudioEndpointBuilder]
+"Start"=dword:00000002
+
+[HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\Audiosrv]
+"Start"=dword:00000002
+
+[HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\winebus]
+"Start"=dword:00000002
+
+[HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\mountmgr]
+"Start"=dword:00000002
+
+[HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\RpcSs]
+"Start"=dword:00000002
+
+[HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\PlugPlay]
+"Start"=dword:00000002
+
+[HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\CryptSvc]
+"Start"=dword:00000002
+
+[HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\NlaSvc]
+"Start"=dword:00000002
+
+[HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\NlaSvc\Parameters\Internet]
+"EnableActiveProbing"=dword:00000001
+"ActiveWebProbeHost"="www.msftncsi.com"
+"ActiveWebProbePath"="ncsi.txt"
+"ActiveWebProbeContent"="Microsoft NCSI"
+"ActiveDnsProbeHost"="dns.msftncsi.com"
+"ActiveDnsProbeContent"="131.107.255.255"
+
+[HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\Tcpip]
+"Start"=dword:00000002
+
+[HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\BFE]
+"Start"=dword:00000002
+
+[HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\Dnscache]
+"Start"=dword:00000002
+
+[HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\EventLog]
+"Start"=dword:00000002
+
+[HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\FontCache]
+"Start"=dword:00000002
+
+[HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\LanmanWorkstation]
+"Start"=dword:00000002
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\DirectDraw]
+"EmulationOnly"=dword:00000000
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Direct3D\Drivers]
+"UsePrecompiledShaders"=dword:00000001
 
 [HKEY_CURRENT_USER\Software\Wine\Direct3D]
 "VideoMemorySize"="${vram_mb}"
@@ -690,6 +805,7 @@ Windows Registry Editor Version 5.00
 "CheckFloatConstants"="disabled"
 "CheckDepthStencil"="enabled"
 "csmt"=dword:00000001
+"MaxVersionGL"=dword:00040006
 
 [HKEY_CURRENT_USER\Software\Wine\Direct2D]
 "max_version_factory"=dword:00000001
@@ -723,6 +839,35 @@ Windows Registry Editor Version 5.00
 "Audio"="pulse"
 
 [HKEY_CURRENT_USER\Software\Wine\DllOverrides]
+"d3d11"="native,builtin"
+"dxgi"="native,builtin"
+"d3d12"="native,builtin"
+"d3d12core"="native,builtin"
+"d3d10core"="native,builtin"
+"d3d9"="native,builtin"
+"d3d8"="native,builtin"
+"nvapi"="native,builtin"
+"nvapi64"="native,builtin"
+"d3dcompiler_47"="native,builtin"
+"d3dcompiler_46"="native,builtin"
+"d3dcompiler_43"="native,builtin"
+"d3dx11_43"="native,builtin"
+"d3dx10_43"="native,builtin"
+"d3dx9_43"="native,builtin"
+"vcruntime140"="native,builtin"
+"vcruntime140_1"="native,builtin"
+"msvcp140"="native,builtin"
+"msvcp140_1"="native,builtin"
+"msvcp140_2"="native,builtin"
+"msvcp140_codecvt_ids"="native,builtin"
+"msvcp140_atomic_wait"="native,builtin"
+"concrt140"="native,builtin"
+"vcomp140"="native,builtin"
+"ucrtbase"="native,builtin"
+"xinput1_4"="native,builtin"
+"xinput1_3"="native,builtin"
+"xinput9_1_0"="native,builtin"
+"dinput8"="native,builtin"
 "riched20"="native,builtin"
 "riched32"="native,builtin"
 "msftedit"="native,builtin"
@@ -766,7 +911,7 @@ EOF
 
     DISPLAY="" "$WINE_CMD" regedit /s "$reg_full" >/dev/null 2>&1 || true
     rm -f "$reg_full" 2>/dev/null || true
-    touch "${WINEPREFIX}/.vessel_win_full_v2" 2>/dev/null || true
+    touch "${WINEPREFIX}/.vessel_win_full_v3" 2>/dev/null || true
 }
 
 

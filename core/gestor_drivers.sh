@@ -295,6 +295,319 @@ instalar_nvapi_modular() {
 }
 
 # ==============================================================================
+# 5. CONFIGURACIÓN PROFUNDA DE COMPATIBILIDAD WINDOWS 10 22H2 (SERVICIOS, MMCSS, DLLS)
+# ==============================================================================
+configurar_compatibilidad_windows10() {
+    local target_prefix="${1:-${DIR}/wineprefix}"
+    echo -e "${CYAN}🪟 [ WINDOWS 10 ] Calibrando compatibilidad profunda Windows 10 Pro 22H2...${RESET}"
+
+    if [ ! -d "$target_prefix" ]; then
+        mkdir -p "${target_prefix}/drive_c/windows/system32" "${target_prefix}/drive_c/windows/syswow64" 2>/dev/null || true
+    fi
+
+    # Determinar binario de Wine
+    local wine_bin="wine"
+    if [ -x "${DIR}/wine/bin/wine" ]; then
+        wine_bin="${DIR}/wine/bin/wine"
+    elif command -v wine >/dev/null 2>&1; then
+        wine_bin="$(command -v wine)"
+    fi
+
+    # 1. Detección de VRAM para Direct3D
+    local vram_mb=""
+    if command -v nvidia-smi &>/dev/null; then
+        vram_mb=$(nvidia-smi --query-gpu=memory.total --format=csv,noheader,nounits 2>/dev/null | head -n 1)
+    fi
+    if [ -z "$vram_mb" ]; then
+        for f in /sys/class/drm/card*/device/mem_info_vram_total; do
+            if [ -f "$f" ]; then
+                local b
+                b=$(cat "$f" 2>/dev/null)
+                if [ -n "$b" ] && [ "$b" -gt 0 ]; then
+                    vram_mb=$((b / 1048576))
+                    break
+                fi
+            fi
+        done
+    fi
+    if [ -z "$vram_mb" ] && command -v glxinfo &>/dev/null; then
+        vram_mb=$(glxinfo -B 2>/dev/null | grep -iE "video memory|total available memory" | head -n 1 | grep -oE "[0-9]+" | head -n 1)
+    fi
+    if [ -z "$vram_mb" ]; then
+        local ram_sys
+        ram_sys=$(free -m 2>/dev/null | awk '/^Mem:/{print $2}')
+        if [ "${ram_sys:-0}" -ge 12000 ]; then vram_mb=4096; elif [ "${ram_sys:-0}" -ge 6000 ]; then vram_mb=2048; else vram_mb=1024; fi
+    fi
+    [ -z "$vram_mb" ] && vram_mb=2048
+
+    # 2. Generar archivo de registro completo
+    local reg_win10
+    reg_win10=$(mktemp "${TMPDIR:-/tmp}/vessel_win10_XXXXXX.reg" 2>/dev/null || echo "/tmp/vessel_win10_$$.reg")
+    cat << EOF > "$reg_win10"
+Windows Registry Editor Version 5.00
+
+[HKEY_CURRENT_USER\Software\Wine]
+"Version"="win10"
+
+[HKEY_LOCAL_MACHINE\Software\Microsoft\Windows NT\CurrentVersion]
+"ProductName"="Windows 10 Pro"
+"CurrentBuild"="19045"
+"CurrentBuildNumber"="19045"
+"ReleaseId"="22H2"
+"DisplayVersion"="22H2"
+"BuildBranch"="vb_release"
+"BuildLab"="19041.vb_release.191206-1406"
+"BuildLabEx"="19041.1.amd64fre.vb_release.191206-1406"
+"CurrentMajorVersionNumber"=dword:0000000a
+"CurrentMinorVersionNumber"=dword:00000000
+"CurrentVersion"="6.3"
+"UBR"=dword:00000ef2
+"EditionID"="Professional"
+"InstallationType"="Client"
+"CompositionVersion"="10.0.19045.3826"
+"CSDVersion"=""
+"PathName"="C:\\Windows"
+"SystemRoot"="C:\\Windows"
+"ProgramFilesDir"="C:\\Program Files"
+"ProgramFilesDir (x86)"="C:\\Program Files (x86)"
+"CommonFilesDir"="C:\\Program Files\\Common Files"
+"CommonFilesDir (x86)"="C:\\Program Files (x86)\\Common Files"
+
+[HKEY_LOCAL_MACHINE\Software\WOW6432Node\Microsoft\Windows NT\CurrentVersion]
+"ProductName"="Windows 10 Pro"
+"CurrentBuild"="19045"
+"CurrentBuildNumber"="19045"
+"ReleaseId"="22H2"
+"DisplayVersion"="22H2"
+"BuildBranch"="vb_release"
+"BuildLab"="19041.vb_release.191206-1406"
+"BuildLabEx"="19041.1.amd64fre.vb_release.191206-1406"
+"CurrentMajorVersionNumber"=dword:0000000a
+"CurrentMinorVersionNumber"=dword:00000000
+"CurrentVersion"="6.3"
+"UBR"=dword:00000ef2
+"EditionID"="Professional"
+"InstallationType"="Client"
+"CompositionVersion"="10.0.19045.3826"
+"CSDVersion"=""
+"PathName"="C:\\Windows"
+"SystemRoot"="C:\\Windows"
+"ProgramFilesDir"="C:\\Program Files"
+"ProgramFilesDir (x86)"="C:\\Program Files (x86)"
+"CommonFilesDir"="C:\\Program Files\\Common Files"
+"CommonFilesDir (x86)"="C:\\Program Files (x86)\\Common Files"
+
+[HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Control\Windows]
+"CSDVersion"=dword:00000000
+
+[HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Control\ProductOptions]
+"ProductType"="WinNT"
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Multimedia\SystemProfile]
+"SystemResponsiveness"=dword:00000000
+"NetworkThrottlingIndex"=dword:ffffffff
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Multimedia\SystemProfile\Tasks\Games]
+"Affinity"=dword:00000000
+"Background Only"="False"
+"Clock Rate"=dword:00002710
+"GPU Priority"=dword:00000008
+"Priority"=dword:00000006
+"Scheduling Category"="High"
+"SFIO Priority"="High"
+
+[HKEY_CURRENT_USER\System\GameConfigStore]
+"GameDVR_Enabled"=dword:00000000
+"GameDVR_FSEBehaviorMode"=dword:00000002
+"GameDVR_HonorUserFSEBehaviorMode"=dword:00000001
+"GameDVR_DXGIHonorFSEWindowsCompatible"=dword:00000001
+"GameDVR_EFSEFeatureFlags"=dword:00000000
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Microsoft\Windows\GameDVR]
+"AllowGameDVR"=dword:00000000
+
+[HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Control\Session Manager\Memory Management]
+"LargeSystemCache"=dword:00000001
+"DisablePagingExecutive"=dword:00000001
+
+[HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\AudioEndpointBuilder]
+"Start"=dword:00000002
+
+[HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\Audiosrv]
+"Start"=dword:00000002
+
+[HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\winebus]
+"Start"=dword:00000002
+
+[HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\mountmgr]
+"Start"=dword:00000002
+
+[HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\RpcSs]
+"Start"=dword:00000002
+
+[HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\PlugPlay]
+"Start"=dword:00000002
+
+[HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\CryptSvc]
+"Start"=dword:00000002
+
+[HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\NlaSvc]
+"Start"=dword:00000002
+
+[HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\NlaSvc\Parameters\Internet]
+"EnableActiveProbing"=dword:00000001
+"ActiveWebProbeHost"="www.msftncsi.com"
+"ActiveWebProbePath"="ncsi.txt"
+"ActiveWebProbeContent"="Microsoft NCSI"
+"ActiveDnsProbeHost"="dns.msftncsi.com"
+"ActiveDnsProbeContent"="131.107.255.255"
+
+[HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\Tcpip]
+"Start"=dword:00000002
+
+[HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\BFE]
+"Start"=dword:00000002
+
+[HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\Dnscache]
+"Start"=dword:00000002
+
+[HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\EventLog]
+"Start"=dword:00000002
+
+[HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\FontCache]
+"Start"=dword:00000002
+
+[HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\LanmanWorkstation]
+"Start"=dword:00000002
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\DirectDraw]
+"EmulationOnly"=dword:00000000
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Direct3D\Drivers]
+"UsePrecompiledShaders"=dword:00000001
+
+[HKEY_CURRENT_USER\Software\Wine\Direct3D]
+"VideoMemorySize"="${vram_mb}"
+"StrictDrawOrdering"="disabled"
+"AlwaysOffscreen"="enabled"
+"OffscreenRenderingMode"="fbo"
+"Multisampling"="enabled"
+"CheckFloatConstants"="disabled"
+"CheckDepthStencil"="enabled"
+"csmt"=dword:00000001
+"MaxVersionGL"=dword:00040006
+
+[HKEY_CURRENT_USER\Software\Wine\Direct2D]
+"max_version_factory"=dword:00000001
+
+[HKEY_CURRENT_USER\Control Panel\Desktop]
+"FontSmoothing"="2"
+"FontSmoothingType"=dword:00000002
+"FontSmoothingGamma"=dword:00000578
+"FontSmoothingOrientation"=dword:00000001
+
+[HKEY_CURRENT_USER\Software\Wine\Fonts\Replacements]
+"Segoe UI"="Liberation Sans"
+"Calibri"="Liberation Sans"
+"Arial"="Liberation Sans"
+"Times New Roman"="Liberation Serif"
+"Courier New"="Liberation Mono"
+"Consolas"="Liberation Mono"
+"Tahoma"="Liberation Sans"
+"MS Sans Serif"="Liberation Sans"
+
+[HKEY_CURRENT_USER\Software\Wine\DirectInput]
+"MouseWarpOverride"="enable"
+
+[HKEY_CURRENT_USER\Software\Wine\WineDbg]
+"ShowCrashDialog"=dword:00000000
+
+[HKEY_LOCAL_MACHINE\Software\Microsoft\Windows NT\CurrentVersion\AeDebug]
+"Auto"="0"
+
+[HKEY_CURRENT_USER\Software\Wine\Drivers]
+"Audio"="pulse"
+
+[HKEY_CURRENT_USER\Software\Wine\DllOverrides]
+"d3d11"="native,builtin"
+"dxgi"="native,builtin"
+"d3d12"="native,builtin"
+"d3d12core"="native,builtin"
+"d3d10core"="native,builtin"
+"d3d9"="native,builtin"
+"d3d8"="native,builtin"
+"nvapi"="native,builtin"
+"nvapi64"="native,builtin"
+"d3dcompiler_47"="native,builtin"
+"d3dcompiler_46"="native,builtin"
+"d3dcompiler_43"="native,builtin"
+"d3dx11_43"="native,builtin"
+"d3dx10_43"="native,builtin"
+"d3dx9_43"="native,builtin"
+"vcruntime140"="native,builtin"
+"vcruntime140_1"="native,builtin"
+"msvcp140"="native,builtin"
+"msvcp140_1"="native,builtin"
+"msvcp140_2"="native,builtin"
+"msvcp140_codecvt_ids"="native,builtin"
+"msvcp140_atomic_wait"="native,builtin"
+"concrt140"="native,builtin"
+"vcomp140"="native,builtin"
+"ucrtbase"="native,builtin"
+"xinput1_4"="native,builtin"
+"xinput1_3"="native,builtin"
+"xinput9_1_0"="native,builtin"
+"dinput8"="native,builtin"
+"riched20"="native,builtin"
+"riched32"="native,builtin"
+"msftedit"="native,builtin"
+"msxml3"="native,builtin"
+"msxml4"="native,builtin"
+"msxml6"="native,builtin"
+"gdiplus"="native,builtin"
+"windowscodecs"="native,builtin"
+"mscms"="native,builtin"
+"actxprxy"="native,builtin"
+"wbemprox"="native,builtin"
+"wbemdisp"="native,builtin"
+"wmiutils"="native,builtin"
+"schannel"="native,builtin"
+"crypt32"="native,builtin"
+"secur32"="native,builtin"
+"wininet"="native,builtin"
+"urlmon"="native,builtin"
+"dwrite"="native,builtin"
+"mfplat"="native,builtin"
+"mf"="native,builtin"
+"mfreadwrite"="native,builtin"
+"evr"="native,builtin"
+"quartz"="builtin,native"
+"devenum"="builtin,native"
+"qedit"="builtin,native"
+"wmasf"="native,builtin"
+"wmvcore"="native,builtin"
+"winegstreamer"="builtin"
+"xaudio2_7"="builtin"
+"xaudio2_8"="builtin"
+"xaudio2_9"="builtin"
+"x3daudio1_7"="builtin"
+"openal32"="native,builtin"
+"dmusic"="native,builtin"
+"dmsynth"="native,builtin"
+"dmime"="native,builtin"
+"dmloader"="native,builtin"
+"dmband"="native,builtin"
+EOF
+
+    if command -v "$wine_bin" >/dev/null 2>&1 && [ -d "${target_prefix}" ]; then
+        WINEPREFIX="${target_prefix}" WINEDEBUG="-all" DISPLAY="" "$wine_bin" regedit /s "$reg_win10" >/dev/null 2>&1 || true
+        touch "${target_prefix}/.vessel_win_full_v3" 2>/dev/null || true
+        echo -e "${GREEN}  ✓ Registro de Windows 10 22H2, servicios de sistema y DllOverrides aplicados.${RESET}"
+    fi
+    rm -f "$reg_win10" 2>/dev/null || true
+}
+
+# ==============================================================================
 # 5. SINCRONIZACIÓN MODULAR DE PERFILES ESPECÍFICOS DE JUEGO (GTA V, etc.)
 # ==============================================================================
 sincronizar_perfil_especifico_juego() {
@@ -492,6 +805,13 @@ mostrar_estado_drivers() {
         echo -e "  [${YELLOW}○${RESET}] ${BOLD}DXVK-NVAPI:${RESET} No encontrado localmente"
     fi
 
+    # Compatibilidad Windows 10
+    local win10_status="${YELLOW}○ Pendiente de calibrar${RESET}"
+    if [ -f "${DIR}/wineprefix/.vessel_win_full_v3" ]; then
+        win10_status="${GREEN}✓ Windows 10 Pro 22H2 (Build 19045.3826) | MMCSS y Servicios Core Activos${RESET}"
+    fi
+    echo -e "  • Compatibilidad Windows 10:  ${win10_status}"
+
     echo -e "\n${BOLD}${PURPLE}========================================================================${RESET}\n"
 }
 
@@ -502,11 +822,15 @@ case "${1:-}" in
     cargar_env)
         cargar_gpu_env
         ;;
+    optimizar_win10)
+        configurar_compatibilidad_windows10 "${2:-${DIR}/wineprefix}"
+        ;;
     instalar_todo)
         cargar_gpu_env
         instalar_dxvk_modular "${2:-${DIR}/wineprefix}"
         instalar_vkd3d_modular "${2:-${DIR}/wineprefix}"
         instalar_nvapi_modular "${2:-${DIR}/wineprefix}"
+        configurar_compatibilidad_windows10 "${2:-${DIR}/wineprefix}"
         ;;
     sincronizar)
         sincronizar_pantalla_juego "${2:-}" "${3:-}"
