@@ -618,8 +618,8 @@ fi
 # CALIBRACIÓN UNIVERSAL DE COMPATIBILIDAD WINDOWS 10/11, DIRECT2D, DIRECT3D Y VRAM
 # ==============================================================================
 optimizar_entorno_windows_completo() {
-    # Si ya fue calibrado en este prefijo con la versión 3 (Windows 10 22H2 Pro), retornar inmediatamente (0.01s)
-    if [ -f "${WINEPREFIX}/.vessel_win_full_v3" ]; then
+    # Si ya fue calibrado en este prefijo con la versión 4 (Windows 10 22H2 Pro + 3D Fidelity), retornar inmediatamente (0.01s)
+    if [ -f "${WINEPREFIX}/.vessel_win_full_v4" ]; then
         return 0
     fi
 
@@ -716,6 +716,8 @@ Windows Registry Editor Version 5.00
 [HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Multimedia\SystemProfile]
 "SystemResponsiveness"=dword:00000000
 "NetworkThrottlingIndex"=dword:ffffffff
+"NoLazyMode"=dword:00000001
+"AlwaysOn"=dword:00000001
 
 [HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Multimedia\SystemProfile\Tasks\Games]
 "Affinity"=dword:00000000
@@ -725,6 +727,7 @@ Windows Registry Editor Version 5.00
 "Priority"=dword:00000006
 "Scheduling Category"="High"
 "SFIO Priority"="High"
+"Latency Sensitive"="True"
 
 [HKEY_CURRENT_USER\System\GameConfigStore]
 "GameDVR_Enabled"=dword:00000000
@@ -803,9 +806,16 @@ Windows Registry Editor Version 5.00
 "OffscreenRenderingMode"="fbo"
 "Multisampling"="enabled"
 "CheckFloatConstants"="disabled"
-"CheckDepthStencil"="enabled"
+"CheckDepthStencil"="disabled"
+"DirectDrawRenderer"="opengl"
+"ShaderBackend"="glsl"
 "csmt"=dword:00000001
 "MaxVersionGL"=dword:00040006
+
+[HKEY_CURRENT_USER\Software\Wine\X11 Driver]
+"UseXVidMode"="N"
+"GrabPointer"="Y"
+"UseTakeFocus"="N"
 
 [HKEY_CURRENT_USER\Software\Wine\Direct2D]
 "max_version_factory"=dword:00000001
@@ -911,7 +921,7 @@ EOF
 
     DISPLAY="" "$WINE_CMD" regedit /s "$reg_full" >/dev/null 2>&1 || true
     rm -f "$reg_full" 2>/dev/null || true
-    touch "${WINEPREFIX}/.vessel_win_full_v3" 2>/dev/null || true
+    touch "${WINEPREFIX}/.vessel_win_full_v4" 2>/dev/null || true
 }
 
 

@@ -406,6 +406,8 @@ Windows Registry Editor Version 5.00
 [HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Multimedia\SystemProfile]
 "SystemResponsiveness"=dword:00000000
 "NetworkThrottlingIndex"=dword:ffffffff
+"NoLazyMode"=dword:00000001
+"AlwaysOn"=dword:00000001
 
 [HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Multimedia\SystemProfile\Tasks\Games]
 "Affinity"=dword:00000000
@@ -415,6 +417,7 @@ Windows Registry Editor Version 5.00
 "Priority"=dword:00000006
 "Scheduling Category"="High"
 "SFIO Priority"="High"
+"Latency Sensitive"="True"
 
 [HKEY_CURRENT_USER\System\GameConfigStore]
 "GameDVR_Enabled"=dword:00000000
@@ -493,9 +496,16 @@ Windows Registry Editor Version 5.00
 "OffscreenRenderingMode"="fbo"
 "Multisampling"="enabled"
 "CheckFloatConstants"="disabled"
-"CheckDepthStencil"="enabled"
+"CheckDepthStencil"="disabled"
+"DirectDrawRenderer"="opengl"
+"ShaderBackend"="glsl"
 "csmt"=dword:00000001
 "MaxVersionGL"=dword:00040006
+
+[HKEY_CURRENT_USER\Software\Wine\X11 Driver]
+"UseXVidMode"="N"
+"GrabPointer"="Y"
+"UseTakeFocus"="N"
 
 [HKEY_CURRENT_USER\Software\Wine\Direct2D]
 "max_version_factory"=dword:00000001
@@ -601,7 +611,7 @@ EOF
 
     if command -v "$wine_bin" >/dev/null 2>&1 && [ -d "${target_prefix}" ]; then
         WINEPREFIX="${target_prefix}" WINEDEBUG="-all" DISPLAY="" "$wine_bin" regedit /s "$reg_win10" >/dev/null 2>&1 || true
-        touch "${target_prefix}/.vessel_win_full_v3" 2>/dev/null || true
+        touch "${target_prefix}/.vessel_win_full_v4" 2>/dev/null || true
         echo -e "${GREEN}  ✓ Registro de Windows 10 22H2, servicios de sistema y DllOverrides aplicados.${RESET}"
     fi
     rm -f "$reg_win10" 2>/dev/null || true
@@ -661,6 +671,11 @@ sincronizar_perfil_especifico_juego() {
                 sed -i 's/<MSAA value="[1-9]"/<MSAA value="0"/' "$sxml" 2>/dev/null || true
                 sed -i 's/<TXAA_Enabled value="true"/<TXAA_Enabled value="false"/' "$sxml" 2>/dev/null || true
                 sed -i 's/<FXAA_Enabled value="false"/<FXAA_Enabled value="true"/' "$sxml" 2>/dev/null || true
+                sed -i 's/<DoF value="true"/<DoF value="false"/' "$sxml" 2>/dev/null || true
+                sed -i 's/<InGameDepthOfField value="true"/<InGameDepthOfField value="false"/' "$sxml" 2>/dev/null || true
+                sed -i 's/<MotionBlurStrength value="[0-9\.]*"/<MotionBlurStrength value="0.000000"/' "$sxml" 2>/dev/null || true
+                sed -i 's/<Lighting_FogVolumes value="true"/<Lighting_FogVolumes value="false"/' "$sxml" 2>/dev/null || true
+                sed -i 's/<PauseOnFocusLoss value="[1-9]"/<PauseOnFocusLoss value="0"/' "$sxml" 2>/dev/null || true
                 sed -i 's/<Audio3d value="[a-zA-Z]*"/<Audio3d value="false"/' "$sxml" 2>/dev/null || true
             fi
         done
@@ -807,7 +822,7 @@ mostrar_estado_drivers() {
 
     # Compatibilidad Windows 10
     local win10_status="${YELLOW}○ Pendiente de calibrar${RESET}"
-    if [ -f "${DIR}/wineprefix/.vessel_win_full_v3" ]; then
+    if [ -f "${DIR}/wineprefix/.vessel_win_full_v4" ] || [ -f "${DIR}/wineprefix/.vessel_win_full_v3" ]; then
         win10_status="${GREEN}✓ Windows 10 Pro 22H2 (Build 19045.3826) | MMCSS y Servicios Core Activos${RESET}"
     fi
     echo -e "  • Compatibilidad Windows 10:  ${win10_status}"

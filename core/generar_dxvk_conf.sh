@@ -203,17 +203,26 @@ dxvk.enableStateCache = True
 # Modo Pantalla Completa: False para compatibilidad universal (evita fallos de EDID/swapchains en Wayland/PRIME)
 dxvk.allowFse = False
 
+# Ocultar GPU integrada para que los juegos solo detecten la GPU dedicada
+dxvk.hideIntegratedGraphics = True
+
+# No ocultar GPU de fabricante real
+dxgi.hideNvidiaGpu = False
+dxgi.hideAmdGpu = False
+dxgi.hideIntelGpu = False
+
 # Precisión geométrica universal con máxima fidelidad 3D (elimina deformación de mallas, estiramientos y z-fighting)
 d3d9.invariantPosition = True
 d3d11.invariantPosition = True
 d3d9.floatEmulation = Strict
-d3d11.floatEmulation = Fast
+d3d11.floatEmulation = Strict
 d3d9.clampNegativeLodBias = True
 d3d11.clampNegativeLodBias = True
 d3d9.samplerAnisotropy = ${SAMPLER_ANISO}
 d3d11.samplerAnisotropy = ${SAMPLER_ANISO}
 d3d11.constantBufferRangeCheck = True
 d3d11.relaxedBarriers = False
+d3d11.relaxedGraphicsBarriers = False
 d3d9.lenientClear = True
 d3d9.maxAvailableMemory = ${D3D9_MEM}
 
@@ -231,23 +240,31 @@ dxvk.trackPipelineLifetime = False
 dxvk.maxChunkSize = ${MAX_CHUNK_SIZE}
 dxvk.shrinkImageHeaps = ${SHRINK_HEAPS}
 dxvk.allowMemoryOvercommit = ${ALLOW_OVERCOMMIT}
-d3d11.maxTessellationFactor = ${MAX_TESSELLATION}
+dxvk.zeroMappedMemory = True
+dxvk.enableMemoryDefrag = True
+d3d11.maxTessFactor = ${MAX_TESSELLATION}
 d3d9.memoryTrackTest = False
 dxvk.enableNvapi = True
+dxvk.enableNvRawAccessChains = True
+dxvk.enableNvLowLatency2 = Auto
 
 # Perfiles específicos por ejecutable para máxima fidelidad 3D, estabilidad y rendimiento
 [GTA5.exe]
 dxgi.maxFrameLatency = 1
-dxgi.hideNvidiaGpu = True
+dxgi.hideNvidiaGpu = False
 d3d11.disableMsaa = True
 d3d11.clampNegativeLodBias = True
 d3d11.constantBufferRangeCheck = True
 d3d11.invariantPosition = True
+d3d11.floatEmulation = Strict
 d3d11.relaxedBarriers = False
+d3d11.relaxedGraphicsBarriers = False
 d3d11.samplerAnisotropy = ${SAMPLER_ANISO}
 dxvk.shrinkImageHeaps = ${SHRINK_HEAPS}
 dxvk.allowMemoryOvercommit = ${ALLOW_OVERCOMMIT}
-d3d11.maxTessellationFactor = ${MAX_TESSELLATION}
+dxvk.zeroMappedMemory = True
+dxvk.enableMemoryDefrag = True
+d3d11.maxTessFactor = ${MAX_TESSELLATION}
 dxvk.gpl = ${GPL_VAL}
 dxvk.allowFse = False
 dxvk.tearFree = False
@@ -255,16 +272,20 @@ dxgi.syncInterval = 1
 
 [PlayGTAV.exe]
 dxgi.maxFrameLatency = 1
-dxgi.hideNvidiaGpu = True
+dxgi.hideNvidiaGpu = False
 d3d11.disableMsaa = True
 d3d11.clampNegativeLodBias = True
 d3d11.constantBufferRangeCheck = True
 d3d11.invariantPosition = True
+d3d11.floatEmulation = Strict
 d3d11.relaxedBarriers = False
+d3d11.relaxedGraphicsBarriers = False
 d3d11.samplerAnisotropy = ${SAMPLER_ANISO}
 dxvk.shrinkImageHeaps = ${SHRINK_HEAPS}
 dxvk.allowMemoryOvercommit = ${ALLOW_OVERCOMMIT}
-d3d11.maxTessellationFactor = ${MAX_TESSELLATION}
+dxvk.zeroMappedMemory = True
+dxvk.enableMemoryDefrag = True
+d3d11.maxTessFactor = ${MAX_TESSELLATION}
 dxvk.gpl = ${GPL_VAL}
 dxvk.allowFse = False
 dxvk.tearFree = False
