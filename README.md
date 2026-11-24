@@ -15,6 +15,9 @@
 **VESSEL v1.3** es un entorno universal de ejecución y optimización para videojuegos y aplicaciones de Windows en GNU/Linux.  
 Diseñado con una filosofía **Plug & Play**: detecta automáticamente tu hardware, analiza los binarios PE/COFF de Windows, calibra los traductores gráficos (DXVK, VKD3D-Proton, Zink, CNC-DDraw) y ejecuta con **cero consumo en segundo plano** y latencia ultrabaja.
 
+> 🌐 **Sitio Web Oficial y Documentación:** [https://www.vessel.qd.je/](https://www.vessel.qd.je/)  
+> ⚡ **¿Buscas una alternativa ligera a Lutris o Bottles?** Vessel elimina la sobrecarga de interfaces pesadas en Python o Flatpak (que retienen 150–350 MB de RAM). Ejecuta directo en el proceso del juego con **0 MB en reposo**, inyección automática de Vulkan y aislamiento seguro en tu `$HOME`.
+
 ---
 
 </div>
@@ -271,6 +274,21 @@ En el menú de acciones del juego, selecciona <code>🪟 Versión de Windows</co
 <summary><b>4. ¿Dónde se guardan mis juegos y configuraciones al actualizar?</b></summary>
 Tus juegos se guardan de forma segura en <code>datos/programas.db</code> (ignorado por Git). Las actualizaciones descargan código nuevo y parches sin tocar ni sobreescribir jamás tus títulos o partidas.
 </details>
+
+<details>
+<summary><b>5. ¿Es compatible con Steam Deck / SteamOS?</b></summary>
+Sí. Vessel opera 100% en el espacio de usuario (dentro de tu carpeta de usuario <code>$HOME</code>), por lo que funciona a la perfección en sistemas inmutables como SteamOS sin requerir desactivar el modo de solo lectura ni permisos de superusuario (<code>sudo</code>).
+</details>
+
+---
+
+## 🔍 Búsquedas Frecuentes e Indexación Técnica
+
+Para usuarios que llegan desde motores de búsqueda (Google, DuckDuckGo, Bing) o foros de Linux:
+
+* **Alternativa a Lutris y Bottles:** Si buscas jugar en Linux sin que una interfaz pesada te consuma 300 MB de memoria en segundo plano, Vessel es la solución nativa por terminal y lanzador directo.
+* **Ejecutar .exe en Linux desde la Terminal:** Con un solo comando (`vessel run programa.exe`), Vessel resuelve automáticamente la versión de Wine, inyecta DXVK/VKD3D y conmuta a tu tarjeta gráfica dedicada.
+* **Compatibilidad Universal:** Diseñado y probado en Ubuntu, Arch Linux, Linux Mint, Fedora, Debian, Manjaro, EndeavourOS y SteamOS.
 
 ---
 
