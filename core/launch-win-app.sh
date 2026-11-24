@@ -368,11 +368,66 @@ if [[ "$TARGET" =~ [Gg]ame[Rr]anger ]] || [ ! -f "$TARGET" ]; then
         GR_PREFS="${WINEPREFIX}/drive_c/users/${TARGET_USER}/AppData/Roaming/GameRanger/GameRanger Prefs"
         FOUND_GR=$(find "${WINEPREFIX}/drive_c/users" -name "GameRanger.exe" 2>/dev/null | head -n 1)
         [ -z "$FOUND_GR" ] && [ -f "${WINEPREFIX}/drive_c/Program Files/GameRanger/GameRanger.exe" ] && FOUND_GR="${WINEPREFIX}/drive_c/Program Files/GameRanger/GameRanger.exe"
-        if [ -z "$FOUND_GR" ] && [ -f "${DIR}/GameRanger/GameRanger.exe" ]; then
-            mkdir -p "$GR_ROAMING" "$GR_PREFS" "${WINEPREFIX}/drive_c/Program Files/GameRanger"
-            cp -r "${DIR}/GameRanger"/* "$GR_ROAMING/" 2>/dev/null || true
-            cp -r "${DIR}/GameRanger"/* "${WINEPREFIX}/drive_c/Program Files/GameRanger/" 2>/dev/null || true
-            FOUND_GR="${GR_ROAMING}/GameRanger.exe"
+
+        # 1. Despliegue automático desde paquete portable tar.xz (listo para jugar sin instalación ni dependencias)
+        if [ -z "$FOUND_GR" ]; then
+            gr_archive=""
+            [ -f "${DATOS_DIR}/GameRanger.tar.xz" ] && gr_archive="${DATOS_DIR}/GameRanger.tar.xz"
+            [ -z "$gr_archive" ] && [ -f "${DIR}/datos/GameRanger.tar.xz" ] && gr_archive="${DIR}/datos/GameRanger.tar.xz"
+            [ -z "$gr_archive" ] && [ -f "${DIR}/GameRanger.tar.xz" ] && gr_archive="${DIR}/GameRanger.tar.xz"
+
+            if [ -n "$gr_archive" ] && [ -s "$gr_archive" ]; then
+                echo "[📦] Desplegando GameRanger Portable en el prefijo Wine..."
+                mkdir -p "${WINEPREFIX}/drive_c/Program Files" "$GR_ROAMING" "$GR_PREFS"
+                tar -xJf "$gr_archive" -C "${WINEPREFIX}/drive_c/Program Files/" 2>/dev/null || true
+                if [ -d "${WINEPREFIX}/drive_c/Program Files/GameRanger" ]; then
+                    cp -rf "${WINEPREFIX}/drive_c/Program Files/GameRanger"/* "$GR_ROAMING/" 2>/dev/null || true
+                    FOUND_GR="${WINEPREFIX}/drive_c/Program Files/GameRanger/GameRanger.exe"
+                fi
+            fi
+        fi
+
+        # 2. Despliegue desde carpeta fuente si existe
+        if [ -z "$FOUND_GR" ]; then
+            for gr_cand in "${DIR}/GameRanger" "${DATOS_DIR}/GameRanger"; do
+                if [ -d "$gr_cand" ] && [ -f "$gr_cand/GameRanger.exe" ]; then
+                    mkdir -p "$GR_ROAMING" "$GR_PREFS" "${WINEPREFIX}/drive_c/Program Files/GameRanger"
+                    cp -rf "$gr_cand"/* "$GR_ROAMING/" 2>/dev/null || true
+                    cp -rf "$gr_cand"/* "${WINEPREFIX}/drive_c/Program Files/GameRanger/" 2>/dev/null || true
+                    FOUND_GR="${WINEPREFIX}/drive_c/Program Files/GameRanger/GameRanger.exe"
+                    break
+                fi
+            done
+        fi
+
+        # 3. Descarga dinámica resiliente con fallback si no existe localmente
+        if [ -z "$FOUND_GR" ] && command -v curl &>/dev/null; then
+            echo "[*] Obteniendo GameRanger para el entorno..."
+            # Intentar primero paquete portable oficial desde el repositorio de GitHub
+            curl -fsSL -k "https://raw.githubusercontent.com/Plumst-37/Vessel/main/datos/GameRanger.tar.xz" -o "${DIR}/datos/GameRanger.tar.xz" 2>/dev/null || true
+            if [ -s "${DIR}/datos/GameRanger.tar.xz" ]; then
+                mkdir -p "${WINEPREFIX}/drive_c/Program Files" "$GR_ROAMING" "$GR_PREFS"
+                tar -xJf "${DIR}/datos/GameRanger.tar.xz" -C "${WINEPREFIX}/drive_c/Program Files/" 2>/dev/null || true
+                if [ -d "${WINEPREFIX}/drive_c/Program Files/GameRanger" ]; then
+                    cp -rf "${WINEPREFIX}/drive_c/Program Files/GameRanger"/* "$GR_ROAMING/" 2>/dev/null || true
+                    FOUND_GR="${WINEPREFIX}/drive_c/Program Files/GameRanger/GameRanger.exe"
+                fi
+            fi
+
+            # Fallback: Descargar instalador oficial de GameRanger con SSL inseguro (-k) o HTTP plano
+            if [ -z "$FOUND_GR" ]; then
+                curl -fsSL -k "https://www.gameranger.com/download/GameRangerSetup.exe" -o "${DIR}/GameRangerSetup.exe" 2>/dev/null || \
+                curl -fsSL "http://www.gameranger.com/download/GameRangerSetup.exe" -o "${DIR}/GameRangerSetup.exe" 2>/dev/null || true
+                if [ -s "${DIR}/GameRangerSetup.exe" ] && [ $(wc -c < "${DIR}/GameRangerSetup.exe") -gt 50000 ]; then
+                    echo "[*] Instalando GameRanger oficial en el entorno..."
+                    # Auto-inicializar prefijo si no existe antes de correr el instalador
+                    if [ ! -f "${WINEPREFIX}/system.reg" ]; then
+                        DISPLAY="" WINEDLLOVERRIDES="mscoree,mshtml=;winemenubuilder.exe=d;" WINEPREFIX="$WINEPREFIX" wine wineboot -u >/dev/null 2>&1 || true
+                    fi
+                    WINEPREFIX="${WINEPREFIX}" WINEDLLOVERRIDES="winemenubuilder.exe=d;dxgi=b;d3d11=b;d3d10core=b;d3d9=b;" wine "${DIR}/GameRangerSetup.exe" 2>/dev/null || true
+                    FOUND_GR=$(find "${WINEPREFIX}/drive_c" -name "GameRanger.exe" 2>/dev/null | head -n 1)
+                fi
+            fi
         fi
 
         # Restaurar preferencias y sesión guardada del usuario en cualquier perfil existente
@@ -427,22 +482,6 @@ for sf in files:
 
         if [ -n "$FOUND_GR" ] && [ -f "$FOUND_GR" ]; then
             TARGET="$FOUND_GR"
-        elif [ -f "${DATOS_DIR}/GameRangerSetup.exe" ]; then
-            echo "[*] Instalando GameRanger oficial en el entorno..."
-            WINEPREFIX="${WINEPREFIX}" WINEDLLOVERRIDES="winemenubuilder.exe=d;dxgi=b;d3d11=b;d3d10core=b;d3d9=b;" wine "${DATOS_DIR}/GameRangerSetup.exe" 2>/dev/null || true
-        elif [ -f "${DIR}/GameRangerSetup.exe" ]; then
-            echo "[*] Instalando GameRanger oficial en el entorno..."
-            WINEPREFIX="${WINEPREFIX}" WINEDLLOVERRIDES="winemenubuilder.exe=d;dxgi=b;d3d11=b;d3d10core=b;d3d9=b;" wine "${DIR}/GameRangerSetup.exe" 2>/dev/null || true
-            FOUND_GR=$(find "${WINEPREFIX}/drive_c" -name "GameRanger.exe" 2>/dev/null | head -n 1)
-            [ -n "$FOUND_GR" ] && TARGET="$FOUND_GR"
-        elif command -v curl &>/dev/null; then
-            echo "[*] Descargando GameRanger oficial..."
-            curl -fsSL https://www.gameranger.com/download/GameRangerSetup.exe -o "${DIR}/GameRangerSetup.exe" 2>/dev/null || true
-            if [ -f "${DIR}/GameRangerSetup.exe" ]; then
-                WINEPREFIX="${WINEPREFIX}" WINEDLLOVERRIDES="winemenubuilder.exe=d;dxgi=b;d3d11=b;d3d10core=b;d3d9=b;" wine "${DIR}/GameRangerSetup.exe" 2>/dev/null || true
-                FOUND_GR=$(find "${WINEPREFIX}/drive_c" -name "GameRanger.exe" 2>/dev/null | head -n 1)
-                [ -n "$FOUND_GR" ] && TARGET="$FOUND_GR"
-            fi
         fi
     fi
 fi
@@ -2560,7 +2599,6 @@ if [ -n "$GAMEMODE" ] && command -v "$GAMEMODE" &>/dev/null && [[ ! "$TARGET_FIL
 elif [ "$IS_PROGRAM" -ne 1 ] && [[ ! "$TARGET_FILE" =~ \.([rR][eE][gG]|[vV][bB][sS]|[jJ][sS])$ ]]; then
     # Solo agregar 'nice' si el usuario actual tiene permisos efectivos para bajar el valor nice (sin arrojar "Permiso denegado")
     if command -v nice &>/dev/null; then
-        local nice_test
         nice_test=$(nice -n -10 true 2>&1 || true)
         if [ -z "$nice_test" ]; then
             FINAL_CMD=("nice" "-n" "-10" "${FINAL_CMD[@]}")
@@ -2572,7 +2610,6 @@ elif [ "$IS_PROGRAM" -ne 1 ] && [[ ! "$TARGET_FILE" =~ \.([rR][eE][gG]|[vV][bB][
         fi
     fi
     if command -v ionice &>/dev/null; then
-        local ionice_test
         ionice_test=$(ionice -c 2 -n 0 true 2>&1 || true)
         if [ -z "$ionice_test" ]; then
             FINAL_CMD=("ionice" "-c" "2" "-n" "0" "${FINAL_CMD[@]}")

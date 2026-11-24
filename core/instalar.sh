@@ -517,6 +517,22 @@ WINEPREFIX="${DIR}/wineprefix" wine reg add "HKEY_CURRENT_USER\Software\Wine\Dll
 WINEPREFIX="${DIR}/wineprefix" wine reg add "HKEY_CURRENT_USER\Software\Wine\DllOverrides" /v d3d8 /t REG_SZ /d "native,builtin" /f >/dev/null 2>&1 || true
 WINEPREFIX="${DIR}/wineprefix" wine reg add "HKEY_CURRENT_USER\Software\Wine\DllOverrides" /v ddraw /t REG_SZ /d "native,builtin" /f >/dev/null 2>&1 || true
 
+# 4.3.2 Despliegue automático de GameRanger Portable en el prefijo
+if [ -f "${DIR}/datos/GameRanger.tar.xz" ]; then
+    mkdir -p "${DIR}/wineprefix/drive_c/Program Files"
+    tar -xJf "${DIR}/datos/GameRanger.tar.xz" -C "${DIR}/wineprefix/drive_c/Program Files/" 2>/dev/null || true
+    for u_dir in "${DIR}/wineprefix/drive_c/users"/*; do
+        if [ -d "$u_dir" ] && [ "$(basename "$u_dir")" != "Public" ]; then
+            mkdir -p "${u_dir}/AppData/Roaming/GameRanger/GameRanger" "${u_dir}/AppData/Roaming/GameRanger/GameRanger Prefs"
+            cp -rf "${DIR}/wineprefix/drive_c/Program Files/GameRanger"/* "${u_dir}/AppData/Roaming/GameRanger/GameRanger/" 2>/dev/null || true
+            if [ -d "${DIR}/.gameranger_prefs_backup" ]; then
+                cp -rf "${DIR}/.gameranger_prefs_backup"/* "${u_dir}/AppData/Roaming/GameRanger/GameRanger Prefs/" 2>/dev/null || true
+            fi
+        fi
+    done
+    chown -R "$TARGET_USER:$TARGET_USER" "${DIR}/wineprefix/drive_c/Program Files/GameRanger" 2>/dev/null || true
+fi
+
 # Configuración automática de DXVK en el prefijo si está instalado en el sistema
 if command -v dxvk-setup &>/dev/null; then
     WINEPREFIX="${DIR}/wineprefix" dxvk-setup install -y 2>/dev/null || true

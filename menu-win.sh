@@ -563,16 +563,13 @@ pausar() {
 # DESPLIEGUE Y PREINSTALACIÓN AUTOMÁTICA DE GAMERANGER PORTABLE
 # ==============================================================================
 desplegar_gameranger_portable() {
-    local src_gr="${DIR}/GameRanger"
-    [ ! -d "$src_gr" ] && return 0
-
     # 1. Asegurar programas.db con GameRanger portable en opción 1
     mkdir -p "$(dirname "$DB_FILE")"
     if [ ! -s "$DB_FILE" ] || ! grep -qi "gameranger" "$DB_FILE" 2>/dev/null; then
         if [ -s "$DB_FILE" ]; then
-            sed -i '1i GameRanger|GameRanger.exe|compartido' "$DB_FILE" 2>/dev/null || echo "GameRanger|GameRanger.exe|compartido" >> "$DB_FILE"
+            sed -i '1i GameRanger|GameRanger.exe|compartido|win7|off|juego' "$DB_FILE" 2>/dev/null || echo "GameRanger|GameRanger.exe|compartido|win7|off|juego" >> "$DB_FILE"
         else
-            echo "GameRanger|GameRanger.exe|compartido" > "$DB_FILE"
+            echo "GameRanger|GameRanger.exe|compartido|win7|off|juego" > "$DB_FILE"
         fi
         cp -f "$DB_FILE" "${DB_FILE}.bak" 2>/dev/null || true
     else
@@ -581,14 +578,22 @@ desplegar_gameranger_portable() {
 
     # 2. Desplegar en Program Files
     local prog_files="${DIR}/wineprefix/drive_c/Program Files/GameRanger"
-    mkdir -p "$prog_files"
     if [ ! -f "$prog_files/GameRanger.exe" ]; then
-        cp -rf "$src_gr"/* "$prog_files/" 2>/dev/null || true
+        if [ -f "${DIR}/datos/GameRanger.tar.xz" ]; then
+            mkdir -p "${DIR}/wineprefix/drive_c/Program Files"
+            tar -xJf "${DIR}/datos/GameRanger.tar.xz" -C "${DIR}/wineprefix/drive_c/Program Files/" 2>/dev/null || true
+        elif [ -d "${DIR}/GameRanger" ]; then
+            mkdir -p "$prog_files"
+            cp -rf "${DIR}/GameRanger"/* "$prog_files/" 2>/dev/null || true
+        elif [ -d "${DIR}/datos/GameRanger" ]; then
+            mkdir -p "$prog_files"
+            cp -rf "${DIR}/datos/GameRanger"/* "$prog_files/" 2>/dev/null || true
+        fi
     fi
 
     # 3. Desplegar en perfiles de usuario Wine AppData/Roaming
     local users_dir="${DIR}/wineprefix/drive_c/users"
-    if [ -d "$users_dir" ]; then
+    if [ -d "$users_dir" ] && [ -d "$prog_files" ]; then
         for u in "$users_dir"/*; do
             local u_base
             u_base=$(basename "$u")
@@ -597,7 +602,7 @@ desplegar_gameranger_portable() {
                 local u_prefs="$u/AppData/Roaming/GameRanger/GameRanger Prefs"
                 mkdir -p "$u_roaming" "$u_prefs"
                 if [ ! -f "$u_roaming/GameRanger.exe" ]; then
-                    cp -rf "$src_gr"/* "$u_roaming/" 2>/dev/null || true
+                    cp -rf "$prog_files"/* "$u_roaming/" 2>/dev/null || true
                 fi
                 if [ -d "${DIR}/.gameranger_prefs_backup" ]; then
                     if [ ! -s "$u_prefs/Settings" ] || ! grep -q "SessMail" "$u_prefs/Settings" 2>/dev/null; then
