@@ -232,11 +232,12 @@ aplicar_entorno_hardware() {
         export WINEDLLOVERRIDES="winemenubuilder.exe=d;dxgi=n,b;d3d11=n,b;d3d10core=n,b;d3d9=n,b;d3d8=n,b;ddraw=n,b;${WINEDLLOVERRIDES}"
     fi
 
-    # 7. Caché de shaders universal en almacenamiento NVMe SSD de ultra-alta velocidad
-    export DXVK_STATE_CACHE_PATH="${HOME}/.cache/dxvk"
-    export __GL_SHADER_DISK_CACHE_PATH="${HOME}/.cache/nvidia"
-    export MESA_GLCACHE_DIR="${HOME}/.cache/mesa_shader_cache"
-    mkdir -p "${HOME}/.cache/dxvk" "${HOME}/.cache/nvidia" "${HOME}/.cache/mesa_shader_cache" 2>/dev/null || true
+    # 7. Caché de shaders universal centralizada en ~/.cache/vessel/shaders
+    export DXVK_STATE_CACHE_PATH="${HOME}/.cache/vessel/shaders"
+    export __GL_SHADER_DISK_CACHE_PATH="${HOME}/.cache/vessel/shaders/nvidia"
+    export MESA_GLCACHE_DIR="${HOME}/.cache/vessel/shaders/mesa"
+    export VKD3D_SHADER_CACHE_PATH="${HOME}/.cache/vessel/shaders/vkd3d"
+    mkdir -p "${HOME}/.cache/vessel/shaders/nvidia" "${HOME}/.cache/vessel/shaders/mesa" "${HOME}/.cache/vessel/shaders/vkd3d" 2>/dev/null || true
 
     # Optimización de gestión de memoria virtual y reducción de fragmentación en glibc
     if [ "$RAM_TIER" = "baja" ]; then
@@ -265,21 +266,29 @@ aplicar_entorno_hardware() {
     export WINE_RT_PRIO=1
 
     # 8. Renderizado según la GPU detectada (Garantiza usar la GPU dedicada en laptops híbridas)
-    # Detección dinámica y universal de GPU dedicada (NVIDIA GeForce o AMD Radeon)
-    local discrete_info
-    discrete_info=$(MESA_VK_DEVICE_SELECT=list vulkaninfo 2>&1 | grep -i 'discrete GPU' | head -n 1 || true)
-    if [ -n "$discrete_info" ]; then
-        local discrete_pci_id
-        discrete_pci_id=$(echo "$discrete_info" | awk '{print $3}')
-        local discrete_name
-        discrete_name=$(echo "$discrete_info" | grep -oE '"[^"]+"' | tr -d '"')
-
-        if [ -n "$discrete_pci_id" ] && [ "$HAS_NVIDIA" = false ]; then
-            export MESA_VK_DEVICE_SELECT="${discrete_pci_id}!"
+    # Detección inteligente de GPU dedicada (sin invocar vulkaninfo repetidamente en cada arranque)
+    if [ "${HAS_NVIDIA:-false}" = false ] && [ -z "${MESA_VK_DEVICE_SELECT:-}" ]; then
+        if [ -n "${DISCRETE_PCI_ID:-}" ]; then
+            export MESA_VK_DEVICE_SELECT="${DISCRETE_PCI_ID}!"
             export MESA_VK_DEVICE_SELECT_FORCE_DEFAULT_DEVICE=1
-        fi
-        if [ -n "$discrete_name" ]; then
-            export DXVK_FILTER_DEVICE_NAME="${discrete_name}"
+            [ -n "${DISCRETE_NAME:-}" ] && export DXVK_FILTER_DEVICE_NAME="${DISCRETE_NAME}"
+        elif command -v vulkaninfo &>/dev/null; then
+            local discrete_info
+            discrete_info=$(timeout 1s MESA_VK_DEVICE_SELECT=list vulkaninfo 2>&1 | grep -i 'discrete GPU' | head -n 1 || true)
+            if [ -n "$discrete_info" ]; then
+                local discrete_pci_id
+                discrete_pci_id=$(echo "$discrete_info" | awk '{print $3}')
+                local discrete_name
+                discrete_name=$(echo "$discrete_info" | grep -oE '"[^"]+"' | tr -d '"')
+
+                if [ -n "$discrete_pci_id" ]; then
+                    export MESA_VK_DEVICE_SELECT="${discrete_pci_id}!"
+                    export MESA_VK_DEVICE_SELECT_FORCE_DEFAULT_DEVICE=1
+                fi
+                if [ -n "$discrete_name" ]; then
+                    export DXVK_FILTER_DEVICE_NAME="${discrete_name}"
+                fi
+            fi
         fi
     fi
 

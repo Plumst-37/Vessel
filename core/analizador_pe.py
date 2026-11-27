@@ -11,6 +11,7 @@ import sys
 import os
 import struct
 import json
+import re
 
 PROGRAM_NAMES = {
     "winecfg.exe", "winecfg", "explorer.exe", "explorer", "notepad.exe", "notepad",
@@ -462,7 +463,7 @@ def main():
 
     info = analizar_juego(exe_path)
 
-    if flag == "--bash":
+    if flag in ("--bash", "--bash-full"):
         print(f'PE_TARGET="{info["resolved_exe"]}"')
         print(f'PE_WINVER="{info["winver"]}"')
         print(f'PE_BITS="{info["bits"]}"')
@@ -478,6 +479,25 @@ def main():
         print(f'PE_IS_ELECTRON="{1 if info.get("is_electron") else 0}"')
         print(f'PE_ANTI_CHEAT_WARNING="{1 if info.get("anti_cheat_warning") else 0}"')
         print(f'PE_ANTI_CHEAT_NAME="{info.get("anti_cheat_name", "")}"')
+
+        if flag == "--bash-full":
+            try:
+                script_dir = os.path.dirname(os.path.abspath(__file__))
+                if script_dir not in sys.path:
+                    sys.path.insert(0, script_dir)
+                import motor_inferencia
+                analysis = motor_inferencia.InferenceEngine.analyze(exe_path)
+                env_vars = analysis.get("prescriptions", {}).get("environment_variables", {})
+                for k, v in env_vars.items():
+                    if re.match(r'^[a-zA-Z_][a-zA-Z0-9_]*$', k):
+                        print(f'export {k}="{v}"')
+                print(f'export VESSEL_INFERRED_API="{analysis.get("prescriptions", {}).get("api", info["api"])}"')
+                print(f'export VESSEL_INFERRED_WINVER="{analysis.get("prescriptions", {}).get("winver", info["winver"])}"')
+                print(f'export VESSEL_INFERRED_BITS="{analysis.get("pe_telemetry", {}).get("bits", info["bits"])}"')
+                print(f'export VESSEL_INFERRED_ENGINE="{analysis.get("engine_telemetry", {}).get("engine", info["engine"])}"')
+                print(f'export VESSEL_INFERRED_LAA="{1 if analysis.get("pe_telemetry", {}).get("is_large_address_aware") else 0}"')
+            except Exception:
+                pass
     elif flag == "--json":
         print(json.dumps(info, indent=2))
     elif flag == "--winver":

@@ -308,6 +308,9 @@ instalar_nvapi_modular() {
 # ==============================================================================
 configurar_compatibilidad_windows10() {
     local target_prefix="${1:-${DIR}/wineprefix}"
+    if [ -f "${target_prefix}/.vessel_win_full_v4" ]; then
+        return 0
+    fi
     echo -e "${CYAN}🪟 [ WINDOWS 10 ] Calibrando compatibilidad profunda Windows 10 Pro 22H2...${RESET}"
 
     if [ ! -d "$target_prefix" ]; then

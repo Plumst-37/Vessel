@@ -63,6 +63,8 @@ cmd_help() {
 
     echo -e "${BOLD}COMANDOS DISPONIBLES:${RESET}"
     echo -e "  ${GREEN}run <archivo|nombre|id>${RESET}   Ejecuta cualquier juego o software (DXVK/VKD3D al vuelo)"
+    echo -e "  ${GREEN}install <setup.exe|msi>${RESET}   Instala software en modo Windows 10 limpio y lo registra"
+    echo -e "  ${GREEN}doctor, check${RESET}             Diagnóstico rápido de salud del sistema, Wine, GPU y audio"
     echo -e "  ${GREEN}list, ls${RESET}                  Lista los juegos y programas registrados en la biblioteca"
     echo -e "  ${GREEN}add <ruta> [nombre]${RESET}       Registra un nuevo ejecutable en la biblioteca de Vessel"
     echo -e "  ${GREEN}status, drivers${RESET}           Muestra el estado de la GPU, monitor y librerías gráficas"
@@ -84,10 +86,10 @@ cmd_help() {
     echo -e "  $ ${CYAN}vessel run /media/juegos/Cyberpunk2077/Cyberpunk2077.exe -novid${RESET}"
     echo -e "  $ ${CYAN}vessel run \"GTA San Andres\"${RESET}"
     echo -e "  $ ${CYAN}vessel run 2${RESET}                     (Ejecuta el juego con ID #2 de tu lista)"
-    echo -e "  $ ${CYAN}vessel run juego_linux.AppImage${RESET}"
-    echo -e "  $ ${CYAN}vessel run script_lanzador.sh${RESET}"
+    echo -e "  $ ${CYAN}vessel install ~/Descargas/Setup.exe \"Mi Software\"${RESET}"
+    echo -e "  $ ${CYAN}vessel doctor${RESET}"
     echo -e "  $ ${CYAN}vessel list${RESET}"
-    echo -e "  $ ${CYAN}vessel add ~/Descargas/Setup.exe \"Mi Programa\"${RESET}"
+    echo -e "  $ ${CYAN}vessel add ~/Descargas/Programa.exe \"Mi Programa\"${RESET}"
     echo -e "  $ ${CYAN}vessel status${RESET}\n"
 }
 
@@ -146,12 +148,23 @@ cmd_add() {
     base_file=$(basename "$abs_path")
     local nombre="${custom_name:-${base_file%.*}}"
 
-    # Determinar categoría automáticamente
+    # Determinar categoría y versión de Windows con analizador_pe.py
     local cat="juego"
-    local ftype
-    ftype=$(file -b "$abs_path" 2>/dev/null || echo "")
-    if [[ "$base_file" =~ (setup|install|installer|office|word|excel|notepad|editor|player) ]] || [ "$ftype" = "directory" ]; then
-        cat="programa"
+    local winver="win10"
+    if [ -f "${CORE_DIR}/analizador_pe.py" ]; then
+        local pe_eval
+        pe_eval=$(python3 "${CORE_DIR}/analizador_pe.py" --bash "$abs_path" 2>/dev/null || true)
+        if [ -n "$pe_eval" ]; then
+            eval "$pe_eval"
+            [ -n "${PE_CATEGORY:-}" ] && cat="$PE_CATEGORY"
+            [ -n "${PE_WINVER:-}" ] && winver="$PE_WINVER"
+        fi
+    else
+        local ftype
+        ftype=$(file -b "$abs_path" 2>/dev/null || echo "")
+        if [[ "$base_file" =~ (setup|install|installer|office|word|excel|notepad|editor|player) ]] || [ "$ftype" = "directory" ]; then
+            cat="programa"
+        fi
     fi
 
     # Verificar si ya existe en la base de datos
@@ -161,11 +174,260 @@ cmd_add() {
         return 0
     fi
 
-    echo "${nombre}|${abs_path}|compartido|win10|off|${cat}" >> "$DB_FILE"
+    echo "${nombre}|${abs_path}|compartido|${winver}|off|${cat}" >> "$DB_FILE"
     echo -e "${GREEN}[✓] Registrado exitosamente en la biblioteca:${RESET} ${BOLD}${nombre}${RESET}"
     echo -e "  • Ubicación: ${abs_path}"
     echo -e "  • Categoría: ${cat}"
     echo -e "  💡 Inícialo cuando quieras con: ${CYAN}vessel run \"${nombre}\"${RESET} o ${CYAN}vessel run ${base_file}${RESET}\n"
+}
+
+# ==============================================================================
+# 3.1 INSTALADOR INTELIGENTE DE WINDOWS (vessel install)
+# ==============================================================================
+cmd_install() {
+    local installer_raw="${1:-}"
+    local custom_name="${2:-}"
+
+    if [ -z "$installer_raw" ]; then
+        echo -e "${RED}[!] Error: Especifica el instalador (.exe o .msi) a ejecutar.${RESET}\n"
+        echo -e "${BOLD}Uso:${RESET} vessel install <setup.exe|installer.msi> [Nombre]"
+        echo -e "Ejemplos:"
+        echo -e "  ${CYAN}vessel install ~/Descargas/Setup.exe \"Mi Software\"${RESET}"
+        echo -e "  ${CYAN}vessel install /ruta/al/instalador.msi${RESET}\n"
+        exit 1
+    fi
+
+    if [ ! -f "$installer_raw" ]; then
+        echo -e "${RED}[!] Error: El archivo no existe: '${installer_raw}'${RESET}"
+        exit 1
+    fi
+
+    local abs_installer
+    abs_installer=$(realpath "$installer_raw" 2>/dev/null || echo "$installer_raw")
+    local base_installer
+    base_installer=$(basename "$abs_installer")
+
+    local default_name="${custom_name:-${base_installer%.*}}"
+    if [ -z "$custom_name" ]; then
+        default_name=$(echo "$default_name" | sed -E 's/([-_]?[sS]etup|[-_]?[iI]nstall(er)?|[-_]?[xX]86|[-_]?[xX]64)//g')
+        [ -z "$default_name" ] && default_name="${base_installer%.*}"
+    fi
+
+    echo -e "\n${PURPLE}${BOLD}========================================================================${RESET}"
+    echo -e "${CYAN}${BOLD}   VESSEL - MODO INSTALADOR INTELIGENTE DE WINDOWS${RESET}"
+    echo -e "${PURPLE}${BOLD}========================================================================${RESET}\n"
+    echo -e "${BLUE}  • Instalador:${RESET} ${BOLD}${base_installer}${RESET}"
+    echo -e "${BLUE}  • Ubicación: ${RESET} ${abs_installer}"
+    echo -e "${GREEN}  ✓ Configurando entorno limpio de Windows 10 para instaladores...${RESET}\n"
+
+    local prefix="${DIR}/wineprefix"
+    if [ ! -d "$prefix" ] && [ -d "${HOME}/Vessel/wineprefix" ]; then
+        prefix="${HOME}/Vessel/wineprefix"
+    fi
+    local drive_c="${prefix}/drive_c"
+
+    local marker_file="/tmp/.vessel_install_marker_$$"
+    touch "$marker_file"
+
+    if [ -f "$LAUNCHER" ]; then
+        bash "$LAUNCHER" --program "$abs_installer"
+    else
+        echo -e "${RED}[!] No se encontró el lanzador central: ${LAUNCHER}${RESET}"
+        rm -f "$marker_file"
+        exit 1
+    fi
+
+    echo -e "\n${CYAN}⚡ [ VESSEL ] Proceso de instalación concluido. Buscando software instalado...${RESET}"
+
+    local candidates=()
+    if [ -d "$drive_c" ]; then
+        while IFS= read -r found_exe; do
+            [ -z "$found_exe" ] && continue
+            local exe_lower
+            exe_lower=$(basename "$found_exe" | tr '[:upper:]' '[:lower:]')
+            if [[ "$exe_lower" =~ (unins|uninstall|update|updater|helper|crashpad|crash_reporter|vc_redist|dxsetup|setup|install) ]]; then
+                continue
+            fi
+            candidates+=("$found_exe")
+        done < <(find "$drive_c/Program Files" "$drive_c/Program Files (x86)" "$drive_c/users" -type f -name "*.exe" -newer "$marker_file" 2>/dev/null || true)
+    fi
+
+    rm -f "$marker_file"
+
+    local num_candidates=${#candidates[@]}
+    if [ "$num_candidates" -eq 0 ]; then
+        echo -e "${YELLOW}[i] No se detectaron nuevos ejecutables registrados en Program Files.${RESET}"
+        echo -e "    Si la aplicación es portable o se instaló en otra ruta, regístrala con:"
+        echo -e "    ${CYAN}vessel add /ruta/al/ejecutable.exe \"${default_name}\"${RESET}\n"
+        return 0
+    fi
+
+    echo -e "${GREEN}✓ Se detectó el software recién instalado:${RESET}"
+    local chosen_exe=""
+    if [ "$num_candidates" -eq 1 ]; then
+        chosen_exe="${candidates[0]}"
+        echo -e "  • Ejecutable principal: ${BOLD}${chosen_exe}${RESET}\n"
+    else
+        echo -e "  Se encontraron varios ejecutables:"
+        local i=1
+        for cand in "${candidates[@]}"; do
+            echo -e "    [$i] $(basename "$cand") (${cand})"
+            i=$((i + 1))
+        done
+        if [ -t 0 ]; then
+            echo -ne "\n${BOLD}Selecciona el número del ejecutable principal (1-${num_candidates}) [1]: ${RESET}"
+            read -r sel
+            sel="${sel:-1}"
+            if [[ "$sel" =~ ^[0-9]+$ ]] && [ "$sel" -ge 1 ] && [ "$sel" -le "$num_candidates" ]; then
+                chosen_exe="${candidates[$((sel - 1))]}"
+            else
+                chosen_exe="${candidates[0]}"
+            fi
+        else
+            chosen_exe="${candidates[0]}"
+        fi
+    fi
+
+    if [ -n "$chosen_exe" ]; then
+        cmd_add "$chosen_exe" "$default_name"
+    fi
+}
+
+# ==============================================================================
+# 3.2 DIAGNÓSTICO RÁPIDO DEL SISTEMA (vessel doctor)
+# ==============================================================================
+cmd_doctor() {
+    echo -e "\n${PURPLE}${BOLD}========================================================================${RESET}"
+    echo -e "${CYAN}${BOLD}   VESSEL DOCTOR - DIAGNÓSTICO RÁPIDO DEL SISTEMA${RESET}"
+    echo -e "${PURPLE}${BOLD}========================================================================${RESET}\n"
+
+    local total_errors=0
+    local total_warns=0
+
+    # 1. Verificación de Wine
+    echo -e "${BOLD}[1/5] Entorno de Compatibilidad Wine / WoW64:${RESET}"
+    local wine_bin
+    wine_bin=$(command -v wine 2>/dev/null || true)
+    if [ -n "$wine_bin" ]; then
+        local wine_ver
+        wine_ver=$(wine --version 2>/dev/null || echo "Desconocida")
+        echo -e "  ${GREEN}[✓]${RESET} Binario Wine encontrado: ${CYAN}${wine_bin}${RESET}"
+        echo -e "  ${GREEN}[✓]${RESET} Versión de Wine: ${BOLD}${wine_ver}${RESET}"
+
+        if [ -f "/usr/lib/i386-linux-gnu/wine/wine" ] || [ -f "/usr/lib32/wine/wine" ] || dpkg --print-foreign-architectures 2>/dev/null | grep -q "i386"; then
+            echo -e "  ${GREEN}[✓]${RESET} Arquitectura 32-bit (WoW64): Disponible (Juegos de 32 y 64 bits soportados)"
+        elif echo "$wine_ver" | grep -qE "wine-([9|10])"; then
+            echo -e "  ${GREEN}[✓]${RESET} Arquitectura WoW64 moderna (Wine 9/10 integrada activa)"
+        else
+            echo -e "  ${YELLOW}[!]${RESET} Soporte de 32-bit: Podría requerir 'sudo dpkg --add-architecture i386'"
+            total_warns=$((total_warns + 1))
+        fi
+    else
+        echo -e "  ${RED}[✗]${RESET} Wine no está instalado o no se encuentra en el PATH."
+        total_errors=$((total_errors + 1))
+    fi
+
+    # 2. Controladores Gráficos y Vulkan
+    echo -e "\n${BOLD}[2/5] Gráficos y Capas Vulkan:${RESET}"
+    local gpus
+    gpus=$(lspci 2>/dev/null | grep -E "VGA compatible controller|3D controller" | cut -d: -f3- | sed "s/^[ \t]*//" || true)
+    if [ -n "$gpus" ]; then
+        while IFS= read -r gpu_line; do
+            echo -e "  ${GREEN}[✓]${RESET} GPU Detectada: ${BOLD}${gpu_line}${RESET}"
+        done <<< "$gpus"
+    else
+        echo -e "  ${YELLOW}[!]${RESET} No se pudieron enumerar adaptadores gráficos mediante lspci."
+    fi
+
+    local icd_dir="/usr/share/vulkan/icd.d"
+    local icd_files
+    icd_files=$(ls "$icd_dir" 2>/dev/null | grep "\.json$" | tr '\n' ' ' || true)
+    if [ -n "$icd_files" ]; then
+        echo -e "  ${GREEN}[✓]${RESET} Manifiestos Vulkan ICD activos: ${CYAN}${icd_files}${RESET}"
+    else
+        echo -e "  ${YELLOW}[!]${RESET} No se encontraron archivos ICD en ${icd_dir} (Instala 'libvulkan1' y drivers)"
+        total_warns=$((total_warns + 1))
+    fi
+
+    # 3. Librerías de Traducción Vessel (DXVK / VKD3D / NVAPI / ICU)
+    echo -e "\n${BOLD}[3/5] Librerías de Traducción y Runtime de Vessel:${RESET}"
+    local drivers_dir="${DIR}/drivers"
+    if [ ! -d "$drivers_dir" ] && [ -d "${HOME}/Vessel/drivers" ]; then
+        drivers_dir="${HOME}/Vessel/drivers"
+    fi
+
+    local dxvk_ok=0
+    local vkd3d_ok=0
+    local nvapi_ok=0
+    [ -f "${drivers_dir}/x64/d3d11.dll" ] || [ -f "${drivers_dir}/dxvk/x64/d3d11.dll" ] && dxvk_ok=1
+    [ -f "${drivers_dir}/x64/d3d12.dll" ] || [ -f "${drivers_dir}/vkd3d/x64/d3d12.dll" ] && vkd3d_ok=1
+    [ -f "${drivers_dir}/x64/nvapi64.dll" ] || [ -f "${drivers_dir}/nvapi/x64/nvapi64.dll" ] && nvapi_ok=1
+
+    if [ "$dxvk_ok" -eq 1 ]; then
+        echo -e "  ${GREEN}[✓]${RESET} DXVK (DirectX 9/10/11 -> Vulkan): Listo"
+    else
+        echo -e "  ${YELLOW}[!]${RESET} DXVK no encontrado en drivers/ (Se instalará automáticamente al primer run)"
+    fi
+
+    if [ "$vkd3d_ok" -eq 1 ]; then
+        echo -e "  ${GREEN}[✓]${RESET} VKD3D-Proton (DirectX 12 -> Vulkan): Listo"
+    else
+        echo -e "  ${YELLOW}[!]${RESET} VKD3D-Proton no encontrado en drivers/ (Se instalará automáticamente al primer run)"
+    fi
+
+    if [ "$nvapi_ok" -eq 1 ]; then
+        echo -e "  ${GREEN}[✓]${RESET} DXVK-NVAPI (NVIDIA Reflex / DLSS Bridge): Listo"
+    else
+        echo -e "  ${YELLOW}[!]${RESET} DXVK-NVAPI no encontrado en drivers/ (Opcional)"
+    fi
+
+    local icu_dll="${DIR}/wineprefix/drive_c/windows/system32/icuuc.dll"
+    if [ ! -f "$icu_dll" ] && [ -d "${HOME}/Vessel/wineprefix/drive_c/windows/system32" ]; then
+        icu_dll="${HOME}/Vessel/wineprefix/drive_c/windows/system32/icuuc.dll"
+    fi
+    if [ -f "$icu_dll" ]; then
+        echo -e "  ${GREEN}[✓]${RESET} Runtime Windows 10 ICU (Qt6/Electron/PySide6): Instalado y Listo"
+    else
+        echo -e "  ${YELLOW}[!]${RESET} Runtime Windows 10 ICU: No detectado en el prefijo principal"
+    fi
+
+    # 4. Servidor de Audio
+    echo -e "\n${BOLD}[4/5] Servidor de Audio:${RESET}"
+    if pgrep -x pipewire >/dev/null 2>&1; then
+        echo -e "  ${GREEN}[✓]${RESET} Servidor de Sonido: PipeWire activo (Baja latencia profesional)"
+    elif pgrep -x pulseaudio >/dev/null 2>&1; then
+        echo -e "  ${GREEN}[✓]${RESET} Servidor de Sonido: PulseAudio activo"
+    elif [ -d "/proc/asound" ]; then
+        echo -e "  ${GREEN}[✓]${RESET} Servidor de Sonido: ALSA directo"
+    else
+        echo -e "  ${YELLOW}[!]${RESET} No se detectó un servidor de audio activo."
+        total_warns=$((total_warns + 1))
+    fi
+
+    # 5. Caché Centralizada y Espacio en Disco
+    echo -e "\n${BOLD}[5/5] Caché y Almacenamiento:${RESET}"
+    local shader_cache="$HOME/.cache/vessel/shaders"
+    if mkdir -p "$shader_cache" 2>/dev/null && [ -w "$shader_cache" ]; then
+        echo -e "  ${GREEN}[✓]${RESET} Caché Centralizada de Shaders: ${CYAN}${shader_cache}${RESET} (Operativa)"
+    else
+        echo -e "  ${RED}[✗]${RESET} No se puede escribir en: ${shader_cache}"
+        total_errors=$((total_errors + 1))
+    fi
+
+    local free_space
+    free_space=$(df -h "$HOME" 2>/dev/null | awk 'NR==2 {print $4}' || echo "N/A")
+    echo -e "  ${GREEN}[✓]${RESET} Espacio Libre en Disco (\$HOME): ${BOLD}${free_space}${RESET}"
+
+    # Resumen Final
+    echo -e "\n${PURPLE}------------------------------------------------------------------------${RESET}"
+    if [ "$total_errors" -eq 0 ] && [ "$total_warns" -eq 0 ]; then
+        echo -e "${GREEN}${BOLD}✓ DIAGNÓSTICO EXITOSO: Tu sistema está al 100% calibrado para Vessel.${RESET}"
+    elif [ "$total_errors" -eq 0 ]; then
+        echo -e "${GREEN}${BOLD}✓ DIAGNÓSTICO COMPLETADO: Tu sistema es compatible con Vessel.${RESET} (${YELLOW}${total_warns} advertencias leves${RESET})"
+    else
+        echo -e "${RED}${BOLD}[!] DIAGNÓSTICO: Se detectaron ${total_errors} inconvenientes críticos.${RESET}"
+    fi
+    echo -e "${PURPLE}------------------------------------------------------------------------${RESET}\n"
 }
 
 # ==============================================================================
@@ -544,6 +806,13 @@ fi
 case "$1" in
     run)
         cmd_run "$@"
+        ;;
+    install)
+        shift
+        cmd_install "$@"
+        ;;
+    doctor|check|salud)
+        cmd_doctor
         ;;
     list|ls)
         cmd_list
