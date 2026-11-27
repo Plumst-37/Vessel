@@ -32,6 +32,18 @@ PROGRAM_NAMES = {
     "cheatengine.exe", "cheatengine-x86_64.exe", "fomod.exe", "vortex.exe", "modorganizer.exe"
 }
 
+PROGRAM_KEYWORDS = (
+    "rufus", "etcher", "ventoy", "7z", "winrar", "peazip", "notepad++", "vlc",
+    "obs64", "obs32", "cpu-z", "cpuz", "gpu-z", "gpuz", "hwmonitor", "hwinfo",
+    "crystaldisk", "putty", "winscp", "filezilla", "anydesk", "teamviewer",
+    "rustdesk", "telegram", "discord", "whatsapp", "spotify", "gimp", "krita",
+    "inkscape", "blender", "audacity", "handbrake", "gerador", "generador",
+    "setup", "install", "uninst", "updater", "viewer", "reader", "editor",
+    "converter", "downloader", "portable", "browser", "chrome", "firefox",
+    "msedge", "brave", "opera", "office", "winword", "excel", "powerpnt",
+    "acrobat", "foxit", "sumatra", "keepass", "ccleaner", "paint", "photoshop"
+)
+
 def resolve_target_file(target_path):
     """
     Si target_path es un acceso directo (.lnk/.ink) o script por lotes (.bat/.cmd),
@@ -102,8 +114,9 @@ def analizar_juego(exe_path):
 
     if not real_path or not os.path.isfile(real_path):
         bn = os.path.basename(exe_path or "").lower()
-        if bn in PROGRAM_NAMES:
+        if bn in PROGRAM_NAMES or any(kw in bn for kw in PROGRAM_KEYWORDS):
             res["category"] = "programa"
+            res["api"] = "gdi"
         elif any(k in bn for k in ("gta5", "playgtav")):
             res["engine"] = "rockstar_gta5"
             res["has_d3d11"] = True
@@ -171,6 +184,35 @@ def analizar_juego(exe_path):
     has_d3d8 = "d3d8.dll" in all_files
     has_ddraw = "ddraw.dll" in all_files or "ddraw.ini" in all_files
     has_vulkan = "vulkan-1.dll" in all_files or "winevulkan.dll" in all_files
+    has_opengl = False
+    has_desktop_fw = any(f in all_files for f in ("chrome_elf.dll", "libcef.dll", "icudtl.dat", "qt5core.dll", "qt6core.dll", "electron.exe"))
+    is_electron = any(f in all_files for f in ("chrome_elf.dll", "icudtl.dat", "electron.exe")) or os.path.isfile(os.path.join(game_dir, "resources", "app.asar"))
+
+    # 2.0 Escaneo rápido de firmas internas en el propio ejecutable PE (primeros 2 MB)
+    try:
+        with open(real_path, "rb") as f_bin:
+            chunk = f_bin.read(2 * 1024 * 1024).lower()
+            if b"d3d12.dll" in chunk or b"d3d12core.dll" in chunk:
+                has_d3d12 = True
+            if b"d3d11.dll" in chunk or b"dxgi.dll" in chunk:
+                has_d3d11 = True
+            if b"d3d9.dll" in chunk:
+                has_d3d9 = True
+            if b"d3d8.dll" in chunk:
+                has_d3d8 = True
+            if b"ddraw.dll" in chunk:
+                has_ddraw = True
+            if b"vulkan-1.dll" in chunk:
+                has_vulkan = True
+            if b"opengl32.dll" in chunk:
+                has_opengl = True
+            if any(sig in chunk for sig in (b"mscoree.dll", b"coreclr.dll", b"qt5core.dll", b"qt6core.dll", b"nullsoftinst", b"inno setup", b"winspool.drv")):
+                has_desktop_fw = True
+            if any(sig in chunk for sig in (b"electron", b"chrome_elf.dll", b"icudtl.dat", b"app.asar")):
+                is_electron = True
+                has_desktop_fw = True
+    except Exception:
+        pass
 
     # 2.1 Escaneo preventivo de Anti-Cheats de Kernel (Ring 0)
     anti_cheat_warning = False
@@ -333,36 +375,53 @@ def analizar_juego(exe_path):
     res["has_ddraw"] = has_ddraw
     res["has_vulkan"] = has_vulkan
 
+    res["is_electron"] = is_electron
+
     # 4. Determinación Infalible de Versión de Windows
     # REGLA 1: GameRanger es cliente de escritorio Win32 CEF -> Windows 7 (máxima estabilidad para lobby)
     if "gameranger" in file_name:
         winver = "win7"
-    # REGLA 2: Juegos de 64 bits, DirectX 12, DirectX 11 o Vulkan -> SIEMPRE Windows 10 (Imposible en WinXP)
-    elif is_64 or has_d3d12 or has_vulkan or has_d3d11 or engine in ("capcom_re_engine", "rockstar_gta5"):
-        winver = "win10"
-    # REGLA 3: Juegos DirectDraw clásicos (2D / paleta 8 bits) -> Windows XP (evita pantalla negra en Wine)
-    elif engine == "classic_directdraw" or (has_ddraw and not has_d3d9 and not has_d3d11):
+    # REGLA 2: Solo clásicos 2D DirectDraw retro (sin DX9/11/12) van a Windows XP para preservar paleta de 8 bits
+    elif (engine == "classic_directdraw" or (has_ddraw and not has_d3d9 and not has_d3d11 and not has_d3d12)) and not is_64 and not has_desktop_fw:
         winver = "winxp"
-    # REGLA 4: Motores 3D modernos (Capcom, Unreal, Unity, Source, GoldSrc, RAGE, RenderWare, Bethesda, Godot, CryEngine, id Tech) -> Windows 10
-    elif engine in ("capcom_mt_framework", "unreal_engine", "unity_engine", "source_engine", "valve_goldsrc", "ea_nfs", "rockstar_gtasa", "bethesda_creation", "godot_engine", "cryengine", "id_tech"):
-        winver = "win10"
-    # REGLA 5: Juegos DirectX 9 y Subsystem moderno -> Windows 10 (DXVK 2.x, mandos XInput 1.4 y audio WASAPI)
-    elif has_d3d9 or sub_maj >= 5:
-        winver = "win10"
-    # REGLA 6: Binarios retro sin aceleración 3D moderna (Subsystem <= 4.0) -> Windows XP
-    elif sub_maj <= 4 and not is_64 and not has_d3d11 and not has_d3d12:
-        winver = "winxp"
+    # REGLA 3: Todo software moderno, instaladores, Electron, .NET, y juegos 3D -> SIEMPRE Windows 10
     else:
-        winver = "win10"
-
-    # SALVAGUARDA ESTRICTA DE SEGURIDAD: 64-bit y DX12 NUNCA pueden ser winxp
-    if (is_64 or has_d3d12) and winver == "winxp":
         winver = "win10"
 
     res["winver"] = winver
 
-    # 5. Determinación de API Gráfica
-    if engine == "valve_goldsrc":
+    # 5. Clasificación de Categoría: Juego vs Programa de Escritorio (antes de decidir API)
+    category = "juego"
+    is_in_program_dir = any(p_kw in full_path_low for p_kw in ("/program files", "/program files (x86)", "/software", "/utilidades", "/herramientas", "/office", "/adobe", "/editors"))
+    is_in_game_dir = any(g_kw in full_path_low for g_kw in ("/juegos", "/games", "/steam", "/epic", "/gog", "repack", "fitgirl", "dodi", "crack"))
+    matches_program_kw = (file_name in PROGRAM_NAMES) or any(kw in file_name for kw in PROGRAM_KEYWORDS)
+
+    if "gameranger" in file_name:
+        category = "juego"
+    elif matches_program_kw:
+        category = "programa"
+    elif engine != "generico":
+        category = "juego"
+    elif is_in_program_dir:
+        category = "programa"
+    elif has_desktop_fw and not (has_d3d12 or has_d3d11 or has_d3d9 or has_d3d8 or has_ddraw or has_vulkan):
+        category = "programa"
+    elif is_electron:
+        category = "programa"
+    elif not (has_d3d12 or has_d3d11 or has_d3d9 or has_d3d8 or has_ddraw or has_vulkan or has_opengl):
+        if is_in_game_dir:
+            category = "juego"
+        else:
+            category = "programa"
+    else:
+        category = "juego"
+
+    res["category"] = category
+
+    # 6. Determinación de API Gráfica
+    if category == "programa":
+        api = "gdi"
+    elif engine == "valve_goldsrc":
         api = "opengl"
     elif has_d3d12:
         api = "dx12"
@@ -376,33 +435,12 @@ def analizar_juego(exe_path):
         api = "d3d8"
     elif has_ddraw:
         api = "ddraw"
+    elif has_opengl:
+        api = "opengl"
     else:
         api = "dx11" if is_64 else "d3d9"
 
     res["api"] = api
-
-    # 6. Clasificación de Categoría: Juego vs Programa de Escritorio
-    category = "juego"
-    if file_name in PROGRAM_NAMES:
-        category = "programa"
-    elif engine != "generico":
-        category = "juego"
-    elif any(p_kw in full_path_low for p_kw in ("/program files", "/program files (x86)", "/software", "/utilidades", "/herramientas", "/office", "/adobe", "/editors")):
-        category = "programa"
-    elif any(g_kw in full_path_low for g_kw in ("/juegos", "/games", "/steam", "/epic", "/gog", "repack", "fitgirl", "dodi", "crack")):
-        category = "juego"
-    elif not (has_d3d12 or has_d3d11 or has_d3d9 or has_d3d8 or has_ddraw or has_vulkan):
-        if any(w in file_name for w in ("setup", "install", "tool", "config", "patch", "edit", "calc", "view", "player", "reader", "suite")):
-            category = "programa"
-        else:
-            category = "juego"
-    else:
-        category = "juego"
-
-    if "gameranger" in file_name:
-        category = "juego"
-
-    res["category"] = category
     return res
 
 def main():
@@ -437,6 +475,7 @@ def main():
         print(f'PE_HAS_DX11="{1 if info["has_d3d11"] else 0}"')
         print(f'PE_HAS_DDRAW="{1 if info["has_ddraw"] else 0}"')
         print(f'PE_CATEGORY="{info["category"]}"')
+        print(f'PE_IS_ELECTRON="{1 if info.get("is_electron") else 0}"')
         print(f'PE_ANTI_CHEAT_WARNING="{1 if info.get("anti_cheat_warning") else 0}"')
         print(f'PE_ANTI_CHEAT_NAME="{info.get("anti_cheat_name", "")}"')
     elif flag == "--json":

@@ -633,7 +633,7 @@ class InferenceEngine:
         elif "ddraw" in detected_apis or engine_id == "classic_directdraw":
             api_final = "ddraw"
         else:
-            api_final = "dx11" if pe.get("is_64") else "dx9"
+            api_final = "gdi"
 
         # 5. Generación de Variables de Entorno y Razonamiento Heurístico
         env = {}
@@ -702,33 +702,34 @@ class InferenceEngine:
             env["ENABLE_CNC_DDRAW"] = "1"
             reasons.append("DirectDraw clásico: Enrutado a cnc-ddraw (OpenGL moderno) para preservar paletas de 8 bits sin parpadeos.")
 
-        # D) Optimizaciones de GPU
-        if hw["gpu"]["is_dual_gpu"]:
+        # D) Optimizaciones de GPU (solo para aplicaciones/juegos con aceleración 3D)
+        if api_final != "gdi":
+            if hw["gpu"]["is_dual_gpu"]:
+                if hw["gpu"]["vendor"] == "nvidia":
+                    env["__NV_PRIME_RENDER_OFFLOAD"] = "1"
+                    env["__GLX_VENDOR_LIBRARY_NAME"] = "nvidia"
+                    env["__VK_LAYER_NV_optimus"] = "NVIDIA_only"
+                    reasons.append("Gráficos duales detectados (Laptop híbrida NVIDIA): Forzado de renderizado en GPU dedicada NVIDIA GeForce con PRIME offload.")
+                elif hw["gpu"]["vendor"] in ("amd", "intel"):
+                    env["DRI_PRIME"] = "1"
+                    reasons.append("Gráficos duales detectados (Laptop híbrida AMD/Intel): Forzado de renderizado en GPU dedicada con DRI_PRIME=1.")
+
             if hw["gpu"]["vendor"] == "nvidia":
-                env["__NV_PRIME_RENDER_OFFLOAD"] = "1"
-                env["__GLX_VENDOR_LIBRARY_NAME"] = "nvidia"
-                env["__VK_LAYER_NV_optimus"] = "NVIDIA_only"
-                reasons.append("Gráficos duales detectados (Laptop híbrida NVIDIA): Forzado de renderizado en GPU dedicada NVIDIA GeForce con PRIME offload.")
-            elif hw["gpu"]["vendor"] in ("amd", "intel"):
-                env["DRI_PRIME"] = "1"
-                reasons.append("Gráficos duales detectados (Laptop híbrida AMD/Intel): Forzado de renderizado en GPU dedicada con DRI_PRIME=1.")
+                env["__GL_SHADER_DISK_CACHE"] = "1"
+                env["__GL_SHADER_DISK_CACHE_SKIP_CLEANUP"] = "1"
+                env["__GL_THREADED_OPTIMIZATIONS"] = "1"
+                env["__GL_YIELD"] = "NOTHING"
+                env["DXVK_ENABLE_NVAPI"] = "1"
+                reasons.append("GPU NVIDIA: Desbloqueo de caché ilimitada, multithreading OpenGL/Vulkan, cero latencia de espera y DXVK-NVAPI.")
 
-        if hw["gpu"]["vendor"] == "nvidia":
-            env["__GL_SHADER_DISK_CACHE"] = "1"
-            env["__GL_SHADER_DISK_CACHE_SKIP_CLEANUP"] = "1"
-            env["__GL_THREADED_OPTIMIZATIONS"] = "1"
-            env["__GL_YIELD"] = "NOTHING"
-            env["DXVK_ENABLE_NVAPI"] = "1"
-            reasons.append("GPU NVIDIA: Desbloqueo de caché ilimitada, multithreading OpenGL/Vulkan, cero latencia de espera y DXVK-NVAPI.")
+            elif hw["gpu"]["vendor"] == "amd":
+                env["AMD_VULKAN_ICD"] = "RADV"
+                env["RADV_PERFTEST"] = "gpl"
+                reasons.append("GPU AMD: Forzado de Mesa RADV con compilador rápido ACO y Vulkan GPL.")
 
-        elif hw["gpu"]["vendor"] == "amd":
-            env["AMD_VULKAN_ICD"] = "RADV"
-            env["RADV_PERFTEST"] = "gpl"
-            reasons.append("GPU AMD: Forzado de Mesa RADV con compilador rápido ACO y Vulkan GPL.")
-
-        elif hw["gpu"]["vendor"] == "intel":
-            env["ANV_ENABLE_PIPELINE_CACHE"] = "1"
-            reasons.append("GPU Intel: Optimización de caché de pipelines Vulkan ANV para eliminar stuttering.")
+            elif hw["gpu"]["vendor"] == "intel":
+                env["ANV_ENABLE_PIPELINE_CACHE"] = "1"
+                reasons.append("GPU Intel: Optimización de caché de pipelines Vulkan ANV para eliminar stuttering.")
 
         # E) Sincronización de Hilos del Kernel (Fsync / Esync) y Páginas Gigantes (THP)
         env["WINEFSYNC"] = "1"

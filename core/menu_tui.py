@@ -1387,9 +1387,12 @@ def es_winver_confirmado(nombre, ruta):
 
 def detectar_winver_sugerido(pe_info, ruta_exe):
     """
-    Determina la versión de Windows sugerida de acuerdo a la época,
-    arquitectura (32/64 bits), APIs y subsistema del binario.
+    Determina la versión de Windows sugerida de acuerdo al análisis de PE,
+    época, arquitectura (32/64 bits), APIs y subsistema del binario.
     """
+    if pe_info and pe_info.get("winver"):
+        return pe_info["winver"]
+
     file_name = os.path.basename(ruta_exe).lower() if ruta_exe else ""
     if "gameranger" in file_name:
         return "win7"
@@ -1406,11 +1409,7 @@ def detectar_winver_sugerido(pe_info, ruta_exe):
         sub_maj = 6
         sub_min = 0
 
-    if pe_info.get("has_ddraw") or pe_info.get("has_d3d8") or pe_info.get("engine") == "classic_directdraw":
-        return "winxp"
-    if sub_maj <= 4 or (sub_maj == 5 and sub_min == 0):
-        return "winxp"
-    if sub_maj == 5 and sub_min <= 1 and any(k in file_name for k in ["speed", "nfs", "swat", "vice", "re3", "re2", "re1", "gta", "maxpayne", "blood"]):
+    if pe_info.get("has_ddraw") or pe_info.get("engine") == "classic_directdraw":
         return "winxp"
 
     return "win10"

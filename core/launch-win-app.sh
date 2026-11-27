@@ -259,6 +259,8 @@ else
     PE_HAS_DX12="0"
     PE_HAS_DX11="0"
     PE_HAS_DDRAW="0"
+    PE_CATEGORY=""
+    PE_IS_ELECTRON="0"
 
     if [ -f "$ANALIZADOR_PE" ] && [ -f "$TARGET" ]; then
         pe_eval=$(python3 "$ANALIZADOR_PE" --bash "$TARGET" 2>/dev/null || true)
@@ -271,20 +273,25 @@ else
         fi
     fi
 
-    # Inferencia heurística experta de variables de entorno de rendimiento y memoria (sub-5ms)
-    if [ -f "$MOTOR_INFERENCIA" ] && [ -f "$TARGET" ]; then
-        motor_eval=$(python3 "$MOTOR_INFERENCIA" "$TARGET" --env 2>/dev/null || true)
-        if [ -n "$motor_eval" ]; then
-            eval "$motor_eval" || true
-        fi
-    fi
-
     # Identificación automática de categoría (Juego vs Programa de Escritorio)
     if [ "$IS_PROGRAM" -eq 0 ]; then
         if [ "$PE_CATEGORY" = "programa" ]; then
             IS_PROGRAM=1
         elif [[ "$(basename "$TARGET")" =~ (winecfg|explorer|notepad|cmd|regedit|taskmgr|control) ]]; then
             IS_PROGRAM=1
+        fi
+    fi
+
+    # Si es un programa normal de Windows y la BD tenía winxp heredado erróneamente, corregir a win10
+    if [ "$IS_PROGRAM" -eq 1 ] && [ "$GAME_WINVER" = "winxp" ]; then
+        GAME_WINVER="win10"
+    fi
+
+    # Inferencia heurística experta de variables de entorno de rendimiento y memoria (sub-5ms)
+    if [ -f "$MOTOR_INFERENCIA" ] && [ -f "$TARGET" ]; then
+        motor_eval=$(python3 "$MOTOR_INFERENCIA" "$TARGET" --env 2>/dev/null || true)
+        if [ -n "$motor_eval" ]; then
+            eval "$motor_eval" || true
         fi
     fi
 
@@ -665,7 +672,7 @@ optimizar_entorno_windows_completo() {
     # 1. Detección precisa de VRAM de la GPU para reporte fiel a juegos 3D y suites de diseño
     local vram_mb=""
     if command -v nvidia-smi &>/dev/null; then
-        vram_mb=$(nvidia-smi --query-gpu=memory.total --format=csv,noheader,nounits 2>/dev/null | head -n 1)
+        vram_mb=$(timeout 2s nvidia-smi --query-gpu=memory.total --format=csv,noheader,nounits 2>/dev/null | head -n 1 || true)
     fi
     if [ -z "$vram_mb" ]; then
         for f in /sys/class/drm/card*/device/mem_info_vram_total; do
@@ -967,36 +974,72 @@ EOF
 # 8. Configuración de pantalla completa universal, ratón ultra-fluido, estabilidad 3D y supresión de crash dialogs
 optimizar_entorno_windows_completo
 if [ ! -f "${WINEPREFIX}/.vessel_reg_v5" ]; then
-    "$WINE_CMD" reg add "HKEY_CURRENT_USER\Software\Wine\WineDbg" /v ShowCrashDialog /t REG_DWORD /d 0 /f >/dev/null 2>&1 || true
-    "$WINE_CMD" reg add "HKEY_LOCAL_MACHINE\Software\Microsoft\Windows NT\CurrentVersion\AeDebug" /v Auto /t REG_SZ /d 0 /f >/dev/null 2>&1 || true
-    "$WINE_CMD" reg add "HKEY_CURRENT_USER\Software\Wine\DirectInput" /v MouseWarpOverride /t REG_SZ /d enable /f >/dev/null 2>&1 || true
-    "$WINE_CMD" reg add "HKEY_CURRENT_USER\Software\Wine\X11 Driver" /v Decorated /t REG_SZ /d Y /f >/dev/null 2>&1 || true
-    "$WINE_CMD" reg add "HKEY_CURRENT_USER\Software\Wine\X11 Driver" /v Managed /t REG_SZ /d Y /f >/dev/null 2>&1 || true
-    "$WINE_CMD" reg add "HKEY_CURRENT_USER\Software\Wine\Direct3D" /v csmt /t REG_DWORD /d 1 /f >/dev/null 2>&1 || true
-    "$WINE_CMD" reg add "HKEY_CURRENT_USER\Software\Wine\Direct3D" /v StrictDrawOrdering /t REG_SZ /d disabled /f >/dev/null 2>&1 || true
-    "$WINE_CMD" reg add "HKEY_CURRENT_USER\Software\Wine\Direct3D" /v AlwaysOffscreen /t REG_SZ /d enabled /f >/dev/null 2>&1 || true
-    "$WINE_CMD" reg add "HKEY_CURRENT_USER\Software\Wine\Direct3D" /v CheckDepthStencil /t REG_SZ /d enabled /f >/dev/null 2>&1 || true
+    reg_base_tmp=$(mktemp "${TMPDIR:-/tmp}/vessel_base_XXXXXX.reg" 2>/dev/null || echo "/tmp/vessel_base_$$.reg")
+    cat << 'EOF' > "$reg_base_tmp"
+Windows Registry Editor Version 5.00
+
+[HKEY_CURRENT_USER\Software\Wine\WineDbg]
+"ShowCrashDialog"=dword:00000000
+
+[HKEY_LOCAL_MACHINE\Software\Microsoft\Windows NT\CurrentVersion\AeDebug]
+"Auto"="0"
+
+[HKEY_CURRENT_USER\Software\Wine\DirectInput]
+"MouseWarpOverride"="enable"
+
+[HKEY_CURRENT_USER\Software\Wine\X11 Driver]
+"Decorated"="Y"
+"Managed"="Y"
+
+[HKEY_CURRENT_USER\Software\Wine\Direct3D]
+"csmt"=dword:00000001
+"StrictDrawOrdering"="disabled"
+"AlwaysOffscreen"="enabled"
+"CheckDepthStencil"="enabled"
+EOF
+    "$WINE_CMD" regedit /S "$reg_base_tmp" >/dev/null 2>&1 || true
+    rm -f "$reg_base_tmp" 2>/dev/null || true
     touch "${WINEPREFIX}/.vessel_reg_v5" 2>/dev/null || true
 fi
 
-# 8.0 Gestión inteligente de ventanas: programas de escritorio con barra nativa, juegos en pantalla completa sin bordes
-if [ "$IS_PROGRAM" -eq 1 ] || [ "${PE_CATEGORY:-juego}" = "programa" ]; then
-    "$WINE_CMD" reg add "HKEY_CURRENT_USER\Software\Wine\AppDefaults\\${TARGET_FILE}\X11 Driver" /v Decorated /t REG_SZ /d Y /f >/dev/null 2>&1 || true
-    "$WINE_CMD" reg add "HKEY_CURRENT_USER\Software\Wine\AppDefaults\\${TARGET_FILE}\X11 Driver" /v GrabFullscreen /t REG_SZ /d N /f >/dev/null 2>&1 || true
-    "$WINE_CMD" reg add "HKEY_CURRENT_USER\Software\Wine\AppDefaults\\${TARGET_FILE}\X11 Driver" /v UseTakeFocus /t REG_SZ /d Y /f >/dev/null 2>&1 || true
-else
-    "$WINE_CMD" reg add "HKEY_CURRENT_USER\Software\Wine\AppDefaults\\${TARGET_FILE}\X11 Driver" /v Decorated /t REG_SZ /d N /f >/dev/null 2>&1 || true
-    "$WINE_CMD" reg add "HKEY_CURRENT_USER\Software\Wine\AppDefaults\\${TARGET_FILE}\X11 Driver" /v GrabFullscreen /t REG_SZ /d N /f >/dev/null 2>&1 || true
-    "$WINE_CMD" reg add "HKEY_CURRENT_USER\Software\Wine\AppDefaults\\${TARGET_FILE}\X11 Driver" /v UseTakeFocus /t REG_SZ /d N /f >/dev/null 2>&1 || true
+# 8.0 Gestión inteligente de ventanas y versión de Windows por aplicación en una sola operación (sin múltiples reg.exe)
+if [ -n "$TARGET_FILE" ]; then
+    need_app_reg=0
+    if [ ! -f "${WINEPREFIX}/user.reg" ] || ! grep -Fq "[Software\\\\Wine\\\\AppDefaults\\\\${TARGET_FILE}]" "${WINEPREFIX}/user.reg" 2>/dev/null; then
+        need_app_reg=1
+    elif [ -n "$GAME_WINVER" ] && ! grep -A 5 -F "[Software\\\\Wine\\\\AppDefaults\\\\${TARGET_FILE}]" "${WINEPREFIX}/user.reg" 2>/dev/null | grep -Fq "\"Version\"=\"${GAME_WINVER}\""; then
+        need_app_reg=1
+    fi
+
+    if [ "$need_app_reg" -eq 1 ]; then
+        reg_app_tmp=$(mktemp "${TMPDIR:-/tmp}/vessel_app_XXXXXX.reg" 2>/dev/null || echo "/tmp/vessel_app_$$.reg")
+        {
+            echo "Windows Registry Editor Version 5.00"
+            echo ""
+            if [ -n "$GAME_WINVER" ]; then
+                echo "[HKEY_CURRENT_USER\\Software\\Wine\\AppDefaults\\${TARGET_FILE}]"
+                echo "\"Version\"=\"${GAME_WINVER}\""
+                echo ""
+            fi
+            echo "[HKEY_CURRENT_USER\\Software\\Wine\\AppDefaults\\${TARGET_FILE}\\X11 Driver]"
+            if [ "$IS_PROGRAM" -eq 1 ] || [ "${PE_CATEGORY:-juego}" = "programa" ]; then
+                echo "\"Decorated\"=\"Y\""
+                echo "\"Managed\"=\"Y\""
+                echo "\"GrabFullscreen\"=\"N\""
+                echo "\"UseTakeFocus\"=\"Y\""
+            else
+                echo "\"Decorated\"=\"N\""
+                echo "\"GrabFullscreen\"=\"N\""
+                echo "\"UseTakeFocus\"=\"N\""
+            fi
+        } > "$reg_app_tmp"
+        "$WINE_CMD" regedit /S "$reg_app_tmp" >/dev/null 2>&1 || true
+        rm -f "$reg_app_tmp" 2>/dev/null || true
+    fi
 fi
 
-# 8.1 Configuración de Versión de Windows por juego en AppDefaults (Mejora 1: win10 / win7 / winxp)
-if [ -n "$GAME_WINVER" ]; then
-    "$WINE_CMD" reg add "HKEY_CURRENT_USER\Software\Wine\AppDefaults\\${TARGET_FILE}" /v "Version" /t REG_SZ /d "$GAME_WINVER" /f >/dev/null 2>&1 || true
-fi
-
-# 9. Configuración modular de DXVK y traducción gráfica
-if [ "$RENDERER_IN_USE" != "WineD3D (OpenGL Compatibilidad)" ]; then
+# 9. Configuración modular de DXVK y traducción gráfica (Solo para juegos 3D, NUNCA para programas de escritorio)
+if [ "$IS_PROGRAM" -ne 1 ] && [ "${PE_CATEGORY:-juego}" != "programa" ] && [ "$RENDERER_IN_USE" != "WineD3D (OpenGL Compatibilidad)" ]; then
     if [ -f "${DIR}/drivers/dxvk/dxvk.conf" ]; then
         export DXVK_CONFIG_FILE="${DIR}/drivers/dxvk/dxvk.conf"
     else
@@ -1012,6 +1055,7 @@ if [ "$RENDERER_IN_USE" != "WineD3D (OpenGL Compatibilidad)" ]; then
     fi
 else
     unset DXVK_CONFIG_FILE
+    unset VKD3D_CONFIG_FILE
 fi
 
 # 9.1 Silenciar completamente la depuración de Wine para mínimo consumo de RAM y CPU (Ahorro: -15 MB)
@@ -1019,12 +1063,14 @@ if [ -z "${WINEDEBUG:-}" ]; then
     export WINEDEBUG="-all"
 fi
 
-# 9.2 Detección y activación de puente DXVK-NVAPI para GPUs NVIDIA GeForce
+# 9.2 Detección y activación de puente DXVK-NVAPI para GPUs NVIDIA GeForce (Solo juegos 3D)
 NVAPI_ACTIVO="Inactivo"
-if [[ "${DETECTED_GPU:-}" =~ [Nn][Vv][Ii][Dd][Ii][Aa] ]] || lspci 2>/dev/null | grep -qi "NVIDIA"; then
-    export DXVK_ENABLE_NVAPI=1
-    export WINEDLLOVERRIDES="nvapi,nvapi64=n,b;${WINEDLLOVERRIDES:-}"
-    NVAPI_ACTIVO="Activo (GeForce Reflex & Low-Latency)"
+if [ "$IS_PROGRAM" -ne 1 ] && [ "${PE_CATEGORY:-juego}" != "programa" ]; then
+    if [[ "${DETECTED_GPU:-}" =~ [Nn][Vv][Ii][Dd][Ii][Aa] ]] || lspci 2>/dev/null | grep -qi "NVIDIA"; then
+        export DXVK_ENABLE_NVAPI=1
+        export WINEDLLOVERRIDES="nvapi,nvapi64=n,b;${WINEDLLOVERRIDES:-}"
+        NVAPI_ACTIVO="Activo (GeForce Reflex & Low-Latency)"
+    fi
 fi
 
 # 10. Soporte para AMD FSR (FidelityFX Super Resolution - Reescalado de FPS) (Mejora 4)
@@ -1060,6 +1106,7 @@ fi
 # ==============================================================================
 acelerar_hardware_sistema() {
     [ "$IS_PROGRAM" -eq 1 ] && return 0
+    [ "${PE_CATEGORY:-juego}" = "programa" ] && return 0
     [ "$PERFIL_RENDIMIENTO" = "ahorro" ] && return 0
 
     echo "[⚡] Acelerador Turbo: Maximizando CPU, GPU, prioridad de hilos y memoria..."
@@ -1078,13 +1125,13 @@ acelerar_hardware_sistema() {
         [ -w "$epp" ] && echo performance > "$epp" 2>/dev/null || true
     done
 
-    # 2. Desbloqueo y Persistencia de Relojes de GPU
+    # 2. Desbloqueo y Persistencia de Relojes de GPU (con timeout para evitar bloqueos en Wayland/Optimus)
     if [ "${HAS_NVIDIA:-false}" = true ] || lspci 2>/dev/null | grep -qi "NVIDIA" || [ -d "/proc/driver/nvidia" ]; then
         # Activar Persistence Mode (elimina la latencia de despertar del chip NVIDIA)
-        nvidia-smi -pm 1 >/dev/null 2>&1 || true
+        timeout 2s nvidia-smi -pm 1 >/dev/null 2>&1 || true
         # Forzar estado de máximo rendimiento P0 en PowerMizer (elimina caídas de reloj)
         if command -v nvidia-settings &>/dev/null && [ -n "${DISPLAY:-}" ]; then
-            nvidia-settings -a '[gpu:0]/GPUPowerMizerMode=1' >/dev/null 2>&1 || true
+            timeout 2s nvidia-settings -a '[gpu:0]/GPUPowerMizerMode=1' >/dev/null 2>&1 || true
         fi
         export __GL_THREADED_OPTIMIZATIONS=1
         export __GL_YIELD="NOTHING"
@@ -1124,6 +1171,7 @@ acelerar_hardware_sistema() {
 
 restaurar_hardware_sistema() {
     [ "$IS_PROGRAM" -eq 1 ] && return 0
+    [ "${PE_CATEGORY:-juego}" = "programa" ] && return 0
 
     # 1. Restaurar perfil de energía de CPU
     if [ -n "$PREV_POWER_PROFILE" ] && command -v powerprofilesctl &>/dev/null; then
@@ -1133,7 +1181,7 @@ restaurar_hardware_sistema() {
     # 2. Restaurar GPU a modo Adaptativo / Ahorro
     if [ "${HAS_NVIDIA:-false}" = true ] || lspci 2>/dev/null | grep -qi "NVIDIA" || [ -d "/proc/driver/nvidia" ]; then
         if command -v nvidia-settings &>/dev/null && [ -n "${DISPLAY:-}" ]; then
-            nvidia-settings -a '[gpu:0]/GPUPowerMizerMode=0' >/dev/null 2>&1 || true
+            timeout 2s nvidia-settings -a '[gpu:0]/GPUPowerMizerMode=0' >/dev/null 2>&1 || true
         fi
     elif [ "${HAS_AMD_DEDICATED:-false}" = true ] || lspci 2>/dev/null | grep -qiE "amd|radeon"; then
         for dpm in /sys/class/drm/card*/device/power_dpm_force_performance_level; do
@@ -1166,29 +1214,40 @@ optimizar_red_y_wifi() {
 ::1 localhost ip6-localhost ip6-loopback
 EOF
 
-    # 4. Asegurar parámetros de red e Internet (NCSI / NLA / DNS) en el registro de Wine
+    # 4. Asegurar parámetros de red e Internet (NCSI / NLA / DNS) en el registro de Wine (en una sola operación)
     if [ ! -f "${WINEPREFIX}/.vessel_net_ok" ]; then
-        wine reg add "HKEY_LOCAL_MACHINE\System\CurrentControlSet\Services\Tcpip\Parameters" /v NameServer /t REG_SZ /d "1.1.1.1,8.8.8.8" /f >/dev/null 2>&1 || true
-        wine reg add "HKEY_LOCAL_MACHINE\System\CurrentControlSet\Services\Tcpip\Parameters" /v DhcpNameServer /t REG_SZ /d "1.1.1.1,8.8.8.8" /f >/dev/null 2>&1 || true
-        wine reg add "HKEY_LOCAL_MACHINE\System\CurrentControlSet\Services\Tcpip\Parameters" /v EnableDHCP /t REG_DWORD /d 1 /f >/dev/null 2>&1 || true
-        wine reg add "HKEY_LOCAL_MACHINE\System\CurrentControlSet\Services\Tcpip\Parameters\Interfaces\Default" /v NameServer /t REG_SZ /d "1.1.1.1,8.8.8.8" /f >/dev/null 2>&1 || true
-        wine reg add "HKEY_LOCAL_MACHINE\System\CurrentControlSet\Services\Tcpip\Parameters\Interfaces\Default" /v DhcpNameServer /t REG_SZ /d "1.1.1.1,8.8.8.8" /f >/dev/null 2>&1 || true
-        wine reg add "HKEY_LOCAL_MACHINE\System\CurrentControlSet\Services\Tcpip\Parameters\Interfaces\Default" /v EnableDHCP /t REG_DWORD /d 1 /f >/dev/null 2>&1 || true
+        reg_net_tmp=$(mktemp "${TMPDIR:-/tmp}/vessel_net_XXXXXX.reg" 2>/dev/null || echo "/tmp/vessel_net_$$.reg")
+        cat << 'EOF' > "$reg_net_tmp"
+Windows Registry Editor Version 5.00
 
-        # Sondas NCSI (Windows Network Connectivity Status Indicator) para que todos los juegos y launchers detecten conexión activa a Internet
-        "$WINE_CMD" reg add "HKEY_LOCAL_MACHINE\System\CurrentControlSet\Services\NlaSvc\Parameters\Internet" /v EnableActiveProbing /t REG_DWORD /d 1 /f >/dev/null 2>&1 || true
-        "$WINE_CMD" reg add "HKEY_LOCAL_MACHINE\System\CurrentControlSet\Services\NlaSvc\Parameters\Internet" /v ActiveWebProbeHost /t REG_SZ /d "www.msftncsi.com" /f >/dev/null 2>&1 || true
-        "$WINE_CMD" reg add "HKEY_LOCAL_MACHINE\System\CurrentControlSet\Services\NlaSvc\Parameters\Internet" /v ActiveWebProbeContent /t REG_SZ /d "Microsoft NCSI" /f >/dev/null 2>&1 || true
-        "$WINE_CMD" reg add "HKEY_LOCAL_MACHINE\System\CurrentControlSet\Services\NlaSvc\Parameters\Internet" /v ActiveDnsProbeHost /t REG_SZ /d "dns.msftncsi.com" /f >/dev/null 2>&1 || true
-        "$WINE_CMD" reg add "HKEY_LOCAL_MACHINE\System\CurrentControlSet\Services\NlaSvc\Parameters\Internet" /v ActiveDnsProbeContent /t REG_SZ /d "131.107.255.255" /f >/dev/null 2>&1 || true
+[HKEY_LOCAL_MACHINE\System\CurrentControlSet\Services\Tcpip\Parameters]
+"NameServer"="1.1.1.1,8.8.8.8"
+"DhcpNameServer"="1.1.1.1,8.8.8.8"
+"EnableDHCP"=dword:00000001
 
-        "$WINE_CMD" reg add "HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Microsoft\Windows\NetworkConnectivityStatusIndicator" /v NoActiveProbe /t REG_DWORD /d 0 /f >/dev/null 2>&1 || true
-        "$WINE_CMD" reg add "HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Microsoft\Windows\NetworkConnectivityStatusIndicator" /v DisablePassivePolling /t REG_DWORD /d 0 /f >/dev/null 2>&1 || true
+[HKEY_LOCAL_MACHINE\System\CurrentControlSet\Services\Tcpip\Parameters\Interfaces\Default]
+"NameServer"="1.1.1.1,8.8.8.8"
+"DhcpNameServer"="1.1.1.1,8.8.8.8"
+"EnableDHCP"=dword:00000001
 
-        "$WINE_CMD" reg add "HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Internet Settings" /v GlobalUserOffline /t REG_DWORD /d 0 /f >/dev/null 2>&1 || true
-        "$WINE_CMD" reg add "HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Internet Settings" /v ProxyEnable /t REG_DWORD /d 0 /f >/dev/null 2>&1 || true
-        "$WINE_CMD" reg add "HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Internet Settings" /v CertificateRevocation /t REG_DWORD /d 0 /f >/dev/null 2>&1 || true
+[HKEY_LOCAL_MACHINE\System\CurrentControlSet\Services\NlaSvc\Parameters\Internet]
+"EnableActiveProbing"=dword:00000001
+"ActiveWebProbeHost"="www.msftncsi.com"
+"ActiveWebProbeContent"="Microsoft NCSI"
+"ActiveDnsProbeHost"="dns.msftncsi.com"
+"ActiveDnsProbeContent"="131.107.255.255"
 
+[HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Microsoft\Windows\NetworkConnectivityStatusIndicator]
+"NoActiveProbe"=dword:00000000
+"DisablePassivePolling"=dword:00000000
+
+[HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Internet Settings]
+"GlobalUserOffline"=dword:00000000
+"ProxyEnable"=dword:00000000
+"CertificateRevocation"=dword:00000000
+EOF
+        "$WINE_CMD" regedit /S "$reg_net_tmp" >/dev/null 2>&1 || true
+        rm -f "$reg_net_tmp" 2>/dev/null || true
         touch "${WINEPREFIX}/.vessel_net_ok" 2>/dev/null || true
     fi
 
@@ -1250,40 +1309,53 @@ if [[ "$TARGET_FILE" =~ [Gg]ame[Rr]anger ]]; then
 
     # Registro de GameRanger: garantizar MODO VENTANA nativa (decoraciones completas, sin captura fullscreen ni escritorio virtual)
     if [ ! -f "${WINEPREFIX}/.gameranger_reg_v6" ]; then
-        "$WINE_CMD" reg add "HKEY_CURRENT_USER\Software\Wine\AppDefaults\GameRanger.exe" /v "Version" /t REG_SZ /d "win7" /f >/dev/null 2>&1 || true
-        # Eliminar cualquier contenedor virtual o renderer GL forzado que cause ventana negra de fondo
-        "$WINE_CMD" reg delete "HKEY_CURRENT_USER\Software\Wine\AppDefaults\GameRanger.exe\X11 Driver" /v "Desktop" /f >/dev/null 2>&1 || true
-        # Forzar renderer GDI en Direct3D para que CEF y GameRanger no intenten crear contextos GL conflictivos
-        "$WINE_CMD" reg add "HKEY_CURRENT_USER\Software\Wine\AppDefaults\GameRanger.exe\Direct3D" /v "renderer" /t REG_SZ /d "gdi" /f >/dev/null 2>&1 || true
-        "$WINE_CMD" reg add "HKEY_CURRENT_USER\Software\Wine\AppDefaults\GameRanger.exe\Direct3D" /v "MaxVersionGL" /t REG_DWORD /d 0 /f >/dev/null 2>&1 || true
-        # Limpiar overrides que interfieren con la red Winsock nativa de Wine
-        "$WINE_CMD" reg delete "HKEY_CURRENT_USER\Software\Wine\AppDefaults\GameRanger.exe\DllOverrides" /v "dnsapi" /f >/dev/null 2>&1 || true
-        "$WINE_CMD" reg delete "HKEY_CURRENT_USER\Software\Wine\AppDefaults\GameRanger.exe\DllOverrides" /v "iphlpapi" /f >/dev/null 2>&1 || true
-        "$WINE_CMD" reg delete "HKEY_CURRENT_USER\Software\Wine\AppDefaults\GameRanger.exe\DllOverrides" /v "ws2_32" /f >/dev/null 2>&1 || true
-        "$WINE_CMD" reg delete "HKEY_CURRENT_USER\Software\Wine\AppDefaults\GameRanger.exe\DllOverrides" /v "wininet" /f >/dev/null 2>&1 || true
-        "$WINE_CMD" reg delete "HKEY_CURRENT_USER\Software\Wine\AppDefaults\GameRanger.exe\DllOverrides" /v "secur32" /f >/dev/null 2>&1 || true
-        "$WINE_CMD" reg add "HKEY_CURRENT_USER\Software\Wine\AppDefaults\GameRanger.exe\DllOverrides" /v "dxgi" /t REG_SZ /d "builtin" /f >/dev/null 2>&1 || true
-        "$WINE_CMD" reg add "HKEY_CURRENT_USER\Software\Wine\AppDefaults\GameRanger.exe\DllOverrides" /v "d3d11" /t REG_SZ /d "builtin" /f >/dev/null 2>&1 || true
-        "$WINE_CMD" reg add "HKEY_CURRENT_USER\Software\Wine\AppDefaults\GameRanger.exe\DllOverrides" /v "d3d9" /t REG_SZ /d "builtin" /f >/dev/null 2>&1 || true
-        "$WINE_CMD" reg add "HKEY_CURRENT_USER\Software\Wine\AppDefaults\GameRanger.exe\DllOverrides" /v "d3d10core" /t REG_SZ /d "builtin" /f >/dev/null 2>&1 || true
-        "$WINE_CMD" reg add "HKEY_CURRENT_USER\Software\Wine\AppDefaults\GameRanger.exe\DllOverrides" /v "mfc42" /t REG_SZ /d "native,builtin" /f >/dev/null 2>&1 || true
-        "$WINE_CMD" reg add "HKEY_CURRENT_USER\Software\Wine\AppDefaults\GameRanger.exe\DllOverrides" /v "mfc42u" /t REG_SZ /d "native,builtin" /f >/dev/null 2>&1 || true
-        "$WINE_CMD" reg add "HKEY_CURRENT_USER\Software\Wine\AppDefaults\GameRanger.exe\X11 Driver" /v "Decorated" /t REG_SZ /d "Y" /f >/dev/null 2>&1 || true
-        "$WINE_CMD" reg add "HKEY_CURRENT_USER\Software\Wine\AppDefaults\GameRanger.exe\X11 Driver" /v "Managed" /t REG_SZ /d "Y" /f >/dev/null 2>&1 || true
-        "$WINE_CMD" reg add "HKEY_CURRENT_USER\Software\Wine\AppDefaults\GameRanger.exe\X11 Driver" /v "GrabFullscreen" /t REG_SZ /d "N" /f >/dev/null 2>&1 || true
-        # Asegurar hooks de mods y ASI loaders universales en el registro de Wine para juegos
-        "$WINE_CMD" reg add "HKEY_CURRENT_USER\Software\Wine\DllOverrides" /v "dinput8" /t REG_SZ /d "native,builtin" /f >/dev/null 2>&1 || true
-        "$WINE_CMD" reg add "HKEY_CURRENT_USER\Software\Wine\DllOverrides" /v "d3d9" /t REG_SZ /d "native,builtin" /f >/dev/null 2>&1 || true
-        "$WINE_CMD" reg add "HKEY_CURRENT_USER\Software\Wine\DllOverrides" /v "d3d8" /t REG_SZ /d "native,builtin" /f >/dev/null 2>&1 || true
-        "$WINE_CMD" reg add "HKEY_CURRENT_USER\Software\Wine\DllOverrides" /v "dxgi" /t REG_SZ /d "native,builtin" /f >/dev/null 2>&1 || true
-        "$WINE_CMD" reg add "HKEY_CURRENT_USER\Software\Wine\DllOverrides" /v "d3d11" /t REG_SZ /d "native,builtin" /f >/dev/null 2>&1 || true
-        "$WINE_CMD" reg add "HKEY_CURRENT_USER\Software\Wine\DllOverrides" /v "vorbisfile" /t REG_SZ /d "native,builtin" /f >/dev/null 2>&1 || true
-        "$WINE_CMD" reg add "HKEY_CURRENT_USER\Software\Wine\DllOverrides" /v "vorbishooked" /t REG_SZ /d "native,builtin" /f >/dev/null 2>&1 || true
-        "$WINE_CMD" reg add "HKEY_CURRENT_USER\Software\Wine\DllOverrides" /v "dsound" /t REG_SZ /d "native,builtin" /f >/dev/null 2>&1 || true
-        # Optimización de red e Internet para máxima compatibilidad con servidores antiguos de GameRanger y certificados TLS
-        "$WINE_CMD" reg add "HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Internet Settings" /v "CertificateRevocation" /t REG_DWORD /d 0 /f >/dev/null 2>&1 || true
-        "$WINE_CMD" reg add "HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Internet Settings" /v "WarnonBadCertRecving" /t REG_DWORD /d 0 /f >/dev/null 2>&1 || true
-        "$WINE_CMD" reg add "HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Internet Settings" /v "SecureProtocols" /t REG_DWORD /d 2720 /f >/dev/null 2>&1 || true
+        reg_gr_tmp=$(mktemp "${TMPDIR:-/tmp}/vessel_gr_XXXXXX.reg" 2>/dev/null || echo "/tmp/vessel_gr_$$.reg")
+        cat << 'EOF' > "$reg_gr_tmp"
+Windows Registry Editor Version 5.00
+
+[HKEY_CURRENT_USER\Software\Wine\AppDefaults\GameRanger.exe]
+"Version"="win7"
+
+[HKEY_CURRENT_USER\Software\Wine\AppDefaults\GameRanger.exe\Direct3D]
+"renderer"="gdi"
+"MaxVersionGL"=dword:00000000
+
+[HKEY_CURRENT_USER\Software\Wine\AppDefaults\GameRanger.exe\DllOverrides]
+"dnsapi"=""
+"iphlpapi"=""
+"ws2_32"=""
+"wininet"=""
+"secur32"=""
+"dxgi"="builtin"
+"d3d11"="builtin"
+"d3d9"="builtin"
+"d3d10core"="builtin"
+"mfc42"="native,builtin"
+"mfc42u"="native,builtin"
+
+[HKEY_CURRENT_USER\Software\Wine\AppDefaults\GameRanger.exe\X11 Driver]
+"Decorated"="Y"
+"Managed"="Y"
+"GrabFullscreen"="N"
+"Desktop"=-
+
+[HKEY_CURRENT_USER\Software\Wine\DllOverrides]
+"dinput8"="native,builtin"
+"d3d9"="native,builtin"
+"d3d8"="native,builtin"
+"dxgi"="native,builtin"
+"d3d11"="native,builtin"
+"vorbisfile"="native,builtin"
+"vorbishooked"="native,builtin"
+"dsound"="native,builtin"
+
+[HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Internet Settings]
+"CertificateRevocation"=dword:00000000
+"WarnonBadCertRecving"=dword:00000000
+"SecureProtocols"=dword:00000aa0
+EOF
+        "$WINE_CMD" regedit /S "$reg_gr_tmp" >/dev/null 2>&1 || true
+        rm -f "$reg_gr_tmp" 2>/dev/null || true
         touch "${WINEPREFIX}/.gameranger_reg_v6" 2>/dev/null || true
     fi
 
@@ -1303,25 +1375,45 @@ if [ "$IS_PROGRAM" -eq 1 ] || [ "${PE_CATEGORY:-juego}" = "programa" ]; then
     GAMESCOPE_PREFIX=""
     ESCRITORIO_VIRTUAL="0"
 
-    # Fuentes ClearType HD en el Registro de Windows
-    "$WINE_CMD" reg add "HKEY_CURRENT_USER\Control Panel\Desktop" /v "FontSmoothing" /t REG_SZ /d "2" /f >/dev/null 2>&1 || true
-    "$WINE_CMD" reg add "HKEY_CURRENT_USER\Control Panel\Desktop" /v "FontSmoothingType" /t REG_DWORD /d 2 /f >/dev/null 2>&1 || true
-    "$WINE_CMD" reg add "HKEY_CURRENT_USER\Control Panel\Desktop" /v "FontSmoothingGamma" /t REG_DWORD /d 1400 /f >/dev/null 2>&1 || true
-    "$WINE_CMD" reg add "HKEY_CURRENT_USER\Control Panel\Desktop" /v "FontSmoothingOrientation" /t REG_DWORD /d 1 /f >/dev/null 2>&1 || true
+    # Desactivar DXVK/VKD3D/NVAPI y offload NVIDIA forzado en programas de escritorio
+    # para evitar pantalla negra o cierres en apps 2D, Electron, .NET WPF, Qt e instaladores
+    export RENDERER_IN_USE="GDI / WineD3D Nativo (Escritorio)"
+    unset DXVK_CONFIG_FILE VKD3D_CONFIG_FILE DXVK_ENABLE_NVAPI DXVK_ASYNC DXVK_HUD DXVK_STATE_CACHE_PATH DXVK_GPLASYNCCACHE DXVK_D3D9 DXVK_D3D11 DXVK
+    unset __NV_PRIME_RENDER_OFFLOAD __GLX_VENDOR_LIBRARY_NAME __VK_LAYER_NV_optimus
+    export WINEDLLOVERRIDES="winemenubuilder.exe=d;dxgi=b;d3d11=b;d3d10core=b;d3d9=b;d3d8=b;ddraw=b;nvapi=d;nvapi64=d;riched20=n,b;riched32=n,b;msxml3=n,b;msxml6=n,b;gdiplus=n,b;mscoree=n,b;mshtml=n,b;secur32=b;wininet=b;winhttp=b;ws2_32=b;iphlpapi=b;dnsapi=b;"
 
-    # Ventana de escritorio decorada y redimensionable
-    if [ -n "$TARGET_FILE" ]; then
-        "$WINE_CMD" reg add "HKEY_CURRENT_USER\Software\Wine\AppDefaults\\${TARGET_FILE}\X11 Driver" /v "Decorated" /t REG_SZ /d "Y" /f >/dev/null 2>&1 || true
-        "$WINE_CMD" reg add "HKEY_CURRENT_USER\Software\Wine\AppDefaults\\${TARGET_FILE}\X11 Driver" /v "Managed" /t REG_SZ /d "Y" /f >/dev/null 2>&1 || true
-        "$WINE_CMD" reg add "HKEY_CURRENT_USER\Software\Wine\AppDefaults\\${TARGET_FILE}\X11 Driver" /v "GrabFullscreen" /t REG_SZ /d "N" /f >/dev/null 2>&1 || true
+    # Compatibilidad automática con aplicaciones Electron / Chromium en Wine
+    if [ "${PE_IS_ELECTRON:-0}" = "1" ]; then
+        if [[ ! " $* " =~ " --no-sandbox " ]]; then
+            EXTRA_APP_ARGS="${EXTRA_APP_ARGS} --no-sandbox"
+        fi
     fi
 
-    # Overrides de librerías de productividad y oficina
-    "$WINE_CMD" reg add "HKEY_CURRENT_USER\Software\Wine\DllOverrides" /v "riched20" /t REG_SZ /d "native,builtin" /f >/dev/null 2>&1 || true
-    "$WINE_CMD" reg add "HKEY_CURRENT_USER\Software\Wine\DllOverrides" /v "riched32" /t REG_SZ /d "native,builtin" /f >/dev/null 2>&1 || true
-    "$WINE_CMD" reg add "HKEY_CURRENT_USER\Software\Wine\DllOverrides" /v "msxml3" /t REG_SZ /d "native,builtin" /f >/dev/null 2>&1 || true
-    "$WINE_CMD" reg add "HKEY_CURRENT_USER\Software\Wine\DllOverrides" /v "msxml6" /t REG_SZ /d "native,builtin" /f >/dev/null 2>&1 || true
-    "$WINE_CMD" reg add "HKEY_CURRENT_USER\Software\Wine\DllOverrides" /v "gdiplus" /t REG_SZ /d "native,builtin" /f >/dev/null 2>&1 || true
+    # Aplicar ClearType HD y overrides de productividad en UNA sola operación cacheada (0.01s en arranques posteriores)
+    if [ ! -f "${WINEPREFIX}/.vessel_prog_reg_v1" ]; then
+        reg_prog_tmp=$(mktemp "${TMPDIR:-/tmp}/vessel_prog_XXXXXX.reg" 2>/dev/null || echo "/tmp/vessel_prog_$$.reg")
+        cat << 'EOF' > "$reg_prog_tmp"
+Windows Registry Editor Version 5.00
+
+[HKEY_CURRENT_USER\Control Panel\Desktop]
+"FontSmoothing"="2"
+"FontSmoothingType"=dword:00000002
+"FontSmoothingGamma"=dword:00000578
+"FontSmoothingOrientation"=dword:00000001
+
+[HKEY_CURRENT_USER\Software\Wine\DllOverrides]
+"riched20"="native,builtin"
+"riched32"="native,builtin"
+"msxml3"="native,builtin"
+"msxml6"="native,builtin"
+"gdiplus"="native,builtin"
+"mscoree"="native,builtin"
+"mshtml"="native,builtin"
+EOF
+        "$WINE_CMD" regedit /S "$reg_prog_tmp" >/dev/null 2>&1 || true
+        rm -f "$reg_prog_tmp" 2>/dev/null || true
+        touch "${WINEPREFIX}/.vessel_prog_reg_v1" 2>/dev/null || true
+    fi
 fi
 
 # Moverse al directorio donde reside el juego (vital para rutas relativas y DLLs)
