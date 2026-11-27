@@ -505,6 +505,34 @@ propagar_librerias_a_prefijo() {
     configurar_dlloverrides "$dest_prefix" >/dev/null 2>&1 || true
 }
 
+# 10.5 INSTALAR ICU WINDOWS 10/11 (Unicode / Qt6 / PySide6 / PyQt6 / .NET)
+instalar_icu_windows10() {
+    local target_prefix="${1:-${DIR}/wineprefix}"
+    local icu_tar="${CACHE_DIR}/icu-win.tar.gz"
+
+    if [ ! -f "$icu_tar" ] || [ ! -s "$icu_tar" ]; then
+        echo -e "${CYAN}📦 Descargando librerías oficiales de Unicode ICU para Windows 10/11 (Qt6/PySide6)...${RESET}"
+        if curl -fsSL -k --retry 3 --connect-timeout 10 --max-time 120 "https://github.com/FaithLife-Community/icu/releases/download/72.1-custom%2B4/icu-win.tar.gz" -o "${icu_tar}.tmp"; then
+            if [ -s "${icu_tar}.tmp" ]; then
+                mv -f "${icu_tar}.tmp" "$icu_tar"
+            fi
+        fi
+        rm -f "${icu_tar}.tmp" 2>/dev/null || true
+    fi
+
+    if [ -f "$icu_tar" ] && [ -s "$icu_tar" ]; then
+        if [ -d "${target_prefix}/drive_c" ]; then
+            echo -e "${CYAN}🔧 Instalando ICU Windows 10 (icuuc.dll, icuin.dll, icu.dll) en ${BOLD}${target_prefix}${RESET}"
+            tar -xzf "$icu_tar" -C "${target_prefix}/drive_c" 2>/dev/null || true
+            echo -e "${GREEN}✓ Soporte para Qt6, PySide6, PyQt6 y Unicode de Windows 10 instalado correctamente.${RESET}"
+            return 0
+        fi
+    else
+        echo -e "${YELLOW}⚠ No se pudo descargar el paquete ICU Windows 10.${RESET}"
+        return 1
+    fi
+}
+
 # 11. INSTALADOR MAESTRO DE TODAS LAS DEPENDENCIAS DE JUEGOS
 instalar_paquete_maestro() {
     local target_prefix="${1:-${DIR}/wineprefix}"
@@ -513,7 +541,8 @@ instalar_paquete_maestro() {
     echo -e "${BOLD}${PURPLE}========================================================================${RESET}"
     echo -e "  ${WHITE}Prefijo objetivo : ${CYAN}${target_prefix}${RESET}"
     echo -e "  ${WHITE}Librerías        : DirectX 9/10/11/12 (DXVK + VKD3D-Proton), VC++ 2005-2022 AIO,${RESET}"
-    echo -e "                     OpenAL 3D, DirectPlay, Corefonts, cnc-ddraw, SDL2 DB${RESET}"
+    echo -e "                     OpenAL 3D, DirectPlay, Corefonts, cnc-ddraw, SDL2 DB,${RESET}"
+    echo -e "                     Unicode ICU Windows 10 (Qt6 / PySide6 / PyQt6)${RESET}"
     echo -e "${BOLD}${PURPLE}========================================================================${RESET}\n"
 
     instalar_directx_completo "$target_prefix"
@@ -524,12 +553,13 @@ instalar_paquete_maestro() {
     instalar_corefonts "$target_prefix"
     instalar_directplay "$target_prefix"
     instalar_openal "$target_prefix"
+    instalar_icu_windows10 "$target_prefix"
     actualizar_gamecontrollerdb
     configurar_dlloverrides "$target_prefix"
 
     echo -e "\n${BOLD}${GREEN}✔ ¡PAQUETE MAESTRO DE DLLs INSTALADO EXITOSAMENTE!${RESET}"
     echo -e "${WHITE}  Tu prefijo de Wine ahora cuenta con la máxima compatibilidad gráfica,${RESET}"
-    echo -e "${WHITE}  de audio, mandos y dependencias para correr cualquier juego Windows.${RESET}\n"
+    echo -e "${WHITE}  de audio, mandos y dependencias para correr cualquier juego o programa Windows.${RESET}\n"
 }
 
 # 12. CONFIGURAR VKBASALT (Nitidez AMD CAS en Vulkan)
@@ -603,6 +633,13 @@ mostrar_estado() {
         echo -e "  [${YELLOW}○${RESET}] ${BOLD}D3D8to9:${RESET} Disponible para instalación bajo demanda"
     fi
 
+    # ICU Windows 10/11 (Unicode / Qt6 / PySide6 / PyQt6)
+    if [ -f "${DIR}/wineprefix/drive_c/windows/system32/icuuc.dll" ]; then
+        echo -e "  [${GREEN}✓${RESET}] ${BOLD}ICU Windows 10/11 (Qt6 / PySide6 / Unicode):${RESET} Instalado y activo"
+    else
+        echo -e "  [${YELLOW}○${RESET}] ${BOLD}ICU Windows 10/11:${RESET} Disponible para instalación bajo demanda"
+    fi
+
     # DXVK-NVAPI
     if [ -f "${DIR}/wineprefix/drive_c/windows/system32/nvapi64.dll" ] || [ -f "${CACHE_DIR}/dxvk-nvapi/x64/nvapi64.dll" ]; then
         echo -e "  [${GREEN}✓${RESET}] ${BOLD}DXVK-NVAPI (NVIDIA GeForce Bridge):${RESET} Instalado y activo para GPUs GeForce"
@@ -667,6 +704,9 @@ case "${1:-menu}" in
         instalar_vkd3d_proton "${2:-${DIR}/wineprefix}"
         configurar_dlloverrides "${2:-${DIR}/wineprefix}"
         ;;
+    instalar_icu|instalar_icu_windows10)
+        instalar_icu_windows10 "${2:-${DIR}/wineprefix}"
+        ;;
     propagar)
         propagar_librerias_a_prefijo "${2:-}"
         ;;
@@ -698,14 +738,15 @@ case "${1:-menu}" in
         echo "  [5] 🟢 Instalar DXVK-NVAPI (Puente nativo NVIDIA GeForce)"
         echo "  [6] ⚡ Instalar VKD3D-Proton (DirectX 12 -> Vulkan para juegos modernos)"
         echo "  [7] 🔤 Instalar Fuentes Oficiales de Windows (Corefonts: Arial, Times, Tahoma)"
-        echo "  [8] 🔊 Descargar / Preparar DSOAL (Audio 3D Espacial EAX)"
-        echo "  [9] 🕹️  Descargar / Preparar cnc-ddraw (DirectDraw OpenGL)"
-        echo "  [10] 🎮 Actualizar base de datos de mandos (gamecontrollerdb.txt)"
-        echo "  [11] 🎨 Generar configuración optimizada de vkBasalt (AMD CAS)"
-        echo "  [12] 🚀 Panel Modular de Drivers (DXVK, VKD3D-Proton, GPU y Pantalla)"
+        echo "  [8] 🌐 Instalar ICU Windows 10/11 (Unicode / Qt6 / PySide6 / PyQt6)"
+        echo "  [9] 🔊 Descargar / Preparar DSOAL (Audio 3D Espacial EAX)"
+        echo "  [10] 🕹️  Descargar / Preparar cnc-ddraw (DirectDraw OpenGL)"
+        echo "  [11] 🎮 Actualizar base de datos de mandos (gamecontrollerdb.txt)"
+        echo "  [12] 🎨 Generar configuración optimizada de vkBasalt (AMD CAS)"
+        echo "  [13] 🚀 Panel Modular de Drivers (DXVK, VKD3D-Proton, GPU y Pantalla)"
         echo "  [0] ↩️  Salir"
         echo ""
-        read -rp "Selecciona una opción [0-12]: " opc
+        read -rp "Selecciona una opción [0-13]: " opc
         case "$opc" in
             1) instalar_paquete_maestro "${DIR}/wineprefix" ;;
             2) instalar_directx_completo "${DIR}/wineprefix" && configurar_dlloverrides "${DIR}/wineprefix" ;;
@@ -714,11 +755,12 @@ case "${1:-menu}" in
             5) instalar_dxvk_nvapi "${DIR}/wineprefix" && configurar_dlloverrides "${DIR}/wineprefix" ;;
             6) instalar_vkd3d_proton "${DIR}/wineprefix" && configurar_dlloverrides "${DIR}/wineprefix" ;;
             7) instalar_corefonts "${DIR}/wineprefix" ;;
-            8) instalar_dsoal ;;
-            9) instalar_cnc_ddraw ;;
-            10) actualizar_gamecontrollerdb ;;
-            11) configurar_vkbasalt ;;
-            12) bash "${CORE_DIR}/gestor_drivers.sh" estado ;;
+            8) instalar_icu_windows10 "${DIR}/wineprefix" ;;
+            9) instalar_dsoal ;;
+            10) instalar_cnc_ddraw ;;
+            11) actualizar_gamecontrollerdb ;;
+            12) configurar_vkbasalt ;;
+            13) bash "${CORE_DIR}/gestor_drivers.sh" estado ;;
             *) echo "Saliendo..." ;;
         esac
         ;;

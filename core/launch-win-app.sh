@@ -655,6 +655,9 @@ if [ -f "$local_gestor_lib" ] && [ -d "${WINEPREFIX}/drive_c/windows" ]; then
             bash "$local_gestor_lib" instalar_vkd3d "$WINEPREFIX" >/dev/null 2>&1 || true
         fi
     fi
+    if [ ! -f "${WINEPREFIX}/drive_c/windows/system32/icuuc.dll" ]; then
+        bash "$local_gestor_lib" instalar_icu "$WINEPREFIX" >/dev/null 2>&1 || true
+    fi
     if [ -d "${DIR}/wineprefix/drive_c/windows" ] && [ "$WINEPREFIX" != "${DIR}/wineprefix" ]; then
         bash "$local_gestor_lib" propagar "$WINEPREFIX" >/dev/null 2>&1 || true
     fi
