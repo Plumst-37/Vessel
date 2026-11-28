@@ -716,8 +716,8 @@ if [ -n "${FOUND_HTML:-}" ] && [ -f "${FOUND_HTML:-}" ]; then
 fi
 
 # 7. Auto-inicialización del prefijo con wineboot nativo y dosdevices íntegros
-find "${WINEPREFIX}/drive_c/windows" -xtype l -delete 2>/dev/null || true
 if [ ! -f "${WINEPREFIX}/system.reg" ]; then
+    find "${WINEPREFIX}/drive_c/windows" -xtype l -delete 2>/dev/null || true
     mkdir -p "$WINEPREFIX"
     if [ -f "${DIR}/wineprefix/system.reg" ] && [ "$WINEPREFIX" != "${DIR}/wineprefix" ]; then
         echo "[*] Inicializando sandbox aislado de forma ultrarrápida a partir de la plantilla base..."
@@ -751,13 +751,16 @@ if [ "${USE_NATIVE_WEB_APP:-0}" -ne 1 ] && [ "$IS_PROGRAM" -ne 1 ] && [ "${PE_CA
         prefix_save="${WINEPREFIX}/drive_c/users/${USER}/${rel_save}"
         mkdir -p "$vault_path" "$(dirname "$prefix_save")" 2>/dev/null || true
 
-        # Importar partidas previas desde otras instalaciones de Vessel o ~/.wine sin sobreescribir archivos existentes
-        for legacy_root in "${HOME}/Documentos/Juegos/Vessel/wineprefix" "${HOME}/Vessel/wineprefix" "${HOME}/.wine"; do
-            legacy_save="${legacy_root}/drive_c/users/${USER}/${rel_save}"
-            if [ -d "$legacy_save" ] && [ ! -L "$legacy_save" ]; then
-                cp -rn "$legacy_save"/. "$vault_path"/ 2>/dev/null || true
-            fi
-        done
+        # Importar partidas previas desde otras instalaciones una sola vez (marcador .legacy_imported)
+        if [ ! -f "${VESSEL_SAVES_DIR}/.legacy_imported_${vault_name}" ]; then
+            for legacy_root in "${HOME}/Documentos/Juegos/Vessel/wineprefix" "${HOME}/Vessel/wineprefix" "${HOME}/.wine"; do
+                legacy_save="${legacy_root}/drive_c/users/${USER}/${rel_save}"
+                if [ -d "$legacy_save" ] && [ ! -L "$legacy_save" ]; then
+                    cp -rn "$legacy_save"/. "$vault_path"/ 2>/dev/null || true
+                fi
+            done
+            touch "${VESSEL_SAVES_DIR}/.legacy_imported_${vault_name}" 2>/dev/null || true
+        fi
 
         # Vincular el directorio de partidas del prefijo activo hacia la bóveda persistente
         if [ -L "$prefix_save" ]; then
@@ -772,8 +775,10 @@ if [ "${USE_NATIVE_WEB_APP:-0}" -ne 1 ] && [ "$IS_PROGRAM" -ne 1 ] && [ "${PE_CA
     done
 fi
 
-# Limpieza rápida de archivos temporales antiguos en el prefijo para evitar degradación
-find "${WINEPREFIX}/drive_c/users/${USER}/AppData/Local/Temp" -mindepth 1 -mtime +1 -delete 2>/dev/null || true
+# Limpieza rápida de archivos temporales antiguos en segundo plano (0 ms de espera al arranque)
+if [ -d "${WINEPREFIX}/drive_c/users/${USER}/AppData/Local/Temp" ]; then
+    (find "${WINEPREFIX}/drive_c/users/${USER}/AppData/Local/Temp" -mindepth 1 -mtime +1 -delete 2>/dev/null || true) &
+fi
 
 # 7.1 Auto-verificación e integración modular de DXVK y VKD3D en el prefijo activo (con caché)
 if [ "$RENDERER_IN_USE" != "WineD3D (OpenGL Compatibilidad)" ]; then
@@ -1219,10 +1224,12 @@ if [ "${FORCE_WINED3D:-0}" -eq 1 ]; then
     unset DXVK_CONFIG_FILE VKD3D_CONFIG_FILE DXVK_ENABLE_NVAPI DXVK_ASYNC DXVK_HUD DXVK_STATE_CACHE_PATH DXVK_GPLASYNCCACHE
 elif [ "$IS_PROGRAM" -ne 1 ] && [ "${PE_CATEGORY:-juego}" != "programa" ] && [ "$RENDERER_IN_USE" != "WineD3D (OpenGL Compatibilidad)" ]; then
     CALIBRATED_DXVK_CONF="${CONFIG_DIR}/dxvk.conf"
-    if [ -x "$GENERAR_DXVK" ]; then
-        "$GENERAR_DXVK" 2>/dev/null || true
-    elif [ -f "$GENERAR_DXVK" ]; then
-        bash "$GENERAR_DXVK" 2>/dev/null || true
+    if [ ! -s "$CALIBRATED_DXVK_CONF" ] || [ "${DIR}/drivers/dxvk/dxvk.conf" -nt "$CALIBRATED_DXVK_CONF" ] || [ "${CONFIG_DIR}/perfil_hardware.cfg" -nt "$CALIBRATED_DXVK_CONF" ]; then
+        if [ -x "$GENERAR_DXVK" ]; then
+            "$GENERAR_DXVK" 2>/dev/null || true
+        elif [ -f "$GENERAR_DXVK" ]; then
+            bash "$GENERAR_DXVK" 2>/dev/null || true
+        fi
     fi
     if [ -f "$CALIBRATED_DXVK_CONF" ] && [ -s "$CALIBRATED_DXVK_CONF" ]; then
         export DXVK_CONFIG_FILE="$CALIBRATED_DXVK_CONF"
@@ -1319,13 +1326,11 @@ acelerar_hardware_sistema() {
         done
     fi
 
-    # 2. Desbloqueo y Persistencia de Relojes de GPU (con timeout para evitar bloqueos en Wayland/Optimus)
-    if [ "${HAS_NVIDIA:-false}" = true ] || lspci 2>/dev/null | grep -qi "NVIDIA" || [ -d "/proc/driver/nvidia" ]; then
-        # Activar Persistence Mode (elimina la latencia de despertar del chip NVIDIA)
-        timeout 2s nvidia-smi -pm 1 >/dev/null 2>&1 || true
-        # Forzar estado de máximo rendimiento P0 en PowerMizer (elimina caídas de reloj)
+    # 2. Desbloqueo y Persistencia de Relojes de GPU (en segundo plano para no retrasar el arranque)
+    if [ "${HAS_NVIDIA:-false}" = true ] || [ -d "/proc/driver/nvidia" ]; then
+        [ "$(id -u)" -eq 0 ] && (timeout 2s nvidia-smi -pm 1 >/dev/null 2>&1 || true) &
         if command -v nvidia-settings &>/dev/null && [ -n "${DISPLAY:-}" ]; then
-            timeout 2s nvidia-settings -a '[gpu:0]/GPUPowerMizerMode=1' >/dev/null 2>&1 || true
+            (timeout 2s nvidia-settings -a '[gpu:0]/GPUPowerMizerMode=1' >/dev/null 2>&1 || true) &
         fi
         export __GL_THREADED_OPTIMIZATIONS=1
         export __GL_YIELD="NOTHING"
