@@ -2324,31 +2324,43 @@ else
 fi
 
 # Sincronización activa de subprocesos de Windows:
-# Si un juego lanzó procesos secundarios (lanzadores tipo GTA V / PlayGTAV),
-# mantenemos la sesión activa mientras existan procesos de ESE juego en el WINEPREFIX.
-# Para programas normales de escritorio, salimos inmediatamente al cerrarse la ventana.
-if [ "${USE_NATIVE_WEB_APP:-0}" -ne 1 ] && [ "$IS_PROGRAM" -ne 1 ] && [ "${PE_CATEGORY:-juego}" != "programa" ] && [ -n "$WINEPREFIX" ] && [ -d "$WINEPREFIX" ]; then
+# Si un juego o instalador/portable lanzó procesos secundarios (ej. PlayGTAV, DriverBoosterPortable),
+# mantenemos la sesión activa mientras existan subprocesos de ESTA sesión (VESSEL_SESSION_ID).
+if [ "${USE_NATIVE_WEB_APP:-0}" -ne 1 ] && [ -n "$WINEPREFIX" ] && [ -d "$WINEPREFIX" ]; then
+    is_prog_mode=0
+    if [ "$IS_PROGRAM" -eq 1 ] || [ "${PE_CATEGORY:-juego}" = "programa" ]; then
+        is_prog_mode=1
+    fi
     target_base=$(basename "$TARGET_FILE" 2>/dev/null | tr '[:upper:]' '[:lower:]')
     target_dir_base=$(basename "$TARGET_DIR" 2>/dev/null | tr '[:upper:]' '[:lower:]')
     while true; do
         has_active_game=false
         for pid_env in /proc/[0-9]*/environ; do
             [ -r "$pid_env" ] || continue
-            if grep -qF "VESSEL_SESSION_ID=${VESSEL_SESSION_ID}" "$pid_env" 2>/dev/null || grep -qF "WINEPREFIX=${WINEPREFIX}" "$pid_env" 2>/dev/null; then
-                c_pid="${pid_env#/proc/}"
-                c_pid="${c_pid%/environ}"
-                [ "$c_pid" -eq "$$" ] 2>/dev/null && continue
-                [ "$c_pid" -eq "$PPID" ] 2>/dev/null && continue
-                cmdline=$(cat "/proc/${c_pid}/cmdline" 2>/dev/null | tr '\0' ' ' || true)
-                cmdline_lower=$(echo "$cmdline" | tr '[:upper:]' '[:lower:]')
+            c_pid="${pid_env#/proc/}"
+            c_pid="${c_pid%/environ}"
+            [ "$c_pid" -eq "$$" ] 2>/dev/null && continue
+            [ "$c_pid" -eq "$PPID" ] 2>/dev/null && continue
 
-                # Solo vigilar procesos de esta sesión o pertenecientes a este juego/directorio, NO otros programas abiertos en el prefijo
-                if echo "$cmdline_lower" | grep -qiE '\.exe' && \
-                   ! echo "$cmdline_lower" | grep -qiE 'services\.exe|winedevice\.exe|plugplay\.exe|explorer\.exe|rpcss\.exe|conhost\.exe|svchost\.exe|wineboot\.exe' && \
-                   ( grep -qF "VESSEL_SESSION_ID=${VESSEL_SESSION_ID}" "$pid_env" 2>/dev/null || [ -z "$target_base" ] || echo "$cmdline_lower" | grep -qF "$target_base" || echo "$cmdline_lower" | grep -qF "$target_dir_base" ); then
+            matched_session=0
+            if grep -qF "VESSEL_SESSION_ID=${VESSEL_SESSION_ID}" "$pid_env" 2>/dev/null; then
+                matched_session=1
+            elif [ "$is_prog_mode" -eq 0 ] && grep -qF "WINEPREFIX=${WINEPREFIX}" "$pid_env" 2>/dev/null; then
+                matched_session=2
+            fi
+            [ "$matched_session" -eq 0 ] && continue
+
+            cmdline=$(cat "/proc/${c_pid}/cmdline" 2>/dev/null | tr '\0' ' ' || true)
+            cmdline_lower=$(echo "$cmdline" | tr '[:upper:]' '[:lower:]')
+
+            if echo "$cmdline_lower" | grep -qiE '\.exe' && \
+               ! echo "$cmdline_lower" | grep -qiE 'services\.exe|winedevice\.exe|plugplay\.exe|explorer\.exe|rpcss\.exe|conhost\.exe|svchost\.exe|wineboot\.exe'; then
+                if [ "$matched_session" -eq 1 ] || [ -z "$target_base" ] || echo "$cmdline_lower" | grep -qF "$target_base" || echo "$cmdline_lower" | grep -qF "$target_dir_base"; then
                     has_active_game=true
-                    renice -n -10 -p "$c_pid" >/dev/null 2>&1 || renice -n -5 -p "$c_pid" >/dev/null 2>&1 || true
-                    ionice -c 2 -n 0 -p "$c_pid" >/dev/null 2>&1 || true
+                    if [ "$is_prog_mode" -eq 0 ]; then
+                        renice -n -10 -p "$c_pid" >/dev/null 2>&1 || renice -n -5 -p "$c_pid" >/dev/null 2>&1 || true
+                        ionice -c 2 -n 0 -p "$c_pid" >/dev/null 2>&1 || true
+                    fi
                     break
                 fi
             fi
@@ -2488,6 +2500,25 @@ rm -f "$TEMP_GAME_LOG" 2>/dev/null || true
 
 # Esperar sincronización limpia de los subprocesos de Wine sin matarlos abruptamente (solo en juegos y con timeout)
 if [ "$IS_PROGRAM" -ne 1 ] && [ "${PE_CATEGORY:-juego}" != "programa" ]; then
-    timeout 2s "$WINESERVER_CMD" -w 2>/dev/null || timeout 2s wineserver -w 2>/dev/null || true
+# Si no queda ningún otro .exe de usuario activo en este WINEPREFIX, apagar wineserver y servicios residuales para liberar RAM/CPU
+if [ "${USE_NATIVE_WEB_APP:-0}" -ne 1 ] && [ -n "${WINEPREFIX:-}" ] && [ -d "${WINEPREFIX:-}" ]; then
+    other_app_running=0
+    for pid_env in /proc/[0-9]*/environ; do
+        [ -r "$pid_env" ] || continue
+        if grep -qF "WINEPREFIX=${WINEPREFIX}" "$pid_env" 2>/dev/null; then
+            c_pid="${pid_env#/proc/}"
+            c_pid="${c_pid%/environ}"
+            [ "$c_pid" -eq "$$" ] 2>/dev/null && continue
+            cmdline_low=$(tr '\0' ' ' < "/proc/${c_pid}/cmdline" 2>/dev/null | tr '[:upper:]' '[:lower:]' || true)
+            if echo "$cmdline_low" | grep -qiE '\.exe' && ! echo "$cmdline_low" | grep -qiE 'services\.exe|winedevice\.exe|plugplay\.exe|explorer\.exe|rpcss\.exe|conhost\.exe|svchost\.exe|wineboot\.exe'; then
+                other_app_running=1
+                break
+            fi
+        fi
+    done
+    if [ "$other_app_running" -eq 0 ]; then
+        WINEPREFIX="$WINEPREFIX" "$WINESERVER_CMD" -k >/dev/null 2>&1 || WINEPREFIX="$WINEPREFIX" wineserver -k >/dev/null 2>&1 || true
+    fi
+fi
 fi
 exit $EXIT_STATUS
