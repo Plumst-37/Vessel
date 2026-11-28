@@ -2273,7 +2273,7 @@ if ([ -n "$ACTIVE_MON_X" ] && [ "$ACTIVE_MON_X" -ne 0 ]) || ([ -n "$ACTIVE_MON_Y
 fi
 
 # 7. Ejecución con captura en tiempo real (aislada de procesos daemon de Wine para evitar bloqueos)
-export VESSEL_SESSION_ID="vessel_$$_$(date +%s)"
+export VESSEL_SESSION_ID="${VESSEL_SESSION_ID:-vessel_$$_$(date +%s)}"
 EXEC_START_TIME=$(date +%s)
 if [ "${USE_NATIVE_WEB_APP:-0}" -eq 1 ] && [ -n "$FOUND_HTML" ] && [ -f "$FOUND_HTML" ] && [ -n "$NATIVE_WEB_BROWSER" ]; then
     echo -e "\n[+] Interfaz Web Detectada: Ejecutando en Modo Aplicación de Escritorio Nativa..."
@@ -2317,6 +2317,7 @@ if [ "${USE_NATIVE_WEB_APP:-0}" -eq 1 ] && [ -n "$FOUND_HTML" ] && [ -f "$FOUND_
 else
     "${FINAL_CMD[@]}" > "$TEMP_GAME_LOG" 2>&1 &
     APP_PID=$!
+    trap '[ -n "${APP_PID:-}" ] && kill -TERM "$APP_PID" 2>/dev/null || true; [ -n "${TAIL_PID:-}" ] && kill "$TAIL_PID" 2>/dev/null || true; exit 130' SIGHUP SIGTERM SIGINT
     TAIL_PID=""
     if [ -t 1 ]; then
         tail -f --pid="$APP_PID" -n +1 "$TEMP_GAME_LOG" 2>/dev/null &
@@ -2327,6 +2328,7 @@ else
     [ -n "$TAIL_PID" ] && kill "$TAIL_PID" 2>/dev/null || true
     EXEC_DURATION=$(( $(date +%s) - EXEC_START_TIME ))
 fi
+trap - SIGHUP SIGTERM SIGINT
 
 # Sincronización activa de subprocesos de Windows:
 # Si un juego o instalador/portable lanzó procesos secundarios (ej. PlayGTAV, DriverBoosterPortable),
