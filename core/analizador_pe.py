@@ -42,7 +42,9 @@ PROGRAM_KEYWORDS = (
     "setup", "install", "uninst", "updater", "viewer", "reader", "editor",
     "converter", "downloader", "portable", "browser", "chrome", "firefox",
     "msedge", "brave", "opera", "office", "winword", "excel", "powerpnt",
-    "acrobat", "foxit", "sumatra", "keepass", "ccleaner", "paint", "photoshop"
+    "acrobat", "foxit", "sumatra", "keepass", "ccleaner", "paint", "photoshop",
+    "cad", "3d", "studio", "sculpt", "render", "autodesk", "solidworks",
+    "sketchup", "zbrush", "maya", "kicad", "freecad"
 )
 
 def resolve_target_file(target_path):

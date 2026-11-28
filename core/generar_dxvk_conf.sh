@@ -72,6 +72,12 @@ if [ -n "$RAM_TOTAL_MB" ]; then
     fi
 fi
 
+REAL_DXGI_MEM="0"
+if [ "${GPU_VRAM_MB:-0}" -gt 0 ] && [ "${GPU_VRAM_MB:-0}" -le 2048 ]; then
+    REAL_DXGI_MEM="1800"
+    REAL_D3D9_MEM="1800"
+fi
+
 REAL_CHUNK_SIZE="64"
 if [ "${GPU_VRAM_MB:-0}" -le 2048 ]; then
     REAL_CHUNK_SIZE="32"
@@ -84,6 +90,7 @@ if [ -f "$DRIVERS_DXVK_CONF" ] && [ -s "$DRIVERS_DXVK_CONF" ]; then
     cp -f "$DRIVERS_DXVK_CONF" "$CONF_FILE" 2>/dev/null || true
     if grep -qE "=\s*auto" "$CONF_FILE" 2>/dev/null; then
         sed -i "s/dxvk.numCompilerThreads\s*=\s*auto/dxvk.numCompilerThreads = ${REAL_THREADS}/" "$CONF_FILE" 2>/dev/null || true
+        sed -i "s/dxgi.maxDeviceMemory\s*=\s*auto/dxgi.maxDeviceMemory = ${REAL_DXGI_MEM}/" "$CONF_FILE" 2>/dev/null || true
         sed -i "s/d3d9.maxAvailableMemory\s*=\s*auto/d3d9.maxAvailableMemory = ${REAL_D3D9_MEM}/" "$CONF_FILE" 2>/dev/null || true
         sed -i "s/dxvk.maxChunkSize\s*=\s*auto/dxvk.maxChunkSize = ${REAL_CHUNK_SIZE}/" "$CONF_FILE" 2>/dev/null || true
     fi
@@ -173,7 +180,7 @@ else
     GPL_VAL="False"
 fi
 
-# Calibración de memoria según RAM (Ahorro <= 4GB, Equilibrado 8GB-12GB, Extremo 16GB+)
+# Calibración de memoria según RAM y límite estricto de VRAM en GPUs <= 2048 MB
 D3D9_MEM="2048"
 if [ -n "$RAM_TOTAL_MB" ]; then
     if [ "$RAM_TOTAL_MB" -le 4608 ]; then
@@ -181,6 +188,11 @@ if [ -n "$RAM_TOTAL_MB" ]; then
     elif [ "$RAM_TOTAL_MB" -gt 13312 ]; then
         D3D9_MEM="4096"
     fi
+fi
+DXGI_MEM="0"
+if [ "${GPU_VRAM_MB:-0}" -gt 0 ] && [ "${GPU_VRAM_MB:-0}" -le 2048 ]; then
+    DXGI_MEM="1800"
+    D3D9_MEM="1800"
 fi
 
 # Ocultar GPU integrada SOLO si coexiste con una GPU dedicada real (NVIDIA o AMD dedicada)
@@ -236,6 +248,7 @@ d3d11.constantBufferRangeCheck = True
 d3d11.relaxedBarriers = False
 d3d11.relaxedGraphicsBarriers = False
 d3d9.lenientClear = True
+dxgi.maxDeviceMemory = ${DXGI_MEM}
 d3d9.maxAvailableMemory = ${D3D9_MEM}
 
 # Presentación y latencia de fotogramas (Adaptado dinámicamente)

@@ -91,6 +91,7 @@ CUSTOM_RUNNER=""
 CUSTOM_WINVER=""
 CUSTOM_FSR=""
 IS_PROGRAM=0
+FORCE_WINED3D=0
 while [ $# -gt 0 ]; do
     case "$1" in
         --prefix)
@@ -115,6 +116,10 @@ while [ $# -gt 0 ]; do
             ;;
         --program)
             IS_PROGRAM=1
+            shift
+            ;;
+        --wined3d)
+            FORCE_WINED3D=1
             shift
             ;;
         *)
@@ -317,6 +322,8 @@ else
                     db_fsr=$(echo "$matched_line" | cut -d'|' -f5 | tr -d '\r\n ')
                     [ -n "$db_fsr" ] && GAME_FSR="$db_fsr"
                 fi
+                db_backend=$(echo "$matched_line" | cut -d'|' -f7 | tr -d '\r\n ')
+                [ "$db_backend" = "wined3d" ] && FORCE_WINED3D=1
                 break
             fi
         fi
@@ -1150,20 +1157,38 @@ if [ -n "$TARGET_FILE" ]; then
     fi
 fi
 
-# 9. Configuración modular de DXVK y traducción gráfica (Solo para juegos 3D, NUNCA para programas de escritorio)
-if [ "$IS_PROGRAM" -ne 1 ] && [ "${PE_CATEGORY:-juego}" != "programa" ] && [ "$RENDERER_IN_USE" != "WineD3D (OpenGL Compatibilidad)" ]; then
-    if [ -f "${DIR}/drivers/dxvk/dxvk.conf" ]; then
+# 9. Configuración modular de DXVK y traducción gráfica (Solo para juegos 3D, NUNCA para programas de escritorio ni --wined3d)
+if [ "${FORCE_WINED3D:-0}" -eq 1 ]; then
+    export RENDERER_IN_USE="WineD3D (OpenGL Compatibilidad)"
+    export PROTON_USE_WINED3D=1
+    unset DXVK_CONFIG_FILE VKD3D_CONFIG_FILE DXVK_ENABLE_NVAPI DXVK_ASYNC DXVK_HUD DXVK_STATE_CACHE_PATH DXVK_GPLASYNCCACHE
+elif [ "$IS_PROGRAM" -ne 1 ] && [ "${PE_CATEGORY:-juego}" != "programa" ] && [ "$RENDERER_IN_USE" != "WineD3D (OpenGL Compatibilidad)" ]; then
+    CALIBRATED_DXVK_CONF="${CONFIG_DIR}/dxvk.conf"
+    if [ -x "$GENERAR_DXVK" ]; then
+        "$GENERAR_DXVK" 2>/dev/null || true
+    elif [ -f "$GENERAR_DXVK" ]; then
+        bash "$GENERAR_DXVK" 2>/dev/null || true
+    fi
+    if [ -f "$CALIBRATED_DXVK_CONF" ] && [ -s "$CALIBRATED_DXVK_CONF" ]; then
+        export DXVK_CONFIG_FILE="$CALIBRATED_DXVK_CONF"
+    elif [ -f "${DIR}/drivers/dxvk/dxvk.conf" ]; then
         export DXVK_CONFIG_FILE="${DIR}/drivers/dxvk/dxvk.conf"
     else
         export DXVK_CONFIG_FILE="$DXVK_CONF"
-        if [ -x "$GENERAR_DXVK" ]; then
-            "$GENERAR_DXVK"
-        elif [ -f "$GENERAR_DXVK" ]; then
-            bash "$GENERAR_DXVK"
-        fi
     fi
     if [ -f "${DIR}/drivers/vkd3d-proton/vkd3d.conf" ]; then
         export VKD3D_CONFIG_FILE="${DIR}/drivers/vkd3d-proton/vkd3d.conf"
+    fi
+
+    # Centralizar caché de estados DXVK por juego en ~/.cache/vessel/dxvk/<juego>/
+    GAME_CACHE_SLUG=$(basename "${TARGET_FILE%.*}" 2>/dev/null | tr -cd '[:alnum:]_.-' | tr '[:upper:]' '[:lower:]')
+    [ -z "$GAME_CACHE_SLUG" ] && GAME_CACHE_SLUG="generico"
+    export DXVK_STATE_CACHE_PATH="${HOME}/.cache/vessel/dxvk/${GAME_CACHE_SLUG}"
+    mkdir -p "$DXVK_STATE_CACHE_PATH" 2>/dev/null || true
+
+    # Respaldo automático de d3d8to9 para juegos DirectX 8
+    if [ "${PE_API:-}" = "d3d8" ] && [ ! -f "${WINEPREFIX}/drive_c/windows/system32/d3d8.dll" ] && [ -f "${DIR}/librerias_cache/d3d8to9/d3d8.dll" ]; then
+        cp -p "${DIR}/librerias_cache/d3d8to9/d3d8.dll" "${WINEPREFIX}/drive_c/windows/system32/d3d8.dll" 2>/dev/null || true
     fi
 else
     unset DXVK_CONFIG_FILE
@@ -1542,6 +1567,14 @@ EOF
         rm -f "$reg_prog_tmp" 2>/dev/null || true
         touch "${WINEPREFIX}/.vessel_prog_reg_v1" 2>/dev/null || true
     fi
+fi
+
+# Si se solicitó --wined3d explícitamente para un juego 3D, forzar DLLs builtin de Wine (OpenGL)
+if [ "${FORCE_WINED3D:-0}" -eq 1 ] && [ "$IS_PROGRAM" -ne 1 ] && [ "${PE_CATEGORY:-juego}" != "programa" ]; then
+    export RENDERER_IN_USE="WineD3D (OpenGL Compatibilidad)"
+    export PROTON_USE_WINED3D=1
+    unset DXVK_CONFIG_FILE VKD3D_CONFIG_FILE DXVK_ENABLE_NVAPI DXVK_ASYNC DXVK_HUD DXVK_STATE_CACHE_PATH DXVK_GPLASYNCCACHE
+    export WINEDLLOVERRIDES="winemenubuilder.exe=d;dxgi=b;d3d11=b;d3d10core=b;d3d9=b;d3d8=b;ddraw=b;nvapi=d;nvapi64=d;${WINEDLLOVERRIDES}"
 fi
 
 # Moverse al directorio donde reside el juego (vital para rutas relativas y DLLs)
@@ -2180,6 +2213,7 @@ if ([ -n "$ACTIVE_MON_X" ] && [ "$ACTIVE_MON_X" -ne 0 ]) || ([ -n "$ACTIVE_MON_Y
 fi
 
 # 7. Ejecución con captura en tiempo real (aislada de procesos daemon de Wine para evitar bloqueos)
+export VESSEL_SESSION_ID="vessel_$$_$(date +%s)"
 EXEC_START_TIME=$(date +%s)
 if [ "${USE_NATIVE_WEB_APP:-0}" -eq 1 ] && [ -n "$FOUND_HTML" ] && [ -f "$FOUND_HTML" ] && [ -n "$NATIVE_WEB_BROWSER" ]; then
     echo -e "\n[+] Interfaz Web Detectada: Ejecutando en Modo Aplicación de Escritorio Nativa..."
@@ -2245,7 +2279,7 @@ if [ "${USE_NATIVE_WEB_APP:-0}" -ne 1 ] && [ "$IS_PROGRAM" -ne 1 ] && [ "${PE_CA
         has_active_game=false
         for pid_env in /proc/[0-9]*/environ; do
             [ -r "$pid_env" ] || continue
-            if grep -qF "WINEPREFIX=${WINEPREFIX}" "$pid_env" 2>/dev/null; then
+            if grep -qF "VESSEL_SESSION_ID=${VESSEL_SESSION_ID}" "$pid_env" 2>/dev/null || grep -qF "WINEPREFIX=${WINEPREFIX}" "$pid_env" 2>/dev/null; then
                 c_pid="${pid_env#/proc/}"
                 c_pid="${c_pid%/environ}"
                 [ "$c_pid" -eq "$$" ] 2>/dev/null && continue
@@ -2253,10 +2287,10 @@ if [ "${USE_NATIVE_WEB_APP:-0}" -ne 1 ] && [ "$IS_PROGRAM" -ne 1 ] && [ "${PE_CA
                 cmdline=$(cat "/proc/${c_pid}/cmdline" 2>/dev/null | tr '\0' ' ' || true)
                 cmdline_lower=$(echo "$cmdline" | tr '[:upper:]' '[:lower:]')
 
-                # Solo vigilar procesos pertenecientes a este juego o su directorio, NO otros programas abiertos en el prefijo
+                # Solo vigilar procesos de esta sesión o pertenecientes a este juego/directorio, NO otros programas abiertos en el prefijo
                 if echo "$cmdline_lower" | grep -qiE '\.exe' && \
                    ! echo "$cmdline_lower" | grep -qiE 'services\.exe|winedevice\.exe|plugplay\.exe|explorer\.exe|rpcss\.exe|conhost\.exe|svchost\.exe|wineboot\.exe' && \
-                   ( [ -z "$target_base" ] || echo "$cmdline_lower" | grep -qF "$target_base" || echo "$cmdline_lower" | grep -qF "$target_dir_base" ); then
+                   ( grep -qF "VESSEL_SESSION_ID=${VESSEL_SESSION_ID}" "$pid_env" 2>/dev/null || [ -z "$target_base" ] || echo "$cmdline_lower" | grep -qF "$target_base" || echo "$cmdline_lower" | grep -qF "$target_dir_base" ); then
                     has_active_game=true
                     renice -n -10 -p "$c_pid" >/dev/null 2>&1 || renice -n -5 -p "$c_pid" >/dev/null 2>&1 || true
                     ionice -c 2 -n 0 -p "$c_pid" >/dev/null 2>&1 || true
@@ -2310,6 +2344,12 @@ elif [ "$EXIT_STATUS" -ne 0 ] && [ "$EXIT_STATUS" -ne 58 ] && [ "$EXIT_STATUS" -
 fi
 
 if [ "$HUBO_ERROR" -eq 1 ]; then
+    # Si se detectó un fallo gráfico Vulkan/DXGI, purgar caché de shaders del juego para el próximo arranque
+    if [ -n "${DXVK_STATE_CACHE_PATH:-}" ] && [ -d "${DXVK_STATE_CACHE_PATH}" ] && [ -s "$TEMP_GAME_LOG" ] && \
+       grep -qiE 'VK_ERROR_DEVICE_LOST|DXGI_ERROR_DEVICE_RESET|vkCreateGraphicsPipelines|vkCreateDevice|VK_ERROR_' "$TEMP_GAME_LOG" 2>/dev/null; then
+        echo -e "${YELLOW}[!] Fallo gráfico Vulkan/DXGI detectado: purgando caché de shaders en ${DXVK_STATE_CACHE_PATH}...${RESET}"
+        rm -rf "${DXVK_STATE_CACHE_PATH:?}"/* 2>/dev/null || true
+    fi
     mkdir -p "${DIR}/logs_errores"
     log_ts=$(date '+%Y%m%d_%H%M%S')
     log_app_name=$(basename "$TARGET_FILE" 2>/dev/null | tr -cd '[:alnum:]_.-' || echo "juego")

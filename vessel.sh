@@ -69,6 +69,7 @@ cmd_help() {
     echo -e "  ${GREEN}list, ls${RESET}                  Lista los juegos y programas registrados en la biblioteca"
     echo -e "  ${GREEN}add <ruta> [nombre]${RESET}       Registra un nuevo ejecutable en la biblioteca de Vessel"
     echo -e "  ${GREEN}status, drivers${RESET}           Muestra el estado de la GPU, monitor y librerías gráficas"
+    echo -e "  ${GREEN}clean-cache${RESET}               Limpia la caché centralizada de shaders DXVK/Vulkan"
     echo -e "  ${GREEN}kill, stop${RESET}                Detiene de forma limpia todos los procesos de Wine activos"
     echo -e "  ${GREEN}config${RESET}                    Abre el archivo de configuración central de drivers"
     echo -e "  ${GREEN}--version, -v${RESET}             Muestra la versión oficial de Vessel"
@@ -79,6 +80,7 @@ cmd_help() {
     echo -e "  ${YELLOW}--prefix <ruta>${RESET}              Utiliza un prefijo de Wine personalizado"
     echo -e "  ${YELLOW}--isolated${RESET}                   Ejecuta en un prefijo temporal aislado (sandbox limpio)"
     echo -e "  ${YELLOW}--fsr <quality|performance>${RESET}  Activa escalado FidelityFX Super Resolution (FSR)"
+    echo -e "  ${YELLOW}--wined3d${RESET}                    Usa OpenGL nativo de Wine en lugar de DXVK (Vulkan)"
     echo -e "  ${YELLOW}--program${RESET}                    Modo software/ofimática en lugar de perfil de juego"
     echo -e "  ${YELLOW}--native${RESET}                     Fuerza la ejecución como binario o script de Linux\n"
 
@@ -231,7 +233,7 @@ cmd_install() {
     touch "$marker_file"
 
     if [ -f "$LAUNCHER" ]; then
-        bash "$LAUNCHER" --program "$abs_installer"
+        bash "$LAUNCHER" --winver win10 --program "$abs_installer"
     else
         echo -e "${RED}[!] No se encontró el lanzador central: ${LAUNCHER}${RESET}"
         rm -f "$marker_file"
@@ -321,6 +323,16 @@ cmd_doctor() {
             echo -e "  ${GREEN}[✓]${RESET} Arquitectura WoW64 moderna (Wine 9/10 integrada activa)"
         else
             echo -e "  ${YELLOW}[!]${RESET} Soporte de 32-bit: Podría requerir 'sudo dpkg --add-architecture i386'"
+            total_warns=$((total_warns + 1))
+        fi
+        if command -v wineserver &>/dev/null; then
+            if pgrep -x wineserver >/dev/null 2>&1; then
+                echo -e "  ${GREEN}[✓]${RESET} Demonio wineserver: Disponible y activo"
+            else
+                echo -e "  ${GREEN}[✓]${RESET} Demonio wineserver: Disponible (en reposo)"
+            fi
+        else
+            echo -e "  ${YELLOW}[!]${RESET} wineserver no encontrado en PATH"
             total_warns=$((total_warns + 1))
         fi
     else
@@ -417,7 +429,12 @@ cmd_doctor() {
 
     local free_space
     free_space=$(df -h "$HOME" 2>/dev/null | awk 'NR==2 {print $4}' || echo "N/A")
-    echo -e "  ${GREEN}[✓]${RESET} Espacio Libre en Disco (\$HOME): ${BOLD}${free_space}${RESET}"
+    if [ -w "$HOME" ]; then
+        echo -e "  ${GREEN}[✓]${RESET} Permisos en \$HOME y Espacio Libre: ${BOLD}${free_space}${RESET} (Lectura/Escritura OK)"
+    else
+        echo -e "  ${RED}[✗]${RESET} Sin permisos de escritura en \$HOME (${HOME})"
+        total_errors=$((total_errors + 1))
+    fi
 
     # Resumen Final
     echo -e "\n${PURPLE}------------------------------------------------------------------------${RESET}"
@@ -438,6 +455,15 @@ cmd_runner() {
     local runners_script="${CORE_DIR}/gestor_runners.sh"
     [ ! -f "$runners_script" ] && runners_script="${DIR}/core/gestor_runners.sh"
     bash "$runners_script" "$@"
+}
+
+cmd_clean_cache() {
+    local dxvk_cache="$HOME/.cache/vessel/dxvk"
+    local shader_cache="$HOME/.cache/vessel/shaders"
+    echo -e "\n${CYAN}${BOLD}Limpiando caché centralizada de shaders DXVK/Vulkan...${RESET}"
+    rm -rf "$dxvk_cache"/* "$shader_cache"/* 2>/dev/null || true
+    mkdir -p "$dxvk_cache" "$shader_cache" 2>/dev/null || true
+    echo -e "${GREEN}[✓] Caché de shaders limpiada correctamente (${dxvk_cache}).${RESET}\n"
 }
 
 # ==============================================================================
@@ -520,7 +546,7 @@ cmd_run() {
                 pass_flags+=("$1" "$2")
                 shift 2
                 ;;
-            --isolated|--program)
+            --isolated|--program|--wined3d)
                 pass_flags+=("$1")
                 shift
                 ;;
@@ -576,16 +602,19 @@ cmd_run() {
             db_fsr=$(echo "$line_match" | cut -d'|' -f5)
             local db_cat
             db_cat=$(echo "$line_match" | cut -d'|' -f6)
+            local db_backend
+            db_backend=$(echo "$line_match" | cut -d'|' -f7)
 
             [ -n "$db_winver" ] && [ "$db_winver" != "default" ] && pass_flags+=("--winver" "$db_winver")
             [ -n "$db_fsr" ] && [ "$db_fsr" != "off" ] && pass_flags+=("--fsr" "$db_fsr")
             [ "$db_cat" = "programa" ] && pass_flags+=("--program")
+            [ "$db_backend" = "wined3d" ] && pass_flags+=("--wined3d")
         fi
     fi
 
     # 3. Si no es ID, ¿coincide con el nombre o ejecutable de algún juego en la base de datos?
     if [ -z "$target_resolved" ] && [ -f "$DB_FILE" ]; then
-        while IFS='|' read -r nombre ruta prefijo winver fsr cat; do
+        while IFS='|' read -r nombre ruta prefijo winver fsr cat backend; do
             [ -z "$nombre" ] && continue
             local base_db
             base_db=$(basename "$ruta")
@@ -595,6 +624,7 @@ cmd_run() {
                 [ -n "$winver" ] && [ "$winver" != "default" ] && pass_flags+=("--winver" "$winver")
                 [ -n "$fsr" ] && [ "$fsr" != "off" ] && pass_flags+=("--fsr" "$fsr")
                 [ "$cat" = "programa" ] && pass_flags+=("--program")
+                [ "$backend" = "wined3d" ] && pass_flags+=("--wined3d")
                 break
             fi
         done < "$DB_FILE"
@@ -837,6 +867,9 @@ case "$1" in
         ;;
     status|drivers|info)
         cmd_status
+        ;;
+    clean-cache)
+        cmd_clean_cache
         ;;
     kill|stop)
         cmd_kill

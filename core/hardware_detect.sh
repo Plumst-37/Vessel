@@ -11,6 +11,11 @@ if [ -z "$BASH_VERSION" ]; then
     fi
 fi
 
+# Evitar re-ejecutar la detección de hardware si ya fue cargada en la sesión actual
+if [ "${VESSEL_HW_LOADED:-0}" = "1" ] && [ -n "${CPU_CORES:-}" ]; then
+    return 0 2>/dev/null || exit 0
+fi
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
 if [ -f "${SCRIPT_DIR}/../menu-win.sh" ]; then
     DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
@@ -151,6 +156,7 @@ export GPU_TIER="${GPU_TIER:-media}"
 export VESSEL_HARDWARE_TIER="${VESSEL_HARDWARE_TIER:-media}"
 export HAS_VULKAN
 export HAS_VULKAN_GPL
+export VESSEL_HW_LOADED=1
 
 # Función para exportar las variables de entorno óptimas según el hardware
 aplicar_entorno_hardware() {
@@ -268,11 +274,11 @@ aplicar_entorno_hardware() {
     # 8. Renderizado según la GPU detectada (Garantiza usar la GPU dedicada en laptops híbridas)
     # Detección inteligente de GPU dedicada (sin invocar vulkaninfo repetidamente en cada arranque)
     if [ "${HAS_NVIDIA:-false}" = false ] && [ -z "${MESA_VK_DEVICE_SELECT:-}" ]; then
-        if [ -n "${DISCRETE_PCI_ID:-}" ]; then
+        if [ -n "${DISCRETE_PCI_ID:-}" ] && [ "${DISCRETE_PCI_ID}" != "none" ]; then
             export MESA_VK_DEVICE_SELECT="${DISCRETE_PCI_ID}!"
             export MESA_VK_DEVICE_SELECT_FORCE_DEFAULT_DEVICE=1
             [ -n "${DISCRETE_NAME:-}" ] && export DXVK_FILTER_DEVICE_NAME="${DISCRETE_NAME}"
-        elif command -v vulkaninfo &>/dev/null; then
+        elif [ -z "${DISCRETE_PCI_ID+x}" ] && command -v vulkaninfo &>/dev/null; then
             local discrete_info
             discrete_info=$(timeout 1s MESA_VK_DEVICE_SELECT=list vulkaninfo 2>&1 | grep -i 'discrete GPU' | head -n 1 || true)
             if [ -n "$discrete_info" ]; then
@@ -288,6 +294,13 @@ aplicar_entorno_hardware() {
                 if [ -n "$discrete_name" ]; then
                     export DXVK_FILTER_DEVICE_NAME="${discrete_name}"
                 fi
+                if [ -w "${CFG_HW:-}" ]; then
+                    echo "DISCRETE_PCI_ID=\"${discrete_pci_id:-none}\"" >> "$CFG_HW" 2>/dev/null || true
+                    echo "DISCRETE_NAME=\"${discrete_name:-}\"" >> "$CFG_HW" 2>/dev/null || true
+                fi
+            elif [ -w "${CFG_HW:-}" ]; then
+                echo "DISCRETE_PCI_ID=\"none\"" >> "$CFG_HW" 2>/dev/null || true
+                echo "DISCRETE_NAME=\"\"" >> "$CFG_HW" 2>/dev/null || true
             fi
         fi
     fi

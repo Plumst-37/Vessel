@@ -197,7 +197,7 @@ EOF
         echo "\"${dll}\"=\"native,builtin\"" >> "$reg_file"
     done
 
-    WINEPREFIX="$target_prefix" wine regedit /S "$reg_file" 2>/dev/null || true
+    WINEPREFIX="$target_prefix" "$WINE_BIN" regedit /S "$reg_file" 2>/dev/null || true
     rm -f "$reg_file"
     echo -e "${GREEN}✓ DllOverrides configurado: +140 librerías nativas registradas con prioridad en Wine (DirectX, VC++, Productividad y Sistema).${RESET}"
 }
