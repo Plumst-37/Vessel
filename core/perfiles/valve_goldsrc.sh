@@ -132,40 +132,44 @@ if os.path.exists(user_reg):
 ' "$WINEPREFIX" "$goldsrc_w" "$goldsrc_h" 2>/dev/null || true
             fi
 
-            # 6. Argumentos óptimos para GoldSrc (OpenGL nativo sin FBO conflictivo, resolución nativa, mouse crudo)
-            goldsrc_game="cstrike"
-            if [ -d "${TARGET_DIR}/cstrike" ]; then
+            # 6. Argumentos óptimos para GoldSrc clásico (omitir en NextClient moderno con next_lib.dll para evitar bucle de CPU en Updater GUI)
+            if [ -f "${TARGET_DIR}/next_lib.dll" ] || [ -f "${TARGET_DIR}/next_engine_mini.dll" ]; then
+                echo "[+] NextClient detectado: conservando argumentos nativos del lanzador."
+            else
                 goldsrc_game="cstrike"
-            elif [ -d "${TARGET_DIR}/czero" ]; then
-                goldsrc_game="czero"
-            elif [ -d "${TARGET_DIR}/valve" ]; then
-                goldsrc_game="valve"
-            fi
+                if [ -d "${TARGET_DIR}/cstrike" ]; then
+                    goldsrc_game="cstrike"
+                elif [ -d "${TARGET_DIR}/czero" ]; then
+                    goldsrc_game="czero"
+                elif [ -d "${TARGET_DIR}/valve" ]; then
+                    goldsrc_game="valve"
+                fi
 
-            if [[ ! "$EXTRA_APP_ARGS" =~ "-game" ]]; then
-                EXTRA_APP_ARGS="-game ${goldsrc_game} ${EXTRA_APP_ARGS}"
+                if [[ ! "$EXTRA_APP_ARGS" =~ "-game" ]]; then
+                    EXTRA_APP_ARGS="-game ${goldsrc_game} ${EXTRA_APP_ARGS}"
+                fi
+                if [[ ! "$EXTRA_APP_ARGS" =~ "-gl" ]]; then
+                    EXTRA_APP_ARGS="${EXTRA_APP_ARGS} -gl"
+                fi
+                if [[ ! "$EXTRA_APP_ARGS" =~ "-nofbo" ]]; then
+                    EXTRA_APP_ARGS="${EXTRA_APP_ARGS} -nofbo -nomsaa"
+                fi
+                if [[ ! "$EXTRA_APP_ARGS" =~ "-noforcemaccel" ]]; then
+                    EXTRA_APP_ARGS="${EXTRA_APP_ARGS} -noforcemaccel -noforcemparms -noforcemspd"
+                fi
+                # Eliminar -full / -fullscreen para evitar que SDL2 intente cambiar modos de hardware en Xwayland
+                EXTRA_APP_ARGS=$(echo "$EXTRA_APP_ARGS" | sed -E 's/-full(screen)?//g')
+                if [[ ! "$EXTRA_APP_ARGS" =~ "-window" ]] && [[ ! "$EXTRA_APP_ARGS" =~ "-sw" ]]; then
+                    EXTRA_APP_ARGS="${EXTRA_APP_ARGS} -window"
+                fi
+                if [[ ! "$EXTRA_APP_ARGS" =~ "-noborder" ]]; then
+                    EXTRA_APP_ARGS="${EXTRA_APP_ARGS} -noborder"
+                fi
+                if [[ ! "$EXTRA_APP_ARGS" =~ "-w " ]]; then
+                    EXTRA_APP_ARGS="${EXTRA_APP_ARGS} -w ${goldsrc_w} -h ${goldsrc_h}"
+                fi
+                if [[ ! "$EXTRA_APP_ARGS" =~ "-noupdate" ]]; then
+                    EXTRA_APP_ARGS="${EXTRA_APP_ARGS} -noupdate"
+                fi
+                EXTRA_APP_ARGS="${EXTRA_APP_ARGS} -stretchaspect -num_edicts 4096"
             fi
-            if [[ ! "$EXTRA_APP_ARGS" =~ "-gl" ]]; then
-                EXTRA_APP_ARGS="${EXTRA_APP_ARGS} -gl"
-            fi
-            if [[ ! "$EXTRA_APP_ARGS" =~ "-nofbo" ]]; then
-                EXTRA_APP_ARGS="${EXTRA_APP_ARGS} -nofbo -nomsaa"
-            fi
-            if [[ ! "$EXTRA_APP_ARGS" =~ "-noforcemaccel" ]]; then
-                EXTRA_APP_ARGS="${EXTRA_APP_ARGS} -noforcemaccel -noforcemparms -noforcemspd"
-            fi
-            # Eliminar -full / -fullscreen para evitar que SDL2 intente cambiar modos de hardware en Xwayland
-            EXTRA_APP_ARGS=$(echo "$EXTRA_APP_ARGS" | sed -E 's/-full(screen)?//g')
-            if [[ ! "$EXTRA_APP_ARGS" =~ "-window" ]] && [[ ! "$EXTRA_APP_ARGS" =~ "-sw" ]]; then
-                EXTRA_APP_ARGS="${EXTRA_APP_ARGS} -window"
-            fi
-            if [[ ! "$EXTRA_APP_ARGS" =~ "-noborder" ]]; then
-                EXTRA_APP_ARGS="${EXTRA_APP_ARGS} -noborder"
-            fi
-            if [[ ! "$EXTRA_APP_ARGS" =~ "-w " ]]; then
-                EXTRA_APP_ARGS="${EXTRA_APP_ARGS} -w ${goldsrc_w} -h ${goldsrc_h}"
-            fi
-            if [[ ! "$EXTRA_APP_ARGS" =~ "-noupdate" ]]; then
-                EXTRA_APP_ARGS="${EXTRA_APP_ARGS} -noupdate"
-            fi
-            EXTRA_APP_ARGS="${EXTRA_APP_ARGS} -stretchaspect -num_edicts 4096"
