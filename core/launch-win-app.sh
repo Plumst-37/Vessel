@@ -1806,7 +1806,7 @@ limpiar_zombies_juego() {
         if [ "$p" != "$$" ] && [ "$p" != "$PPID" ]; then
             local cmdline
             cmdline=$(cat "/proc/$p/cmdline" 2>/dev/null | tr '\0' ' ' || true)
-            if ! echo "$cmdline" | grep -qiE 'launch-win-app|menu_tui|menu-win|bash|python' && \
+            if ! echo "$cmdline" | grep -qiE 'launch-win-app|menu_tui|menu-win|bash|python|xfce4-terminal|konsole|gnome-terminal|xterm|luma-win|vessel|ejecutar_y_volver|gio|xdg-open' && \
                echo "$cmdline" | grep -qiE 'wine|\.exe'; then
                 kill -9 "$p" 2>/dev/null || true
             fi
