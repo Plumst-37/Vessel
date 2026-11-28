@@ -57,4 +57,6 @@ find "$target_system_dir" -maxdepth 2 -name "*.ini" 2>/dev/null | while read -r 
         sed -i "s/^FovAngleDegrees=.*/FovAngleDegrees=${target_fov}/" "$ueini" 2>/dev/null || true
     fi
 done
-[ -d "${TARGET_DIR}/Engine" ] || [ -d "${TARGET_DIR}/Binaries" ] && EXTRA_APP_ARGS="${EXTRA_APP_ARGS} -fullscreen"
+if [ -d "${TARGET_DIR}/Engine" ] || [ -d "${TARGET_DIR}/Binaries" ]; then
+    EXTRA_APP_ARGS="${EXTRA_APP_ARGS} -fullscreen"
+fi
