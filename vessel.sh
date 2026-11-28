@@ -70,6 +70,7 @@ cmd_help() {
     echo -e "  ${GREEN}add <ruta> [nombre]${RESET}       Registra un nuevo ejecutable en la biblioteca de Vessel"
     echo -e "  ${GREEN}status, drivers${RESET}           Muestra el estado de la GPU, monitor y librerías gráficas"
     echo -e "  ${GREEN}clean-cache${RESET}               Limpia la caché centralizada de shaders DXVK/Vulkan"
+    echo -e "  ${GREEN}update${RESET}                    Actualiza Vessel (GitHub) y paquetes del sistema (apt)"
     echo -e "  ${GREEN}kill, stop${RESET}                Detiene de forma limpia todos los procesos de Wine activos"
     echo -e "  ${GREEN}config${RESET}                    Abre el archivo de configuración central de drivers"
     echo -e "  ${GREEN}--version, -v${RESET}             Muestra la versión oficial de Vessel"
@@ -870,6 +871,17 @@ case "$1" in
         ;;
     clean-cache)
         cmd_clean_cache
+        ;;
+    update|upgrade)
+        echo -e "\n${CYAN}${BOLD}Actualizando Vessel y paquetes del sistema...${RESET}"
+        if [ -d "${DIR}/.git" ]; then
+            git -C "$DIR" pull origin main || true
+            : > "${DIR}/version.txt" 2>/dev/null || true
+        fi
+        if command -v apt &>/dev/null; then
+            sudo apt update && sudo apt upgrade -y
+        fi
+        echo -e "${GREEN}[✓] Actualización completada.${RESET}\n"
         ;;
     kill|stop)
         cmd_kill

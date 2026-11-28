@@ -2397,6 +2397,7 @@ def menu_actualizar(hw, cfg, es_primer_inicio=False):
         menu_opcs = [
             ("1", "⚡ Buscar y descargar actualizaciones de Vessel en GitHub"),
             ("2", f"🐧 Descargar paquetes del sistema ({distro_detectada}) y drivers Vulkan"),
+            ("3", "⬆️  Actualizar sistema Linux completo (sudo apt update && sudo apt upgrade)"),
             ("0", "↩️  Volver al Menú Principal")
         ]
         sel_act = submenu_interactivo("🔄  Centro de Actualizaciones de Vessel", menu_opcs, hw, cfg)
@@ -2408,6 +2409,16 @@ def menu_actualizar(hw, cfg, es_primer_inicio=False):
             return
         elif sel_act == "2":
             pass  # Continúa a la selección de distribución
+        elif sel_act == "3":
+            os.system("clear")
+            print(f"{CYAN}{BOLD}⬆️  ACTUALIZACIÓN COMPLETA DEL SISTEMA (APT UPDATE & UPGRADE){RESET}\n")
+            if shutil.which("apt"):
+                subprocess.run(["bash", "-c", "sudo apt update && sudo apt upgrade -y"])
+                print(f"\n{GREEN}✔ Sistema actualizado correctamente.{RESET}")
+            else:
+                print(f"{YELLOW}⚠️  'apt' no está disponible en esta distribución.{RESET}")
+            pausar()
+            return
         else:
             return
 
