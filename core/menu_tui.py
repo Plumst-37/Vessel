@@ -2217,6 +2217,9 @@ def menu_herramientas(hw, cfg):
                 ("9", "🕹️  DirectDraw Retro OpenGL (cnc-ddraw para clásicos 1995-2003)"),
                 ("10", "⚡ VKD3D-Proton: DirectX 12 a Vulkan (Resident Evil 4 Remake y juegos DX12)"),
                 ("11", "🛠️  Apartado Modular de Drivers (DXVK, VKD3D-Proton, GPU y Pantalla)\n• Revisa el estado de drivers abiertos y configuración de pantalla objetivo"),
+                ("12", "🌐 Microsoft Edge WebView2 Evergreen Runtime\n• Necesario para instaladores web modernos y aplicaciones Tauri / Electron"),
+                ("13", "📦 Wine Mono (.NET Desktop Runtime)\n• Soporte para aplicaciones C#, WPF y Windows Forms"),
+                ("14", "🍷 Gestor y Descargador de Runners de Wine (Kron4ek WOW64 / Wine-GE)\n• Administra versiones especializadas de Wine para DirectX 12 y Media Foundation"),
                 ("0", "↩️  Cancelar")
             ]
             w_sel = submenu_interactivo("📦  Instalar Dependencias y DLLs de Windows", sub_winetricks, hw, cfg)
@@ -2266,6 +2269,31 @@ def menu_herramientas(hw, cfg):
                 os.system("clear")
                 script_drv = os.path.join(CORE_DIR, "gestor_drivers.sh") if os.path.exists(os.path.join(CORE_DIR, "gestor_drivers.sh")) else os.path.join(DIR, "core", "gestor_drivers.sh")
                 subprocess.run(["bash", script_drv, "estado"])
+                pausar()
+            elif w_sel == "12":
+                os.system("clear")
+                subprocess.run(["bash", script_lib, "instalar_webview2", WINEPREFIX])
+                pausar()
+            elif w_sel == "13":
+                os.system("clear")
+                subprocess.run(["bash", script_lib, "instalar_mono", WINEPREFIX])
+                pausar()
+            elif w_sel == "14":
+                os.system("clear")
+                runners_script = os.path.join(CORE_DIR, "gestor_runners.sh") if os.path.exists(os.path.join(CORE_DIR, "gestor_runners.sh")) else os.path.join(DIR, "core", "gestor_runners.sh")
+                subprocess.run(["bash", runners_script, "--list"])
+                print(f"\n{CYAN}Opciones de descarga:{RESET}")
+                print("  [1] Descargar Kron4ek Wine-Staging WoW64 (Recomendado para DX12)")
+                print("  [2] Descargar GloriousEggroll Wine-GE")
+                print("  [0] Cancelar")
+                try:
+                    r_opc = input(f"\n{BOLD}Selecciona una opción [0-2]: {RESET}").strip()
+                    if r_opc == "1":
+                        subprocess.run(["bash", runners_script, "--kron4ek"])
+                    elif r_opc == "2":
+                        subprocess.run(["bash", runners_script, "--wine-ge"])
+                except Exception:
+                    pass
                 pausar()
         elif sel == "7":
             os.system("clear")

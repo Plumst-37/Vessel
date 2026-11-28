@@ -581,6 +581,9 @@ fi
 if [ -z "$WINE_CMD" ] && command -v wine &> /dev/null; then
     WINE_CMD="wine"
     RUNNER_LABEL="Wine del Sistema ($(wine --version 2>/dev/null || echo "Estándar"))"
+    if [ "${PE_HAS_DX12:-0}" = "1" ]; then
+        echo -e "${YELLOW}💡 Nota: Este juego utiliza DirectX 12. Si experimentas problemas con Wine del sistema, puedes usar un runner especializado con: ${BOLD}vessel runner --kron4ek${RESET}"
+    fi
 fi
 
 if [ -z "$WINE_CMD" ]; then
@@ -1126,12 +1129,14 @@ acelerar_hardware_sistema() {
     elif command -v cpupower &>/dev/null; then
         cpupower frequency-set -g performance 2>/dev/null || true
     fi
-    for gov in /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor; do
-        [ -w "$gov" ] && echo performance > "$gov" 2>/dev/null || true
-    done
-    for epp in /sys/devices/system/cpu/cpu*/cpufreq/energy_performance_preference; do
-        [ -w "$epp" ] && echo performance > "$epp" 2>/dev/null || true
-    done
+    if [ "$(id -u)" -eq 0 ]; then
+        for gov in /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor; do
+            [ -w "$gov" ] && echo performance > "$gov" 2>/dev/null || true
+        done
+        for epp in /sys/devices/system/cpu/cpu*/cpufreq/energy_performance_preference; do
+            [ -w "$epp" ] && echo performance > "$epp" 2>/dev/null || true
+        done
+    fi
 
     # 2. Desbloqueo y Persistencia de Relojes de GPU (con timeout para evitar bloqueos en Wayland/Optimus)
     if [ "${HAS_NVIDIA:-false}" = true ] || lspci 2>/dev/null | grep -qi "NVIDIA" || [ -d "/proc/driver/nvidia" ]; then
@@ -1144,33 +1149,36 @@ acelerar_hardware_sistema() {
         export __GL_THREADED_OPTIMIZATIONS=1
         export __GL_YIELD="NOTHING"
     elif [ "${HAS_AMD_DEDICATED:-false}" = true ] || lspci 2>/dev/null | grep -qiE "amd|radeon"; then
-        for dpm in /sys/class/drm/card*/device/power_dpm_force_performance_level; do
-            [ -w "$dpm" ] && echo high > "$dpm" 2>/dev/null || true
-        done
+        if [ "$(id -u)" -eq 0 ]; then
+            for dpm in /sys/class/drm/card*/device/power_dpm_force_performance_level; do
+                [ -w "$dpm" ] && echo high > "$dpm" 2>/dev/null || true
+            done
+        fi
         export RADV_PERFTEST="gpl"
     elif [ "${HAS_INTEL:-false}" = true ]; then
         export ANV_ENABLE_PIPELINE_CACHE=1
     fi
 
-    # 3. Optimización de Memoria y Kernel en Caliente (Sin bloqueo si no es root)
-    if [ -w /sys/kernel/mm/transparent_hugepage/enabled ]; then
-        echo madvise > /sys/kernel/mm/transparent_hugepage/enabled 2>/dev/null || true
+    # 3. Optimización de Memoria y Kernel en Caliente (Solo si se ejecuta con permisos de root)
+    if [ "$(id -u)" -eq 0 ]; then
+        if [ -w /sys/kernel/mm/transparent_hugepage/enabled ]; then
+            echo madvise > /sys/kernel/mm/transparent_hugepage/enabled 2>/dev/null || true
+        fi
+        if [ -w /proc/sys/kernel/split_lock_mitigate ]; then
+            echo 0 > /proc/sys/kernel/split_lock_mitigate 2>/dev/null || true
+        fi
+        if [ -w /proc/sys/vm/swappiness ]; then
+            echo 10 > /proc/sys/vm/swappiness 2>/dev/null || true
+        fi
+        if [ -w /proc/sys/vm/vfs_cache_pressure ]; then
+            echo 50 > /proc/sys/vm/vfs_cache_pressure 2>/dev/null || true
+        fi
+        if [ -w /proc/sys/vm/max_map_count ]; then
+            echo 2147483642 > /proc/sys/vm/max_map_count 2>/dev/null || true
+        fi
     fi
     export WINE_THP=1
     export MESA_SHADER_CACHE_MAX_SIZE="4096MB"
-
-    if [ -w /proc/sys/kernel/split_lock_mitigate ]; then
-        echo 0 > /proc/sys/kernel/split_lock_mitigate 2>/dev/null || true
-    fi
-    if [ -w /proc/sys/vm/swappiness ]; then
-        echo 10 > /proc/sys/vm/swappiness 2>/dev/null || true
-    fi
-    if [ -w /proc/sys/vm/vfs_cache_pressure ]; then
-        echo 50 > /proc/sys/vm/vfs_cache_pressure 2>/dev/null || true
-    fi
-    if [ -w /proc/sys/vm/max_map_count ]; then
-        echo 2147483642 > /proc/sys/vm/max_map_count 2>/dev/null || true
-    fi
 
     # 4. Descriptores de Archivos y Bloqueo de Memoria en Proceso
     ulimit -n 1048576 2>/dev/null || ulimit -n 524288 2>/dev/null || true
@@ -1516,6 +1524,39 @@ detectar_pantalla_activa() {
                 ACTIVE_MON_H="$max_h"
                 ACTIVE_MON_X="$max_x"
                 ACTIVE_MON_Y="$max_y"
+            fi
+        fi
+    fi
+
+    # Fallback Wayland nativo: kscreen-doctor (KDE Wayland) o wlr-randr (Sway / Hyprland / wlroots)
+    if [ -z "$ACTIVE_MON_W" ]; then
+        if command -v kscreen-doctor &>/dev/null; then
+            local ks_out
+            ks_out=$(kscreen-doctor -o 2>/dev/null || true)
+            if [ -n "$ks_out" ]; then
+                while IFS= read -r kline; do
+                    if [[ "$kline" =~ Geometry:\ *([0-9]+),([0-9]+)\ +([0-9]+)x([0-9]+) ]]; then
+                        ACTIVE_MON_X="${BASH_REMATCH[1]}"
+                        ACTIVE_MON_Y="${BASH_REMATCH[2]}"
+                        ACTIVE_MON_W="${BASH_REMATCH[3]}"
+                        ACTIVE_MON_H="${BASH_REMATCH[4]}"
+                        break
+                    fi
+                done <<< "$ks_out"
+            fi
+        elif command -v wlr-randr &>/dev/null; then
+            local wlr_out
+            wlr_out=$(wlr-randr 2>/dev/null || true)
+            if [[ "$wlr_out" =~ ([0-9]+)x([0-9]+)\ px,\ [0-9.]+Hz\ \(current\)\ at\ ([0-9]+),([0-9]+) ]]; then
+                ACTIVE_MON_W="${BASH_REMATCH[1]}"
+                ACTIVE_MON_H="${BASH_REMATCH[2]}"
+                ACTIVE_MON_X="${BASH_REMATCH[3]}"
+                ACTIVE_MON_Y="${BASH_REMATCH[4]}"
+            elif [[ "$wlr_out" =~ Position:\ ([0-9]+),([0-9]+).*Current\ mode:\ ([0-9]+)x([0-9]+) ]]; then
+                ACTIVE_MON_X="${BASH_REMATCH[1]}"
+                ACTIVE_MON_Y="${BASH_REMATCH[2]}"
+                ACTIVE_MON_W="${BASH_REMATCH[3]}"
+                ACTIVE_MON_H="${BASH_REMATCH[4]}"
             fi
         fi
     fi
@@ -1912,24 +1953,15 @@ else
     renice -n -5 $$ 2>/dev/null || true
 fi
 
-# Optimización profunda de RAM: Liberación de cachés residuales y compactación de memoria para evitar stuttering
-RAM_AVAIL_MB=$(free -m 2>/dev/null | awk '/^Mem:/{print $7}' || echo 8192)
-if [ -n "$RAM_AVAIL_MB" ] && [ "$RAM_AVAIL_MB" -lt 3500 ]; then
-    sync 2>/dev/null || true
-    if [ -w /proc/sys/vm/drop_caches ]; then
-        echo 3 > /proc/sys/vm/drop_caches 2>/dev/null || true
-    fi
-    if [ -w /proc/sys/vm/compact_memory ]; then
-        echo 1 > /proc/sys/vm/compact_memory 2>/dev/null || true
+# Optimización profunda de RAM y kernel (solo con privilegios de root para no retrasar lanzamientos normales)
+if [ "$(id -u)" -eq 0 ]; then
+    RAM_AVAIL_MB=$(free -m 2>/dev/null | awk '/^Mem:/{print $7}' || echo 8192)
+    if [ -n "$RAM_AVAIL_MB" ] && [ "$RAM_AVAIL_MB" -lt 3500 ]; then
+        sync 2>/dev/null || true
+        [ -w /proc/sys/vm/drop_caches ] && echo 3 > /proc/sys/vm/drop_caches 2>/dev/null || true
+        [ -w /proc/sys/vm/compact_memory ] && echo 1 > /proc/sys/vm/compact_memory 2>/dev/null || true
     fi
 fi
-
-# Ajuste de CPU Governor a alto rendimiento (performance) si los privilegios del kernel lo admiten
-for gov in /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor; do
-    if [ -w "$gov" ]; then
-        echo "performance" > "$gov" 2>/dev/null || true
-    fi
-done
 
 # Desactivar 'set -e' antes de la ejecución para garantizar que salidas con código != 0 no interrumpan la limpieza
 set +e
@@ -2037,9 +2069,12 @@ EXIT_STATUS="${PIPESTATUS[0]}"
 EXEC_DURATION=$(( $(date +%s) - EXEC_START_TIME ))
 
 # Sincronización activa de subprocesos de Windows:
-# Si el ejecutable lanzó procesos secundarios (lanzadores, instaladores, subprocesses de juegos),
-# mantenemos la sesión activa mientras existan procesos de juego en el WINEPREFIX.
-if [ -n "$WINEPREFIX" ] && [ -d "$WINEPREFIX" ]; then
+# Si un juego lanzó procesos secundarios (lanzadores tipo GTA V / PlayGTAV),
+# mantenemos la sesión activa mientras existan procesos de ESE juego en el WINEPREFIX.
+# Para programas normales de escritorio, salimos inmediatamente al cerrarse la ventana.
+if [ "$IS_PROGRAM" -ne 1 ] && [ "${PE_CATEGORY:-juego}" != "programa" ] && [ -n "$WINEPREFIX" ] && [ -d "$WINEPREFIX" ]; then
+    target_base=$(basename "$TARGET_FILE" 2>/dev/null | tr '[:upper:]' '[:lower:]')
+    target_dir_base=$(basename "$TARGET_DIR" 2>/dev/null | tr '[:upper:]' '[:lower:]')
     while true; do
         has_active_game=false
         for pid_env in /proc/[0-9]*/environ; do
@@ -2050,10 +2085,13 @@ if [ -n "$WINEPREFIX" ] && [ -d "$WINEPREFIX" ]; then
                 [ "$c_pid" -eq "$$" ] 2>/dev/null && continue
                 [ "$c_pid" -eq "$PPID" ] 2>/dev/null && continue
                 cmdline=$(cat "/proc/${c_pid}/cmdline" 2>/dev/null | tr '\0' ' ' || true)
-                if echo "$cmdline" | grep -qiE '\.exe' && \
-                   ! echo "$cmdline" | grep -qiE 'services\.exe|winedevice\.exe|plugplay\.exe|explorer\.exe|rpcss\.exe|conhost\.exe|svchost\.exe|wineboot\.exe'; then
+                cmdline_lower=$(echo "$cmdline" | tr '[:upper:]' '[:lower:]')
+
+                # Solo vigilar procesos pertenecientes a este juego o su directorio, NO otros programas abiertos en el prefijo
+                if echo "$cmdline_lower" | grep -qiE '\.exe' && \
+                   ! echo "$cmdline_lower" | grep -qiE 'services\.exe|winedevice\.exe|plugplay\.exe|explorer\.exe|rpcss\.exe|conhost\.exe|svchost\.exe|wineboot\.exe' && \
+                   ( [ -z "$target_base" ] || echo "$cmdline_lower" | grep -qF "$target_base" || echo "$cmdline_lower" | grep -qF "$target_dir_base" ); then
                     has_active_game=true
-                    # Elevar prioridad del proceso hijo del juego en tiempo real
                     renice -n -10 -p "$c_pid" >/dev/null 2>&1 || renice -n -5 -p "$c_pid" >/dev/null 2>&1 || true
                     ionice -c 2 -n 0 -p "$c_pid" >/dev/null 2>&1 || true
                     break

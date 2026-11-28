@@ -35,10 +35,14 @@ CONFIG_USER="${CONFIG_DIR}/config_rendimiento.cfg"
 
 # Cargar preferencias
 [ -f "$CONFIG_USER" ] && source "$CONFIG_USER"
-if [ -f "${CORE_DIR}/hardware_detect.sh" ]; then
-    source "${CORE_DIR}/hardware_detect.sh"
-else
-    source "${DIR}/hardware_detect.sh"
+
+# Si las variables de hardware ya fueron cargadas y exportadas por el lanzador, evitar re-ejecutar hardware_detect.sh
+if [ -z "${RAM_TOTAL_MB:-}" ] && [ -z "${HAS_NVIDIA:-}" ]; then
+    if [ -f "${CORE_DIR}/hardware_detect.sh" ]; then
+        source "${CORE_DIR}/hardware_detect.sh"
+    elif [ -f "${DIR}/hardware_detect.sh" ]; then
+        source "${DIR}/hardware_detect.sh"
+    fi
 fi
 
 # Cargar gpu_env.conf si existe

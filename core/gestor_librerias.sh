@@ -31,13 +31,15 @@ WHITE='\033[1;37m'
 BOLD='\033[1m'
 RESET='\033[0m'
 
+WINE_BIN="${WINE_CMD:-${WINE:-wine}}"
+
 mkdir -p "$CACHE_DIR" "$HERRAMIENTAS_DIR"
 
 # 1. ACTUALIZAR BASE DE DATOS DE MANDOS (gamecontrollerdb.txt)
 actualizar_gamecontrollerdb() {
     echo -e "${CYAN}🎮 Actualizando base comunitaria de mandos (SDL_GameControllerDB)...${RESET}"
     local target_file="${HERRAMIENTAS_DIR}/gamecontrollerdb.txt"
-    if curl -fsSL -k --retry 3 --connect-timeout 10 --max-time 30 "https://raw.githubusercontent.com/mdqinc/SDL_GameControllerDB/master/gamecontrollerdb.txt" -o "${target_file}.tmp"; then
+    if curl -fsSL --retry 3 --connect-timeout 10 --max-time 30 "https://raw.githubusercontent.com/mdqinc/SDL_GameControllerDB/master/gamecontrollerdb.txt" -o "${target_file}.tmp"; then
         if [ -s "${target_file}.tmp" ]; then
             mv -f "${target_file}.tmp" "$target_file"
             echo -e "${GREEN}✓ Mapeos de mandos actualizados con éxito ($(wc -l < "$target_file") perfiles cargados).${RESET}"
@@ -58,7 +60,7 @@ instalar_cnc_ddraw() {
     if [ ! -f "${ddraw_cache}/ddraw.dll" ]; then
         echo -e "${CYAN}📦 Descargando cnc-ddraw (vía FunkyFr3sh/cnc-ddraw)...${RESET}"
         local zip_file="${ddraw_cache}/cnc-ddraw.zip"
-        if curl -fsSL -k --retry 3 --connect-timeout 10 --max-time 60 "https://github.com/FunkyFr3sh/cnc-ddraw/releases/latest/download/cnc-ddraw.zip" -o "$zip_file"; then
+        if curl -fsSL --retry 3 --connect-timeout 10 --max-time 60 "https://github.com/FunkyFr3sh/cnc-ddraw/releases/latest/download/cnc-ddraw.zip" -o "$zip_file"; then
             if command -v unzip &>/dev/null; then
                 unzip -q -o "$zip_file" -d "$ddraw_cache"
                 rm -f "$zip_file"
@@ -105,7 +107,7 @@ instalar_dsoal() {
     if [ ! -f "${dsoal_cache}/dsound.dll" ] || [ ! -f "${dsoal_cache}/dsoal-aldrv.dll" ]; then
         echo -e "${CYAN}📦 Descargando DSOAL (Audio 3D EAX binaural vía kcat/dsoal)...${RESET}"
         local zip_file="${dsoal_cache}/DSOAL.zip"
-        if curl -fsSL -k --retry 3 --connect-timeout 10 --max-time 60 "https://github.com/kcat/dsoal/releases/download/latest-master/DSOAL.zip" -o "$zip_file"; then
+        if curl -fsSL --retry 3 --connect-timeout 10 --max-time 60 "https://github.com/kcat/dsoal/releases/download/latest-master/DSOAL.zip" -o "$zip_file"; then
             if command -v unzip &>/dev/null; then
                 unzip -q -o "$zip_file" -d "$dsoal_cache"
                 rm -f "$zip_file"
@@ -210,9 +212,9 @@ instalar_directx_completo() {
     echo -e "\n${CYAN}🎮 [ PASO 1/5 ] Descargando e instalando DirectX End-User Runtimes Completo...${RESET}"
     if [ ! -f "$dx_exe" ] || [ ! -s "$dx_exe" ]; then
         echo -e "${CYAN}  📦 Descargando paquete oficial DirectX Junio 2010 Redist (96 MB)...${RESET}"
-        if ! curl -fsSL -k --retry 3 --connect-timeout 15 --max-time 180 "https://files.holarse-linuxgaming.de/mirrors/microsoft/directx_Jun2010_redist.exe" -o "${dx_exe}.tmp"; then
+        if ! curl -fsSL --retry 3 --connect-timeout 15 --max-time 180 "https://files.holarse-linuxgaming.de/mirrors/microsoft/directx_Jun2010_redist.exe" -o "${dx_exe}.tmp"; then
             echo -e "${YELLOW}  ⚠ Falló servidor primario, intentando espejo alternativo...${RESET}"
-            curl -fsSL -k --retry 3 --connect-timeout 15 --max-time 180 "https://archive.org/download/directx_Jun2010_redist/directx_Jun2010_redist.exe" -o "${dx_exe}.tmp" || true
+            curl -fsSL --retry 3 --connect-timeout 15 --max-time 180 "https://archive.org/download/directx_Jun2010_redist/directx_Jun2010_redist.exe" -o "${dx_exe}.tmp" || true
         fi
         if [ -s "${dx_exe}.tmp" ]; then
             mv -f "${dx_exe}.tmp" "$dx_exe"
@@ -281,25 +283,25 @@ instalar_vcredist_aio() {
 
     if [ ! -f "$vcx86" ] || [ ! -s "$vcx86" ]; then
         echo -e "${CYAN}  📦 Descargando Visual C++ 2015-2022 (32-bit)...${RESET}"
-        curl -fsSL -k --retry 3 --connect-timeout 15 --max-time 120 "https://aka.ms/vs/17/release/vc_redist.x86.exe" -o "$vcx86" || true
+        curl -fsSL --retry 3 --connect-timeout 15 --max-time 120 "https://aka.ms/vs/17/release/vc_redist.x86.exe" -o "$vcx86" || true
     fi
     if [ ! -f "$vcx64" ] || [ ! -s "$vcx64" ]; then
         echo -e "${CYAN}  📦 Descargando Visual C++ 2015-2022 (64-bit)...${RESET}"
-        curl -fsSL -k --retry 3 --connect-timeout 15 --max-time 120 "https://aka.ms/vs/17/release/vc_redist.x64.exe" -o "$vcx64" || true
+        curl -fsSL --retry 3 --connect-timeout 15 --max-time 120 "https://aka.ms/vs/17/release/vc_redist.x64.exe" -o "$vcx64" || true
     fi
 
     if [ -f "$vcx86" ] && [ -s "$vcx86" ]; then
-        echo -e "${CYAN}  🔧 Instalando Visual C++ 2015-2022 x86 en Wine...${RESET}"
-        WINEPREFIX="$target_prefix" wine "$vcx86" /install /quiet /norestart >/dev/null 2>&1 || true
+        echo -e "${CYAN}  🔧 Instalando Visual C++ 2015-2022 x86 en Wine (${WINE_BIN})...${RESET}"
+        WINEPREFIX="$target_prefix" "$WINE_BIN" "$vcx86" /install /quiet /norestart >/dev/null 2>&1 || true
     fi
     if [ -f "$vcx64" ] && [ -s "$vcx64" ] && [ -d "${target_prefix}/drive_c/windows/syswow64" ]; then
-        echo -e "${CYAN}  🔧 Instalando Visual C++ 2015-2022 x64 en Wine...${RESET}"
-        WINEPREFIX="$target_prefix" wine "$vcx64" /install /quiet /norestart >/dev/null 2>&1 || true
+        echo -e "${CYAN}  🔧 Instalando Visual C++ 2015-2022 x64 en Wine (${WINE_BIN})...${RESET}"
+        WINEPREFIX="$target_prefix" "$WINE_BIN" "$vcx64" /install /quiet /norestart >/dev/null 2>&1 || true
     fi
 
     if command -v winetricks &>/dev/null; then
         echo -e "${CYAN}  🔧 Instalando runtimes complementarios (VC++ 2010, 2012, 2013, MFC42)...${RESET}"
-        WINEPREFIX="$target_prefix" winetricks -q vcrun2010 vcrun2012 vcrun2013 mfc42 >/dev/null 2>&1 || true
+        WINE="$WINE_BIN" WINEPREFIX="$target_prefix" winetricks -q vcrun2010 vcrun2012 vcrun2013 mfc42 >/dev/null 2>&1 || true
     fi
 
     echo -e "${GREEN}✓ Microsoft Visual C++ 2005-2022 AIO instalado con éxito.${RESET}"
@@ -310,7 +312,7 @@ instalar_corefonts() {
     local target_prefix="${1:-${DIR}/wineprefix}"
     echo -e "\n${CYAN}🔤 [ PASO 3/5 ] Instalando Fuentes Oficiales de Windows (Corefonts)...${RESET}"
     if command -v winetricks &>/dev/null; then
-        WINEPREFIX="$target_prefix" winetricks -q corefonts >/dev/null 2>&1 || true
+        WINE="$WINE_BIN" WINEPREFIX="$target_prefix" winetricks -q corefonts >/dev/null 2>&1 || true
         echo -e "${GREEN}✓ Fuentes de Windows (Arial, Times, Tahoma, Courier, Verdana) instaladas.${RESET}"
     fi
 }
@@ -320,7 +322,7 @@ instalar_directplay() {
     local target_prefix="${1:-${DIR}/wineprefix}"
     echo -e "\n${CYAN}🌐 [ PASO 4/5 ] Habilitando DirectPlay para multijugador y LAN...${RESET}"
     if command -v winetricks &>/dev/null; then
-        WINEPREFIX="$target_prefix" winetricks -q directplay >/dev/null 2>&1 || true
+        WINE="$WINE_BIN" WINEPREFIX="$target_prefix" winetricks -q directplay >/dev/null 2>&1 || true
         echo -e "${GREEN}✓ DirectPlay habilitado y listo para multijugador.${RESET}"
     fi
 }
@@ -349,7 +351,7 @@ instalar_d3d8to9() {
             cp -f "${DIR}/../librerias/d3d8to9/d3d8.dll" "$d3d8_dll"
         else
             echo -e "${CYAN}  📦 Descargando D3D8to9 desde GitHub...${RESET}"
-            curl -fsSL -k --retry 3 --connect-timeout 10 --max-time 60 "https://github.com/crosire/d3d8to9/releases/download/v1.16.0/d3d8.dll" -o "$d3d8_dll" || true
+            curl -fsSL --retry 3 --connect-timeout 10 --max-time 60 "https://github.com/crosire/d3d8to9/releases/download/v1.16.0/d3d8.dll" -o "$d3d8_dll" || true
         fi
     fi
 
@@ -375,7 +377,7 @@ instalar_dxvk_nvapi() {
         else
             echo -e "${CYAN}  📦 Descargando DXVK-NVAPI desde GitHub...${RESET}"
             local tar_file="${nvapi_cache}/dxvk-nvapi.tar.gz"
-            if curl -fsSL -k --retry 3 --connect-timeout 10 --max-time 60 "https://github.com/jp7677/dxvk-nvapi/releases/download/v0.9.3/dxvk-nvapi-v0.9.3.tar.gz" -o "$tar_file"; then
+            if curl -fsSL --retry 3 --connect-timeout 10 --max-time 60 "https://github.com/jp7677/dxvk-nvapi/releases/download/v0.9.3/dxvk-nvapi-v0.9.3.tar.gz" -o "$tar_file"; then
                 tar -xzf "$tar_file" -C "$nvapi_cache" 2>/dev/null || true
                 rm -f "$tar_file"
             fi
@@ -424,7 +426,7 @@ instalar_vkd3d_proton() {
         echo -e "${CYAN}  📦 Descargando VKD3D-Proton oficial v2.14.1 desde GitHub...${RESET}"
         local zst_file="${vkd3d_cache}/vkd3d-proton-2.14.1.tar.zst"
         local url="https://github.com/HansKristian-Work/vkd3d-proton/releases/download/v2.14.1/vkd3d-proton-2.14.1.tar.zst"
-        if curl -fsSL -k --retry 3 --connect-timeout 15 --max-time 180 "$url" -o "$zst_file"; then
+        if curl -fsSL --retry 3 --connect-timeout 15 --max-time 180 "$url" -o "$zst_file"; then
             mkdir -p "${vkd3d_cache}/extract_tmp"
             local decompressed=false
             if command -v tar &>/dev/null && tar --help 2>&1 | grep -q "zstd"; then
@@ -512,7 +514,7 @@ instalar_icu_windows10() {
 
     if [ ! -f "$icu_tar" ] || [ ! -s "$icu_tar" ]; then
         echo -e "${CYAN}📦 Descargando librerías oficiales de Unicode ICU para Windows 10/11 (Qt6/PySide6)...${RESET}"
-        if curl -fsSL -k --retry 3 --connect-timeout 10 --max-time 120 "https://github.com/FaithLife-Community/icu/releases/download/72.1-custom%2B4/icu-win.tar.gz" -o "${icu_tar}.tmp"; then
+        if curl -fsSL --retry 3 --connect-timeout 10 --max-time 120 "https://github.com/FaithLife-Community/icu/releases/download/72.1-custom%2B4/icu-win.tar.gz" -o "${icu_tar}.tmp"; then
             if [ -s "${icu_tar}.tmp" ]; then
                 mv -f "${icu_tar}.tmp" "$icu_tar"
             fi
@@ -533,6 +535,87 @@ instalar_icu_windows10() {
     fi
 }
 
+# 10.6 INSTALAR MICROSOFT EDGE WEBVIEW2 (Para apps modernas Tauri, Electron, Web installers)
+instalar_webview2() {
+    local target_prefix="${1:-${DIR}/wineprefix}"
+    local wv_cache="${CACHE_DIR}/webview2"
+    mkdir -p "$wv_cache"
+    local wv_exe="${wv_cache}/MicrosoftEdgeWebview2Setup.exe"
+
+    if [ -d "${target_prefix}/drive_c/Program Files (x86)/Microsoft/EdgeWebView" ] || \
+       [ -d "${target_prefix}/drive_c/Program Files/Microsoft/EdgeWebView" ]; then
+        echo -e "${GREEN}✓ Microsoft Edge WebView2 ya está instalado en: ${BOLD}${target_prefix}${RESET}"
+        return 0
+    fi
+
+    echo -e "\n${CYAN}🌐 Descargando e instalando Microsoft Edge WebView2 Evergreen Runtime...${RESET}"
+    if [ ! -f "$wv_exe" ] || [ ! -s "$wv_exe" ]; then
+        curl -fsSL --retry 3 --connect-timeout 15 --max-time 120 "https://go.microsoft.com/fwlink/p/?LinkId=2124703" -o "${wv_exe}.tmp" || true
+        if [ -s "${wv_exe}.tmp" ]; then
+            mv -f "${wv_exe}.tmp" "$wv_exe"
+        fi
+        rm -f "${wv_exe}.tmp" 2>/dev/null || true
+    fi
+
+    if [ -f "$wv_exe" ] && [ -s "$wv_exe" ]; then
+        echo -e "${CYAN}  🔧 Instalando WebView2 en Wine (${WINE_BIN})...${RESET}"
+        WINEPREFIX="$target_prefix" "$WINE_BIN" "$wv_exe" /silent /install >/dev/null 2>&1 || true
+        echo -e "${GREEN}✓ Microsoft Edge WebView2 instalado con éxito.${RESET}"
+        return 0
+    else
+        echo -e "${YELLOW}⚠ No se pudo descargar Microsoft Edge WebView2.${RESET}"
+        return 1
+    fi
+}
+
+# 10.7 INSTALAR WINE MONO / .NET DESKTOP (Para aplicaciones C#, WPF y .NET)
+instalar_wine_mono() {
+    local target_prefix="${1:-${DIR}/wineprefix}"
+    local mono_cache="${CACHE_DIR}/mono"
+    mkdir -p "$mono_cache"
+
+    if [ -d "${target_prefix}/drive_c/windows/mono" ]; then
+        echo -e "${GREEN}✓ Wine Mono (.NET Desktop) ya está instalado en: ${BOLD}${target_prefix}${RESET}"
+        return 0
+    fi
+
+    echo -e "\n${CYAN}📦 Comprobando e instalando Wine Mono (.NET Desktop Runtime)...${RESET}"
+
+    local local_mono
+    local_mono=$(ls -1 /usr/share/wine/mono/wine-mono-*.msi 2>/dev/null | tail -n 1 || true)
+    if [ -n "$local_mono" ] && [ -f "$local_mono" ]; then
+        echo -e "${CYAN}  🔧 Instalando Wine Mono local (${local_mono})...${RESET}"
+        WINEPREFIX="$target_prefix" "$WINE_BIN" msiexec /i "$local_mono" /quiet >/dev/null 2>&1 || true
+        echo -e "${GREEN}✓ Wine Mono (.NET) instalado correctamente desde repositorio local.${RESET}"
+        return 0
+    fi
+
+    local mono_ver="9.4.0"
+    local mono_msi="${mono_cache}/wine-mono-${mono_ver}-x86.msi"
+    if [ ! -f "$mono_msi" ] || [ ! -s "$mono_msi" ]; then
+        echo -e "${CYAN}  📦 Descargando Wine Mono ${mono_ver} oficial de WineHQ...${RESET}"
+        curl -fsSL --retry 3 --connect-timeout 15 --max-time 180 "https://dl.winehq.org/wine/wine-mono/${mono_ver}/wine-mono-${mono_ver}-x86.msi" -o "${mono_msi}.tmp" || true
+        if [ -s "${mono_msi}.tmp" ]; then
+            mv -f "${mono_msi}.tmp" "$mono_msi"
+        fi
+        rm -f "${mono_msi}.tmp" 2>/dev/null || true
+    fi
+
+    if [ -f "$mono_msi" ] && [ -s "$mono_msi" ]; then
+        echo -e "${CYAN}  🔧 Instalando Wine Mono ${mono_ver} en ${target_prefix}...${RESET}"
+        WINEPREFIX="$target_prefix" "$WINE_BIN" msiexec /i "$mono_msi" /quiet >/dev/null 2>&1 || true
+        echo -e "${GREEN}✓ Wine Mono (.NET Desktop) instalado con éxito.${RESET}"
+        return 0
+    elif command -v winetricks &>/dev/null; then
+        echo -e "${CYAN}  🔧 Fallback: Instalando dotnet con winetricks...${RESET}"
+        WINE="$WINE_BIN" WINEPREFIX="$target_prefix" winetricks -q mono >/dev/null 2>&1 || true
+        return 0
+    else
+        echo -e "${YELLOW}⚠ No se pudo instalar Wine Mono.${RESET}"
+        return 1
+    fi
+}
+
 # 11. INSTALADOR MAESTRO DE TODAS LAS DEPENDENCIAS DE JUEGOS
 instalar_paquete_maestro() {
     local target_prefix="${1:-${DIR}/wineprefix}"
@@ -542,7 +625,8 @@ instalar_paquete_maestro() {
     echo -e "  ${WHITE}Prefijo objetivo : ${CYAN}${target_prefix}${RESET}"
     echo -e "  ${WHITE}Librerías        : DirectX 9/10/11/12 (DXVK + VKD3D-Proton), VC++ 2005-2022 AIO,${RESET}"
     echo -e "                     OpenAL 3D, DirectPlay, Corefonts, cnc-ddraw, SDL2 DB,${RESET}"
-    echo -e "                     Unicode ICU Windows 10 (Qt6 / PySide6 / PyQt6)${RESET}"
+    echo -e "                     Unicode ICU Windows 10 (Qt6 / PySide6 / PyQt6),${RESET}"
+    echo -e "                     Wine Mono (.NET Desktop) y Microsoft Edge WebView2${RESET}"
     echo -e "${BOLD}${PURPLE}========================================================================${RESET}\n"
 
     instalar_directx_completo "$target_prefix"
@@ -554,6 +638,8 @@ instalar_paquete_maestro() {
     instalar_directplay "$target_prefix"
     instalar_openal "$target_prefix"
     instalar_icu_windows10 "$target_prefix"
+    instalar_wine_mono "$target_prefix"
+    instalar_webview2 "$target_prefix"
     actualizar_gamecontrollerdb
     configurar_dlloverrides "$target_prefix"
 
@@ -580,6 +666,7 @@ EOF
 
 # 13. DIAGNÓSTICO DEL ECOSISTEMA DE MEJORAS
 mostrar_estado() {
+    local target_prefix="${1:-${WINEPREFIX:-${DIR}/wineprefix}}"
     echo -e "\n${BOLD}${BLUE}================================================================${RESET}"
     echo -e "${BOLD}${BLUE}    ESTADO DE LIBRERÍAS Y MEJORAS DE CÓDIGO ABIERTO EN VESSEL   ${RESET}"
     echo -e "${BOLD}${BLUE}================================================================${RESET}\n"
@@ -592,21 +679,21 @@ mostrar_estado() {
     fi
 
     # DirectX
-    if [ -f "${DIR}/wineprefix/drive_c/windows/syswow64/d3dx9_43.dll" ] || [ -f "${CACHE_DIR}/directx9/x86/d3dx9_43.dll" ]; then
+    if [ -f "${target_prefix}/drive_c/windows/syswow64/d3dx9_43.dll" ] || [ -f "${CACHE_DIR}/directx9/x86/d3dx9_43.dll" ]; then
         echo -e "  [${GREEN}✓${RESET}] ${BOLD}DirectX 9/10/11 Completo:${RESET} Instalado y listo (+100 DLLs nativas de Microsoft)"
     else
         echo -e "  [${YELLOW}○${RESET}] ${BOLD}DirectX 9/10/11 Completo:${RESET} Disponible para instalación bajo demanda"
     fi
 
     # Visual C++
-    if [ -f "${DIR}/wineprefix/drive_c/windows/syswow64/vcruntime140.dll" ]; then
+    if [ -f "${target_prefix}/drive_c/windows/syswow64/vcruntime140.dll" ]; then
         echo -e "  [${GREEN}✓${RESET}] ${BOLD}Visual C++ 2005-2022 AIO:${RESET} Instalado en el prefijo Wine"
     else
         echo -e "  [${YELLOW}○${RESET}] ${BOLD}Visual C++ 2005-2022 AIO:${RESET} Disponible para instalación bajo demanda"
     fi
 
     # Corefonts
-    if [ -f "${DIR}/wineprefix/drive_c/windows/Fonts/arial.ttf" ]; then
+    if [ -f "${target_prefix}/drive_c/windows/Fonts/arial.ttf" ]; then
         echo -e "  [${GREEN}✓${RESET}] ${BOLD}Fuentes Oficiales Windows:${RESET} Corefonts presentes (Arial, Times, Tahoma)"
     else
         echo -e "  [${YELLOW}○${RESET}] ${BOLD}Fuentes Oficiales Windows:${RESET} Disponibles para instalación bajo demanda"
@@ -627,28 +714,42 @@ mostrar_estado() {
     fi
 
     # D3D8to9
-    if [ -f "${DIR}/wineprefix/drive_c/windows/syswow64/d3d8.dll" ] || [ -f "${CACHE_DIR}/d3d8to9/d3d8.dll" ]; then
+    if [ -f "${target_prefix}/drive_c/windows/syswow64/d3d8.dll" ] || [ -f "${CACHE_DIR}/d3d8to9/d3d8.dll" ]; then
         echo -e "  [${GREEN}✓${RESET}] ${BOLD}D3D8to9 (DirectX 8 -> Vulkan):${RESET} Instalado y listo (60 FPS para clásicos 2001-2006)"
     else
         echo -e "  [${YELLOW}○${RESET}] ${BOLD}D3D8to9:${RESET} Disponible para instalación bajo demanda"
     fi
 
     # ICU Windows 10/11 (Unicode / Qt6 / PySide6 / PyQt6)
-    if [ -f "${DIR}/wineprefix/drive_c/windows/system32/icuuc.dll" ]; then
+    if [ -f "${target_prefix}/drive_c/windows/system32/icuuc.dll" ]; then
         echo -e "  [${GREEN}✓${RESET}] ${BOLD}ICU Windows 10/11 (Qt6 / PySide6 / Unicode):${RESET} Instalado y activo"
     else
         echo -e "  [${YELLOW}○${RESET}] ${BOLD}ICU Windows 10/11:${RESET} Disponible para instalación bajo demanda"
     fi
 
+    # Microsoft Edge WebView2
+    if [ -d "${target_prefix}/drive_c/Program Files (x86)/Microsoft/EdgeWebView" ] || [ -d "${target_prefix}/drive_c/Program Files/Microsoft/EdgeWebView" ]; then
+        echo -e "  [${GREEN}✓${RESET}] ${BOLD}Microsoft Edge WebView2:${RESET} Instalado (Apps modernas Tauri / Web Installers)"
+    else
+        echo -e "  [${YELLOW}○${RESET}] ${BOLD}Microsoft Edge WebView2:${RESET} Disponible para instalación bajo demanda"
+    fi
+
+    # Wine Mono (.NET Desktop)
+    if [ -d "${target_prefix}/drive_c/windows/mono" ]; then
+        echo -e "  [${GREEN}✓${RESET}] ${BOLD}Wine Mono (.NET Desktop):${RESET} Instalado (Apps C# / WPF / Windows Forms)"
+    else
+        echo -e "  [${YELLOW}○${RESET}] ${BOLD}Wine Mono (.NET Desktop):${RESET} Disponible para instalación bajo demanda"
+    fi
+
     # DXVK-NVAPI
-    if [ -f "${DIR}/wineprefix/drive_c/windows/system32/nvapi64.dll" ] || [ -f "${CACHE_DIR}/dxvk-nvapi/x64/nvapi64.dll" ]; then
+    if [ -f "${target_prefix}/drive_c/windows/system32/nvapi64.dll" ] || [ -f "${CACHE_DIR}/dxvk-nvapi/x64/nvapi64.dll" ]; then
         echo -e "  [${GREEN}✓${RESET}] ${BOLD}DXVK-NVAPI (NVIDIA GeForce Bridge):${RESET} Instalado y activo para GPUs GeForce"
     else
         echo -e "  [${YELLOW}○${RESET}] ${BOLD}DXVK-NVAPI:${RESET} Disponible para instalación bajo demanda"
     fi
 
     # VKD3D-Proton (DirectX 12)
-    if [ -f "${DIR}/wineprefix/drive_c/windows/system32/d3d12.dll" ] || [ -f "${CACHE_DIR}/vkd3d-proton/x64/d3d12.dll" ]; then
+    if [ -f "${target_prefix}/drive_c/windows/system32/d3d12.dll" ] || [ -f "${CACHE_DIR}/vkd3d-proton/x64/d3d12.dll" ]; then
         echo -e "  [${GREEN}✓${RESET}] ${BOLD}VKD3D-Proton (DirectX 12 -> Vulkan):${RESET} Instalado y listo (RE4 Remake y juegos DX12)"
     else
         echo -e "  [${YELLOW}○${RESET}] ${BOLD}VKD3D-Proton:${RESET} Disponible para instalación bajo demanda"
@@ -707,6 +808,12 @@ case "${1:-menu}" in
     instalar_icu|instalar_icu_windows10)
         instalar_icu_windows10 "${2:-${DIR}/wineprefix}"
         ;;
+    instalar_webview2)
+        instalar_webview2 "${2:-${DIR}/wineprefix}"
+        ;;
+    instalar_mono|instalar_wine_mono)
+        instalar_wine_mono "${2:-${DIR}/wineprefix}"
+        ;;
     propagar)
         propagar_librerias_a_prefijo "${2:-}"
         ;;
@@ -726,10 +833,10 @@ case "${1:-menu}" in
         configurar_vkbasalt
         ;;
     estado)
-        mostrar_estado
+        mostrar_estado "${2:-${DIR}/wineprefix}"
         ;;
     menu|*)
-        mostrar_estado
+        mostrar_estado "${DIR}/wineprefix"
         echo -e "${PURPLE}Opciones disponibles:${RESET}"
         echo "  [1] 🚀 Instalar Paquete Maestro de DLLs para Todos los Juegos (Recomendado)"
         echo "  [2] 🎮 Instalar DirectX 9/10/11 Completo (+100 DLLs nativas de Microsoft)"
@@ -744,9 +851,11 @@ case "${1:-menu}" in
         echo "  [11] 🎮 Actualizar base de datos de mandos (gamecontrollerdb.txt)"
         echo "  [12] 🎨 Generar configuración optimizada de vkBasalt (AMD CAS)"
         echo "  [13] 🚀 Panel Modular de Drivers (DXVK, VKD3D-Proton, GPU y Pantalla)"
+        echo "  [14] 🌐 Instalar Microsoft Edge WebView2 (Apps modernas Tauri / Web Installers)"
+        echo "  [15] 📦 Instalar Wine Mono (.NET Desktop Runtime / WPF / C#)"
         echo "  [0] ↩️  Salir"
         echo ""
-        read -rp "Selecciona una opción [0-13]: " opc
+        read -rp "Selecciona una opción [0-15]: " opc
         case "$opc" in
             1) instalar_paquete_maestro "${DIR}/wineprefix" ;;
             2) instalar_directx_completo "${DIR}/wineprefix" && configurar_dlloverrides "${DIR}/wineprefix" ;;
@@ -761,6 +870,8 @@ case "${1:-menu}" in
             11) actualizar_gamecontrollerdb ;;
             12) configurar_vkbasalt ;;
             13) bash "${CORE_DIR}/gestor_drivers.sh" estado ;;
+            14) instalar_webview2 "${DIR}/wineprefix" ;;
+            15) instalar_wine_mono "${DIR}/wineprefix" ;;
             *) echo "Saliendo..." ;;
         esac
         ;;

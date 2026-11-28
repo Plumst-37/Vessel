@@ -65,6 +65,7 @@ cmd_help() {
     echo -e "  ${GREEN}run <archivo|nombre|id>${RESET}   Ejecuta cualquier juego o software (DXVK/VKD3D al vuelo)"
     echo -e "  ${GREEN}install <setup.exe|msi>${RESET}   Instala software en modo Windows 10 limpio y lo registra"
     echo -e "  ${GREEN}doctor, check${RESET}             Diagnóstico rápido de salud del sistema, Wine, GPU y audio"
+    echo -e "  ${GREEN}runner, runners${RESET}           Gestiona y descarga runners portables (Kron4ek, Wine-GE)"
     echo -e "  ${GREEN}list, ls${RESET}                  Lista los juegos y programas registrados en la biblioteca"
     echo -e "  ${GREEN}add <ruta> [nombre]${RESET}       Registra un nuevo ejecutable en la biblioteca de Vessel"
     echo -e "  ${GREEN}status, drivers${RESET}           Muestra el estado de la GPU, monitor y librerías gráficas"
@@ -428,6 +429,15 @@ cmd_doctor() {
         echo -e "${RED}${BOLD}[!] DIAGNÓSTICO: Se detectaron ${total_errors} inconvenientes críticos.${RESET}"
     fi
     echo -e "${PURPLE}------------------------------------------------------------------------${RESET}\n"
+}
+
+# ==============================================================================
+# GESTIÓN DE RUNNERS DE WINE (vessel runner / vessel runners)
+# ==============================================================================
+cmd_runner() {
+    local runners_script="${CORE_DIR}/gestor_runners.sh"
+    [ ! -f "$runners_script" ] && runners_script="${DIR}/core/gestor_runners.sh"
+    bash "$runners_script" "$@"
 }
 
 # ==============================================================================
@@ -813,6 +823,10 @@ case "$1" in
         ;;
     doctor|check|salud)
         cmd_doctor
+        ;;
+    runner|runners)
+        shift
+        cmd_runner "$@"
         ;;
     list|ls)
         cmd_list

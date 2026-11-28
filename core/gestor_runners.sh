@@ -82,7 +82,7 @@ listar_runners() {
 }
 
 descargar_runner_kron4ek() {
-    local version="${1:-11.22}"
+    local version="${1:-10.0}"
     echo -e "\n${CYAN}══════════════════════════════════════════════════════════════════════${RESET}"
     echo -e "  ${BOLD}${WHITE}DESCARGANDO WINE RUNNER PORTABLE (Kron4ek Staging WOW64 ${version})${RESET}"
     echo -e "${CYAN}══════════════════════════════════════════════════════════════════════${RESET}\n"
@@ -161,18 +161,34 @@ descargar_runner_wine_ge() {
     fi
 }
 
-case "${1:-}" in
+recomendar_runner() {
+    local motivo="${1:-dx12}"
+    echo -e "\n${YELLOW}💡 [ RECOMENDACIÓN DE RUNNER ]${RESET}"
+    if [ "$motivo" = "dx12" ]; then
+        echo -e "  ${WHITE}Este juego utiliza ${BOLD}DirectX 12 / D3D12${RESET}${WHITE}.${RESET}"
+    elif [ "$motivo" = "video" ]; then
+        echo -e "  ${WHITE}Este juego requiere códecs de video ${BOLD}Media Foundation (MFPlat)${RESET}${WHITE}.${RESET}"
+    fi
+    echo -e "  ${WHITE}Para garantizar 60 FPS estables y reproducción de cinemáticas, se recomienda usar un runner moderno.${RESET}"
+    echo -e "  ${CYAN}• Instalar Kron4ek Staging WoW64:${RESET} ${BOLD}vessel runner --kron4ek${RESET}"
+    echo -e "  ${CYAN}• Instalar GloriousEggroll Wine-GE:${RESET} ${BOLD}vessel runner --wine-ge${RESET}\n"
+}
+
+case "${1:-list}" in
     --list|list)
         listar_runners
         ;;
     --kron4ek)
-        descargar_runner_kron4ek "${2:-11.22}"
+        descargar_runner_kron4ek "${2:-10.0}"
         ;;
     --wine-ge)
         descargar_runner_wine_ge
         ;;
+    --recommend|recommend)
+        recomendar_runner "${2:-dx12}"
+        ;;
     *)
         listar_runners
-        echo "Uso: $0 [--list | --kron4ek [version] | --wine-ge]"
+        echo "Uso: $0 [--list | --kron4ek [version] | --wine-ge | --recommend [dx12|video]]"
         ;;
 esac

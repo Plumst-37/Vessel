@@ -92,7 +92,7 @@ if [ ! -f "${DIR}/menu-win.sh" ]; then
 
     # Asegurar permisos correctos
     chown -R "$REAL_USER:$REAL_USER" "$TARGET_DIR" 2>/dev/null || true
-    chmod +x "$TARGET_DIR"/*.sh "$TARGET_DIR"/*.py 2>/dev/null || true
+    chmod -R +x "$TARGET_DIR"/*.sh "$TARGET_DIR"/*.py "$TARGET_DIR"/core "$TARGET_DIR"/herramientas 2>/dev/null || true
 
     if [ -f "${TARGET_DIR}/instalar.sh" ]; then
         echo -e "${C_GREEN}✔ Archivos descargados correctamente. Iniciando configuración...${C_RESET}"
@@ -734,7 +734,7 @@ TARGET_USER="${SUDO_USER:-$USER}"
 TARGET_HOME=$(eval echo "~$TARGET_USER")
 
 # Asegurar permisos correctos en el directorio del proyecto y prefijo de Wine
-chmod +x "${DIR}"/*.sh "${DIR}"/*.py 2>/dev/null || true
+chmod -R +x "${DIR}"/*.sh "${DIR}"/*.py "${DIR}/core" "${DIR}/herramientas" 2>/dev/null || true
 chown -R "$TARGET_USER:$TARGET_USER" "${DIR}/wineprefix" 2>/dev/null || true
 chown -R "$TARGET_USER:$TARGET_USER" "${DIR}"/*.cfg "${DIR}"/*.conf 2>/dev/null || true
 
