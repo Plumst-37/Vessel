@@ -1954,7 +1954,7 @@ else
     echo "    - Renderizador: ${RENDERER_IN_USE:-DXVK (Vulkan)}"
     echo "    - Consumo RAM / CPU: Ultra-Liviano (WINEDEBUG silenciado, Pipelines dinámicos)"
     echo "    - Fidelidad 3D & Shaders: Filtrado Anisotrópico 16x | D3D8to9 Vulkan | NVAPI: ${NVAPI_ACTIVO}"
-    echo "    - Fsync/Esync: $([ "$WINEFSYNC" = "1" ] && echo "Fsync Activo" || echo "Esync Activo")"
+    echo "    - Fsync/Esync: $([ "${WINEFSYNC:-0}" = "1" ] && echo "Fsync Activo" || ([ "${WINEESYNC:-0}" = "1" ] && echo "Esync Activo" || echo "Desactivado"))"
     echo "    - Límite de FPS: ${LIMITE_FPS:-Ilimitado (Máximo FPS)}"
     fsr_banner="Desactivado"
     if [ "$ACTIVAR_FSR_FINAL" -eq 1 ]; then
@@ -2447,7 +2447,7 @@ if [ "$HUBO_ERROR" -eq 1 ]; then
         echo "GPU                   : ${DETECTED_GPU:-Desconocida}"
         echo "Runner Wine           : ${WINE_CMD} ($("$WINE_CMD" --version 2>/dev/null || echo "N/A"))"
         echo "Prefijo Wine          : ${WINEPREFIX}"
-        echo "Fsync / Esync         : $([ "$WINEFSYNC" = "1" ] && echo "Fsync Activo" || echo "Esync Activo")"
+        echo "Fsync / Esync         : $([ "${WINEFSYNC:-0}" = "1" ] && echo "Fsync Activo" || ([ "${WINEESYNC:-0}" = "1" ] && echo "Esync Activo" || echo "Desactivado"))"
         echo "FSR Upscaling         : ${fsr_banner:-Desactivado}"
         echo "Límite FPS            : ${LIMITE_FPS:-60} FPS"
         echo "Argumentos Extras     : ${EXTRA_APP_ARGS:-Ninguno}"
