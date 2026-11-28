@@ -295,8 +295,8 @@ dxvk.enableMemoryDefrag = True
 d3d11.maxTessFactor = ${MAX_TESSELLATION}
 dxvk.gpl = ${GPL_VAL}
 dxvk.allowFse = False
-dxvk.tearFree = False
-dxgi.syncInterval = 1
+dxvk.tearFree = ${TEAR_FREE}
+dxgi.syncInterval = ${SYNC_INT}
 
 [PlayGTAV.exe]
 dxgi.maxFrameLatency = 1
@@ -316,16 +316,16 @@ dxvk.enableMemoryDefrag = True
 d3d11.maxTessFactor = ${MAX_TESSELLATION}
 dxvk.gpl = ${GPL_VAL}
 dxvk.allowFse = False
-dxvk.tearFree = False
-dxgi.syncInterval = 1
+dxvk.tearFree = ${TEAR_FREE}
+dxgi.syncInterval = ${SYNC_INT}
 
 [speed.exe]
 d3d9.invariantPosition = True
 d3d9.floatEmulation = Strict
 d3d9.clampNegativeLodBias = True
 d3d9.samplerAnisotropy = ${SAMPLER_ANISO}
-d3d9.presentInterval = 1
-dxvk.tearFree = True
+d3d9.presentInterval = ${SYNC_INT}
+dxvk.tearFree = ${TEAR_FREE}
 dxvk.allowFse = False
 
 [BH6.exe]
@@ -334,85 +334,85 @@ d3d9.floatEmulation = Strict
 d3d9.clampNegativeLodBias = True
 d3d9.samplerAnisotropy = ${SAMPLER_ANISO}
 d3d9.lenientClear = True
-d3d9.presentInterval = 1
-dxvk.tearFree = True
+d3d9.presentInterval = ${SYNC_INT}
+dxvk.tearFree = ${TEAR_FREE}
 dxvk.allowFse = False
 
 [re4.exe]
 dxgi.hideNvidiaGpu = False
-dxgi.syncInterval = 1
+dxgi.syncInterval = ${SYNC_INT}
 dxgi.maxFrameLatency = 2
 d3d11.constantBufferRangeCheck = True
 d3d11.invariantPosition = True
 d3d11.relaxedBarriers = False
 dxvk.allowFse = False
-dxvk.tearFree = True
+dxvk.tearFree = ${TEAR_FREE}
 dxvk.gpl = True
 
 [re4_original.exe]
 dxgi.hideNvidiaGpu = False
-dxgi.syncInterval = 1
+dxgi.syncInterval = ${SYNC_INT}
 dxgi.maxFrameLatency = 2
 d3d11.constantBufferRangeCheck = True
 d3d11.invariantPosition = True
 d3d11.relaxedBarriers = False
 dxvk.allowFse = False
-dxvk.tearFree = True
+dxvk.tearFree = ${TEAR_FREE}
 dxvk.gpl = True
 
 [re2.exe]
 dxgi.hideNvidiaGpu = False
-dxgi.syncInterval = 1
+dxgi.syncInterval = ${SYNC_INT}
 dxgi.maxFrameLatency = 2
 d3d11.constantBufferRangeCheck = True
 d3d11.invariantPosition = True
 d3d11.relaxedBarriers = False
 dxvk.allowFse = False
-dxvk.tearFree = True
+dxvk.tearFree = ${TEAR_FREE}
 dxvk.gpl = True
 
 [re3.exe]
 dxgi.hideNvidiaGpu = False
-dxgi.syncInterval = 1
+dxgi.syncInterval = ${SYNC_INT}
 dxgi.maxFrameLatency = 2
 d3d11.constantBufferRangeCheck = True
 d3d11.invariantPosition = True
 d3d11.relaxedBarriers = False
 dxvk.allowFse = False
-dxvk.tearFree = True
+dxvk.tearFree = ${TEAR_FREE}
 dxvk.gpl = True
 
 [re7.exe]
 dxgi.hideNvidiaGpu = False
-dxgi.syncInterval = 1
+dxgi.syncInterval = ${SYNC_INT}
 dxgi.maxFrameLatency = 2
 d3d11.constantBufferRangeCheck = True
 d3d11.invariantPosition = True
 d3d11.relaxedBarriers = False
 dxvk.allowFse = False
-dxvk.tearFree = True
+dxvk.tearFree = ${TEAR_FREE}
 dxvk.gpl = True
 
 [re8.exe]
 dxgi.hideNvidiaGpu = False
-dxgi.syncInterval = 1
+dxgi.syncInterval = ${SYNC_INT}
 dxgi.maxFrameLatency = 2
 d3d11.constantBufferRangeCheck = True
 d3d11.invariantPosition = True
 d3d11.relaxedBarriers = False
 dxvk.allowFse = False
-dxvk.tearFree = True
+dxvk.tearFree = ${TEAR_FREE}
 dxvk.gpl = True
 
 [dmc5.exe]
 dxgi.hideNvidiaGpu = False
-dxgi.syncInterval = 1
+dxgi.syncInterval = ${SYNC_INT}
 dxgi.maxFrameLatency = 2
 d3d11.constantBufferRangeCheck = True
 d3d11.invariantPosition = True
 d3d11.relaxedBarriers = False
 dxvk.allowFse = False
-dxvk.tearFree = True
+dxvk.tearFree = ${TEAR_FREE}
 dxvk.gpl = True
 
 [gta_sa.exe]
@@ -420,8 +420,8 @@ d3d9.invariantPosition = True
 d3d9.floatEmulation = Strict
 d3d9.clampNegativeLodBias = True
 d3d9.samplerAnisotropy = ${SAMPLER_ANISO}
-d3d9.presentInterval = 1
-dxvk.tearFree = True
+d3d9.presentInterval = ${SYNC_INT}
+dxvk.tearFree = ${TEAR_FREE}
 dxvk.allowFse = False
 
 [Swat4.exe]
@@ -429,15 +429,15 @@ d3d9.invariantPosition = True
 d3d9.floatEmulation = Strict
 d3d9.clampNegativeLodBias = True
 d3d9.samplerAnisotropy = ${SAMPLER_ANISO}
-d3d9.presentInterval = 1
-dxvk.tearFree = True
+d3d9.presentInterval = ${SYNC_INT}
+dxvk.tearFree = ${TEAR_FREE}
 dxvk.allowFse = False
 
 # GameRanger: cliente de lobby 2D / chat con Chromium CEF y ANGLE
 # Evita fallos de swapchains Vulkan (VK_ERROR_OUT_OF_HOST_MEMORY) en subventanas de CEF
 [GameRanger.exe]
-dxvk.tearFree = False
-dxgi.syncInterval = 1
+dxvk.tearFree = ${TEAR_FREE}
+dxgi.syncInterval = ${SYNC_INT}
 dxgi.deferSurfaceCreation = True
 dxgi.numBackBuffers = 1
 d3d9.numBackBuffers = 1
@@ -445,8 +445,8 @@ dxvk.allowFse = False
 d3d11.maxTessFactor = 1
 
 [GameRangerSetup.exe]
-dxvk.tearFree = False
-dxgi.syncInterval = 1
+dxvk.tearFree = ${TEAR_FREE}
+dxgi.syncInterval = ${SYNC_INT}
 dxgi.deferSurfaceCreation = True
 dxgi.numBackBuffers = 1
 d3d9.numBackBuffers = 1
