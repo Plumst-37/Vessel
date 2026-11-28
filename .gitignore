@@ -6,6 +6,7 @@ wine-tkg-build/
 runners/
 librerias/
 librerias_cache/
+programas_portables/
 
 # Base de datos personal de juegos del usuario (no se sobreescribe al actualizar)
 programas.db

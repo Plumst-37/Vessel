@@ -82,7 +82,7 @@ listar_runners() {
 }
 
 descargar_runner_kron4ek() {
-    local version="${1:-10.0}"
+    local version="${1:-11.22}"
     echo -e "\n${CYAN}══════════════════════════════════════════════════════════════════════${RESET}"
     echo -e "  ${BOLD}${WHITE}DESCARGANDO WINE RUNNER PORTABLE (Kron4ek Staging WOW64 ${version})${RESET}"
     echo -e "${CYAN}══════════════════════════════════════════════════════════════════════${RESET}\n"
@@ -179,7 +179,7 @@ case "${1:-list}" in
         listar_runners
         ;;
     --kron4ek)
-        descargar_runner_kron4ek "${2:-10.0}"
+        descargar_runner_kron4ek "${2:-11.22}"
         ;;
     --wine-ge)
         descargar_runner_wine_ge
