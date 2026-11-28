@@ -806,6 +806,17 @@ if [ -f "$local_gestor_lib" ] && [ -d "${WINEPREFIX}/drive_c/windows" ]; then
         bash "$local_gestor_lib" instalar_vcredist "$WINEPREFIX" >/dev/null 2>&1 || true
         bash "$local_gestor_lib" configurar_overrides "$WINEPREFIX" >/dev/null 2>&1 || true
     fi
+    # Asegurar D3DCompiler_43 nativo (evita fallo E5017 de vkd3d-shader en juegos DX9/re4_tweaks)
+    if [ -f "${DIR}/librerias_cache/directx9/x86/D3DCompiler_43.dll" ]; then
+        d3dc_target="${WINEPREFIX}/drive_c/windows/syswow64/d3dcompiler_43.dll"
+        [ ! -d "${WINEPREFIX}/drive_c/windows/syswow64" ] && d3dc_target="${WINEPREFIX}/drive_c/windows/system32/d3dcompiler_43.dll"
+        if [ ! -f "$d3dc_target" ] || [ "$(stat -c%s "$d3dc_target" 2>/dev/null || echo 0)" -lt 1500000 ]; then
+            cp -f "${DIR}/librerias_cache/directx9/x86/D3DCompiler_43.dll" "$d3dc_target" 2>/dev/null || true
+            if [ -d "${WINEPREFIX}/drive_c/windows/syswow64" ] && [ -f "${DIR}/librerias_cache/directx9/x64/D3DCompiler_43.dll" ]; then
+                cp -f "${DIR}/librerias_cache/directx9/x64/D3DCompiler_43.dll" "${WINEPREFIX}/drive_c/windows/system32/d3dcompiler_43.dll" 2>/dev/null || true
+            fi
+        fi
+    fi
     if [ "$es_dx12" = true ] || [ "${PE_API:-}" = "dx12" ] || [ "${PE_HAS_DX12:-0}" = "1" ]; then
         if [ ! -f "${WINEPREFIX}/drive_c/windows/system32/d3d12.dll" ]; then
             echo "[*] Sincronizando traductor oficial DirectX 12 a Vulkan (VKD3D-Proton)..."
@@ -1459,7 +1470,7 @@ EOF
 optimizar_red_y_wifi
 
 # Overrides universales de gráficos 3D, cinemáticas/codecs de video, audio espacial (FAudio/PipeWire nativo), DirectMusic, sockets y librerías base
-export WINEDLLOVERRIDES="winemenubuilder.exe=d;dinput8=n,b;dxgi=n,b;d3d11=n,b;d3d10core=n,b;d3d9=n,b;d3d8=n,b;ddraw=n,b;dplayx=n,b;dpnet=n,b;dpwsockx=n,b;vorbisfile=n,b;vorbishooked=n,b;dsound=n,b;mfplat=n,b;mf=n,b;mfreadwrite=n,b;evr=n,b;quartz=b,n;devenum=b,n;qedit=b,n;wmasf=n,b;wmvcore=n,b;winegstreamer=b;xaudio2_7=b;xaudio2_8=b;xaudio2_9=b;x3daudio1_7=b;openal32=n,b;dmusic=n,b;dmsynth=n,b;dmime=n,b;dmloader=n,b;dmband=n,b;secur32=b;wininet=b;winhttp=b;ws2_32=b;iphlpapi=b;dnsapi=b;${WINEDLLOVERRIDES}"
+export WINEDLLOVERRIDES="winemenubuilder.exe=d;dinput8=n,b;dxgi=n,b;d3d11=n,b;d3d10core=n,b;d3d9=n,b;d3d8=n,b;ddraw=n,b;d3dcompiler_43=n,b;d3dcompiler_46=n,b;d3dcompiler_47=n,b;dplayx=n,b;dpnet=n,b;dpwsockx=n,b;vorbisfile=n,b;vorbishooked=n,b;dsound=n,b;mfplat=n,b;mf=n,b;mfreadwrite=n,b;evr=n,b;quartz=b,n;devenum=b,n;qedit=b,n;wmasf=n,b;wmvcore=n,b;winegstreamer=b;xaudio2_7=b;xaudio2_8=b;xaudio2_9=b;x3daudio1_7=b;openal32=n,b;dmusic=n,b;dmsynth=n,b;dmime=n,b;dmloader=n,b;dmband=n,b;secur32=b;wininet=b;winhttp=b;ws2_32=b;iphlpapi=b;dnsapi=b;${WINEDLLOVERRIDES}"
 
 # 11.1 Configuración específica para el cliente de lobby GameRanger
 EXTRA_APP_ARGS=""
