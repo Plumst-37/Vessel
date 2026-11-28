@@ -108,6 +108,7 @@ def analizar_juego(exe_path):
         "has_d3d8": False,
         "has_ddraw": False,
         "has_vulkan": False,
+        "is_electron": False,
         "anti_cheat_warning": False,
         "anti_cheat_name": "",
         "category": "juego"

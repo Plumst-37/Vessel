@@ -217,6 +217,33 @@ if [[ "$TARGET" =~ \.([bB][aA][tT]|[cC][mM][dD])$ ]]; then
     done
 fi
 
+# 4.0.3 Detección transparente de paquetes portables Electron (NSIS app-64.7z / app-32.7z)
+# Despliega automáticamente una sola vez para eliminar 25s de descompresión repetida y fallos de ICU
+if [ -f "$TARGET" ] && [[ "$(basename "$TARGET" | tr '[:upper:]' '[:lower:]')" =~ \.exe$ ]] && command -v 7z &>/dev/null; then
+    if 7z l "$TARGET" '$PLUGINSDIR/app*.7z' 2>/dev/null | grep -qiE 'app-(64|32)\.7z'; then
+        p_name=$(basename "$TARGET" | sed -E 's/([-_]?[0-9]+\.[0-9]+.*|[_-]setup|[_-]portable|\.exe)//gi' | tr -s ' -' '_' | sed 's/^_//;s/_$//')
+        [ -z "$p_name" ] && p_name="portable_app"
+        PORTABLE_DIR="${DIR}/programas_portables/${p_name}"
+        if [ ! -d "$PORTABLE_DIR" ] || [ ! -f "${PORTABLE_DIR}/icudtl.dat" ]; then
+            echo "[*] Desplegando paquete portable Electron para arranque nativo instantáneo..."
+            mkdir -p "$PORTABLE_DIR"
+            tmp_sfx_dir=$(mktemp -d "${TMPDIR:-/tmp}/vessel_sfx_XXXXXX" 2>/dev/null || echo "/tmp/vessel_sfx_$$")
+            7z e -y -o"$tmp_sfx_dir" "$TARGET" '$PLUGINSDIR/app*.7z' >/dev/null 2>&1 || true
+            inner_7z=$(find "$tmp_sfx_dir" -name "app*.7z" 2>/dev/null | head -n 1)
+            if [ -n "$inner_7z" ] && [ -f "$inner_7z" ]; then
+                7z x -y -o"$PORTABLE_DIR" "$inner_7z" >/dev/null 2>&1 || true
+            fi
+            rm -rf "$tmp_sfx_dir" 2>/dev/null || true
+        fi
+        real_electron_exe=$(find "$PORTABLE_DIR" -maxdepth 2 -iname "*.exe" ! -iname "electron.exe" 2>/dev/null | head -n 1)
+        [ -z "$real_electron_exe" ] && [ -f "${PORTABLE_DIR}/electron.exe" ] && real_electron_exe="${PORTABLE_DIR}/electron.exe"
+        if [ -n "$real_electron_exe" ] && [ -f "$real_electron_exe" ]; then
+            echo "[+] Paquete Electron portable optimizado para arranque instantáneo: $(basename "$real_electron_exe")"
+            TARGET="$real_electron_exe"
+        fi
+    fi
+fi
+
 
 # 4. Definir la ruta del WINEPREFIX (Soporte Dual: Prefijo Compartido o Prefijo Aislado por Juego)
 if [ -n "$CUSTOM_PREFIX" ]; then
@@ -1400,9 +1427,13 @@ if [ "$IS_PROGRAM" -eq 1 ] || [ "${PE_CATEGORY:-juego}" = "programa" ]; then
     export WINEDLLOVERRIDES="winemenubuilder.exe=d;dxgi=b;d3d11=b;d3d10core=b;d3d9=b;d3d8=b;ddraw=b;nvapi=d;nvapi64=d;riched20=n,b;riched32=n,b;msxml3=n,b;msxml6=n,b;gdiplus=n,b;mscoree=n,b;mshtml=n,b;secur32=b;wininet=b;winhttp=b;ws2_32=b;iphlpapi=b;dnsapi=b;"
 
     # Compatibilidad automática con aplicaciones Electron / Chromium en Wine
+    export ELECTRON_DISABLE_SANDBOX=1
     if [ "${PE_IS_ELECTRON:-0}" = "1" ]; then
         if [[ ! " $* " =~ " --no-sandbox " ]]; then
             EXTRA_APP_ARGS="${EXTRA_APP_ARGS} --no-sandbox"
+        fi
+        if [[ ! " $* " =~ " --disable-gpu " ]]; then
+            EXTRA_APP_ARGS="${EXTRA_APP_ARGS} --disable-gpu"
         fi
     fi
 
@@ -2062,10 +2093,18 @@ if ([ -n "$ACTIVE_MON_X" ] && [ "$ACTIVE_MON_X" -ne 0 ]) || ([ -n "$ACTIVE_MON_Y
     MON_WATCHDOG_PID=$!
 fi
 
-# 7. Ejecución con captura en tiempo real
+# 7. Ejecución con captura en tiempo real (aislada de procesos daemon de Wine para evitar bloqueos)
 EXEC_START_TIME=$(date +%s)
-"${FINAL_CMD[@]}" 2>&1 | tee "$TEMP_GAME_LOG"
-EXIT_STATUS="${PIPESTATUS[0]}"
+"${FINAL_CMD[@]}" > "$TEMP_GAME_LOG" 2>&1 &
+APP_PID=$!
+TAIL_PID=""
+if [ -t 1 ]; then
+    tail -f --pid="$APP_PID" -n +1 "$TEMP_GAME_LOG" 2>/dev/null &
+    TAIL_PID=$!
+fi
+wait "$APP_PID" 2>/dev/null || true
+EXIT_STATUS=$?
+[ -n "$TAIL_PID" ] && kill "$TAIL_PID" 2>/dev/null || true
 EXEC_DURATION=$(( $(date +%s) - EXEC_START_TIME ))
 
 # Sincronización activa de subprocesos de Windows:
@@ -2225,6 +2264,8 @@ fi
 # Eliminar archivo temporal de captura en cualquier caso
 rm -f "$TEMP_GAME_LOG" 2>/dev/null || true
 
-# Esperar sincronización limpia de los subprocesos de Wine sin matarlos abruptamente
-"$WINESERVER_CMD" -w 2>/dev/null || wineserver -w 2>/dev/null || true
+# Esperar sincronización limpia de los subprocesos de Wine sin matarlos abruptamente (solo en juegos y con timeout)
+if [ "$IS_PROGRAM" -ne 1 ] && [ "${PE_CATEGORY:-juego}" != "programa" ]; then
+    timeout 2s "$WINESERVER_CMD" -w 2>/dev/null || timeout 2s wineserver -w 2>/dev/null || true
+fi
 exit $EXIT_STATUS
