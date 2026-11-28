@@ -2187,13 +2187,13 @@ def menu_herramientas(hw, cfg):
         if sel == "0":
             break
         elif sel == "1":
-            subprocess.run(f"WINEPREFIX='{WINEPREFIX}' wine winecfg", shell=True)
+            ejecutar_herramienta_windows("winecfg.exe", "Configuración de Wine (winecfg)")
         elif sel == "2":
-            subprocess.run(f"WINEPREFIX='{WINEPREFIX}' wine regedit", shell=True)
+            ejecutar_herramienta_windows("regedit.exe", "Editor del Registro de Windows (regedit)")
         elif sel == "3":
-            subprocess.run(f"WINEPREFIX='{WINEPREFIX}' wine taskmgr", shell=True)
+            ejecutar_herramienta_windows("taskmgr.exe", "Administrador de Tareas de Windows (taskmgr)")
         elif sel == "4":
-            subprocess.run(f"WINEPREFIX='{WINEPREFIX}' wine explorer", shell=True)
+            ejecutar_herramienta_windows("explorer.exe", "Explorador de Archivos de Windows (explorer)")
         elif sel == "5":
             os.system("clear")
             print(f"{YELLOW}🔄 Terminando todos los procesos de Wine y liberando memoria...{RESET}")

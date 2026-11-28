@@ -131,8 +131,16 @@ else
     shift || true
 fi
 
+# 4.0 Identificación de comandos y herramientas del sistema Windows / Wine (no auto-reparar como juegos)
+IS_BUILTIN_WIN_TOOL=0
+target_base_low=$(basename "$TARGET" 2>/dev/null | tr '[:upper:]' '[:lower:]')
+if [[ "$target_base_low" =~ ^(explorer|winecfg|regedit|notepad|cmd|taskmgr|control|msiexec|dxdiag|winemine|winefile|wordpad|write|winver|start|progman)(\.exe)?$ ]]; then
+    IS_BUILTIN_WIN_TOOL=1
+    IS_PROGRAM=1
+fi
+
 # 4.0 Auto-reparación transparente de rutas inexistentes o movidas (ej. carpetas ZIP extraídas)
-if [ ! -f "$TARGET" ] && [[ ! "$TARGET" =~ [Gg]ame[Rr]anger ]]; then
+if [ "$IS_BUILTIN_WIN_TOOL" -eq 0 ] && [ ! -f "$TARGET" ] && [[ ! "$TARGET" =~ [Gg]ame[Rr]anger ]]; then
     CANDIDATE_PATH=""
     # 1. Probar eliminando /ZIP/ o /zip/ de la ruta
     NO_ZIP=$(echo "$TARGET" | sed -E 's|/[zZ][iI][pP]/|/|g')
@@ -166,7 +174,7 @@ if [ ! -f "$TARGET" ] && [[ ! "$TARGET" =~ [Gg]ame[Rr]anger ]]; then
 fi
 
 # 4.0.1 Normalizar rutas relativas y resolución automática de GameRanger predeterminado
-if [[ "$TARGET" != /* ]] && [ -f "${DIR}/${TARGET}" ]; then
+if [ "$IS_BUILTIN_WIN_TOOL" -eq 0 ] && [[ "$TARGET" != /* ]] && [ -f "${DIR}/${TARGET}" ]; then
     TARGET="${DIR}/${TARGET}"
 fi
 
@@ -219,7 +227,7 @@ fi
 
 # 4.0.3 Detección transparente de paquetes portables Electron (NSIS app-64.7z / app-32.7z)
 # Despliega automáticamente una sola vez para eliminar 25s de descompresión repetida y fallos de ICU
-if [ -f "$TARGET" ] && [[ "$(basename "$TARGET" | tr '[:upper:]' '[:lower:]')" =~ \.exe$ ]] && command -v 7z &>/dev/null; then
+if [ "$IS_BUILTIN_WIN_TOOL" -eq 0 ] && [ -f "$TARGET" ] && [[ "$(basename "$TARGET" | tr '[:upper:]' '[:lower:]')" =~ \.exe$ ]] && command -v 7z &>/dev/null; then
     if 7z l "$TARGET" '$PLUGINSDIR/app*.7z' 2>/dev/null | grep -qiE 'app-(64|32)\.7z'; then
         p_name=$(basename "$TARGET" | sed -E 's/([-_]?[0-9]+\.[0-9]+.*|[_-]setup|[_-]portable|\.exe)//gi' | tr -s ' -' '_' | sed 's/^_//;s/_$//')
         [ -z "$p_name" ] && p_name="portable_app"
@@ -332,10 +340,12 @@ else
         export WINE_CPU_TOPOLOGY="16"
     fi
     es_dx12=false
-    if [ "$PE_HAS_DX12" = "1" ] || [ -f "$(dirname "$TARGET")/d3d12.dll" ] || [ -f "$(dirname "$TARGET")/d3d12core.dll" ] || \
-       find "$(dirname "$TARGET")" -maxdepth 2 -iname "d3d12*.dll" 2>/dev/null | grep -q . || \
-       find "$(dirname "$TARGET")" -maxdepth 3 -iname "*re_chunk_000*.pak" 2>/dev/null | grep -q .; then
-        es_dx12=true
+    if [ "${IS_BUILTIN_WIN_TOOL:-0}" -eq 0 ]; then
+        if [ "$PE_HAS_DX12" = "1" ] || [ -f "$(dirname "$TARGET")/d3d12.dll" ] || [ -f "$(dirname "$TARGET")/d3d12core.dll" ] || \
+           find "$(dirname "$TARGET")" -maxdepth 2 -iname "d3d12*.dll" 2>/dev/null | grep -q . || \
+           find "$(dirname "$TARGET")" -maxdepth 3 -iname "*re_chunk_000*.pak" 2>/dev/null | grep -q .; then
+            es_dx12=true
+        fi
     fi
 
     # Auto-detección de versión de Windows óptima si no está especificada en la BD (Mejora 1)
@@ -522,8 +532,14 @@ fi
 
 
 # 4.3 Obtener directorio y nombre base del archivo objetivo de ejecución
-TARGET_DIR="$(cd "$(dirname "$TARGET")" 2>/dev/null && pwd || dirname "$TARGET")"
-TARGET_FILE="$(basename "$TARGET")"
+if [ "${IS_BUILTIN_WIN_TOOL:-0}" -eq 1 ]; then
+    TARGET_DIR="${DIR}"
+    TARGET_FILE="$target_base_low"
+    [[ ! "$TARGET_FILE" =~ \.exe$ ]] && TARGET_FILE="${TARGET_FILE}.exe"
+else
+    TARGET_DIR="$(cd "$(dirname "$TARGET")" 2>/dev/null && pwd || dirname "$TARGET")"
+    TARGET_FILE="$(basename "$TARGET")"
+fi
 
 # Redirección inteligente de lanzadores para juegos con ejecutables wrapper obligatorios
 if [[ "$TARGET_FILE" =~ ^[Gg][Tt][Aa]5\.exe$ ]]; then
@@ -1237,8 +1253,14 @@ PREV_POWER_PROFILE=""
 acelerar_hardware_sistema
 
 # 11. Obtener directorio y nombre del archivo
-TARGET_DIR="$(cd "$(dirname "$TARGET")" 2>/dev/null && pwd || dirname "$TARGET")"
-TARGET_FILE="$(basename "$TARGET")"
+if [ "${IS_BUILTIN_WIN_TOOL:-0}" -eq 1 ]; then
+    TARGET_DIR="${DIR}"
+    TARGET_FILE="$target_base_low"
+    [[ ! "$TARGET_FILE" =~ \.exe$ ]] && TARGET_FILE="${TARGET_FILE}.exe"
+else
+    TARGET_DIR="$(cd "$(dirname "$TARGET")" 2>/dev/null && pwd || dirname "$TARGET")"
+    TARGET_FILE="$(basename "$TARGET")"
+fi
 
 # ==============================================================================
 # OPTIMIZACIÓN UNIVERSAL DE RED Y MULTIJUGADOR PARA WINE
@@ -1465,7 +1487,7 @@ EOF
 fi
 
 # Moverse al directorio donde reside el juego (vital para rutas relativas y DLLs)
-cd "$TARGET_DIR"
+[ -d "$TARGET_DIR" ] && cd "$TARGET_DIR" || cd "$DIR"
 
 # Asegurar permisos de escritura para que los mods puedan guardar configs, logs y partidas
 [ -w "$TARGET_DIR" ] || chmod -R u+w "$TARGET_DIR" 2>/dev/null || true
@@ -1998,7 +2020,7 @@ fi
 set +e
 
 # Limpiar instancias colgadas previas del ejecutable objetivo para evitar bloqueos por mutex único de Windows
-if [ -n "$TARGET_FILE" ] && [[ ! "$TARGET_FILE" =~ [Gg]ame[Rr]anger ]]; then
+if [ -n "$TARGET_FILE" ] && [[ ! "$TARGET_FILE" =~ [Gg]ame[Rr]anger ]] && [ "${IS_BUILTIN_WIN_TOOL:-0}" -eq 0 ]; then
     limpiar_zombies_juego "$(basename "$TARGET_FILE" | sed 's/\./\\./g')"
 fi
 
@@ -2064,6 +2086,12 @@ elif [[ "$TARGET_FILE" =~ \.(lnk|ink|LNK|INK)$ ]]; then
     FINAL_CMD+=("start" "/unix" "$TARGET" "$@")
 elif [[ "$TARGET_FILE" =~ \.([bB][aA][tT]|[cC][mM][dD])$ ]]; then
     FINAL_CMD+=("cmd" "/c" "$TARGET_FILE" "$@")
+elif [[ "$TARGET_FILE" =~ ^[Ee][Xx][Pp][Ll][Oo][Rr][Ee][Rr](\.[Ee][Xx][Ee])?$ ]]; then
+    if [ $# -eq 0 ]; then
+        FINAL_CMD+=("explorer.exe" "/e,c:\\")
+    else
+        FINAL_CMD+=("explorer.exe" "$@")
+    fi
 else
     FINAL_CMD+=("$TARGET_FILE" "$@")
 fi
