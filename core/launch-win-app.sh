@@ -2522,7 +2522,8 @@ if [ "${USE_NATIVE_WEB_APP:-0}" -ne 1 ] && [ -n "${WINEPREFIX:-}" ] && [ -d "${W
         fi
     done
     if [ "$other_app_running" -eq 0 ]; then
-        WINEPREFIX="$WINEPREFIX" "$WINESERVER_CMD" -k >/dev/null 2>&1 || WINEPREFIX="$WINEPREFIX" wineserver -k >/dev/null 2>&1 || true
+        # Mantener wineserver tibio 30s para arranques instantáneos consecutivos y luego auto-apagarse liberando 100% de RAM
+        WINEPREFIX="$WINEPREFIX" "$WINESERVER_CMD" -p30 >/dev/null 2>&1 || WINEPREFIX="$WINEPREFIX" wineserver -p30 >/dev/null 2>&1 || true
     fi
 fi
 fi
