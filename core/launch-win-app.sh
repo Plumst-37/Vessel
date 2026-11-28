@@ -731,6 +731,47 @@ if [ ! -f "${WINEPREFIX}/system.reg" ]; then
     [ ! -e "${WINEPREFIX}/dosdevices/z:" ] && ln -s / "${WINEPREFIX}/dosdevices/z:" 2>/dev/null || true
 fi
 
+# 7.0.5 Bóveda Universal de Partidas Guardadas (~/.local/share/vessel_saves)
+# Garantiza que las partidas de GTA V (Goldberg SocialClub), Steam/EMPRESS/CODEX y Saved Games
+# se conserven y carguen automáticamente entre actualizaciones, reinstalaciones o prefijos aislados.
+if [ "${USE_NATIVE_WEB_APP:-0}" -ne 1 ] && [ "$IS_PROGRAM" -ne 1 ] && [ "${PE_CATEGORY:-juego}" != "programa" ] && [ -d "${WINEPREFIX}/drive_c/users/${USER}" ]; then
+    VESSEL_SAVES_DIR="${HOME}/.local/share/vessel_saves"
+    mkdir -p "$VESSEL_SAVES_DIR" 2>/dev/null || true
+    SAVE_REL_PATHS=(
+        "AppData/Roaming/Goldberg SocialClub Emu Saves"
+        "AppData/Roaming/Goldberg SteamEmu Saves"
+        "AppData/Roaming/EMPRESS"
+        "AppData/Roaming/Steam"
+        "AppData/Local/Rockstar Games"
+        "Saved Games"
+    )
+    for rel_save in "${SAVE_REL_PATHS[@]}"; do
+        vault_name="$(basename "$rel_save")"
+        vault_path="${VESSEL_SAVES_DIR}/${vault_name}"
+        prefix_save="${WINEPREFIX}/drive_c/users/${USER}/${rel_save}"
+        mkdir -p "$vault_path" "$(dirname "$prefix_save")" 2>/dev/null || true
+
+        # Importar partidas previas desde otras instalaciones de Vessel o ~/.wine sin sobreescribir archivos existentes
+        for legacy_root in "${HOME}/Documentos/Juegos/Vessel/wineprefix" "${HOME}/Vessel/wineprefix" "${HOME}/.wine"; do
+            legacy_save="${legacy_root}/drive_c/users/${USER}/${rel_save}"
+            if [ -d "$legacy_save" ] && [ ! -L "$legacy_save" ]; then
+                cp -rn "$legacy_save"/. "$vault_path"/ 2>/dev/null || true
+            fi
+        done
+
+        # Vincular el directorio de partidas del prefijo activo hacia la bóveda persistente
+        if [ -L "$prefix_save" ]; then
+            [ "$(readlink "$prefix_save")" != "$vault_path" ] && rm -f "$prefix_save" && ln -s "$vault_path" "$prefix_save" 2>/dev/null || true
+        elif [ -d "$prefix_save" ]; then
+            cp -ru "$prefix_save"/. "$vault_path"/ 2>/dev/null || true
+            rm -rf "$prefix_save" 2>/dev/null || true
+            ln -s "$vault_path" "$prefix_save" 2>/dev/null || true
+        else
+            ln -s "$vault_path" "$prefix_save" 2>/dev/null || true
+        fi
+    done
+fi
+
 # 7.1 Auto-verificación e integración modular de DXVK y VKD3D en el prefijo activo (con caché)
 if [ "$RENDERER_IN_USE" != "WineD3D (OpenGL Compatibilidad)" ]; then
     if [ -d "${WINEPREFIX}/drive_c/windows/system32" ]; then

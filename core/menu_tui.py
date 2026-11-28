@@ -2835,7 +2835,25 @@ def verificar_actualizacion_automatica_github(mostrar_notif=True, cfg=None):
         remote_hash = subprocess.check_output(f"cd '{DIR}' && git rev-parse origin/main", shell=True, text=True).strip()
 
         if local_hash and remote_hash and local_hash != remote_hash:
-            print(f"\n  {YELLOW}{BOLD}⚡ ¡Nueva actualización encontrada en GitHub!{RESET}")
+            try:
+                new_commits = subprocess.check_output(f"cd '{DIR}' && git rev-list --count HEAD..origin/main", shell=True, text=True).strip()
+                last_msg = subprocess.check_output(f"cd '{DIR}' && git log -1 --pretty=format:'%s' origin/main", shell=True, text=True).strip()
+            except Exception:
+                new_commits = "1+"
+                last_msg = "Mejoras de compatibilidad y rendimiento"
+
+            print(f"\n  {YELLOW}{BOLD}⚡ ¡Nueva actualización disponible en GitHub!{RESET}")
+            print(f"  {CYAN}• Cambios pendientes:{RESET} {BOLD}{new_commits}{RESET} commit(s) — {WHITE}{last_msg}{RESET}")
+            try:
+                resp = input(f"\n  {GREEN}{BOLD}¿Deseas instalar esta nueva actualización ahora? (s/n): {RESET}").strip().lower()
+            except (EOFError, KeyboardInterrupt):
+                resp = "n"
+
+            if resp not in ("s", "si", "sí", "y", "yes"):
+                print(f"  {YELLOW}⏭️  Actualización pospuesta. Continuando con la versión actual...{RESET}\n")
+                time.sleep(0.8)
+                return False
+
             print(f"  {WHITE}Descargando e instalando los últimos parches y mejoras para tus juegos...{RESET}")
 
             # Limpiar cualquier conflicto y sincronizar limpiamente con origin/main
