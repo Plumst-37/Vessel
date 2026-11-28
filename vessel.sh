@@ -373,8 +373,8 @@ cmd_doctor() {
     local vkd3d_ok=0
     local nvapi_ok=0
     [ -f "${drivers_dir}/x64/d3d11.dll" ] || [ -f "${drivers_dir}/dxvk/x64/d3d11.dll" ] && dxvk_ok=1
-    [ -f "${drivers_dir}/x64/d3d12.dll" ] || [ -f "${drivers_dir}/vkd3d/x64/d3d12.dll" ] && vkd3d_ok=1
-    [ -f "${drivers_dir}/x64/nvapi64.dll" ] || [ -f "${drivers_dir}/nvapi/x64/nvapi64.dll" ] && nvapi_ok=1
+    [ -f "${drivers_dir}/x64/d3d12.dll" ] || [ -f "${drivers_dir}/vkd3d/x64/d3d12.dll" ] || [ -f "${drivers_dir}/vkd3d-proton/x64/d3d12.dll" ] && vkd3d_ok=1
+    [ -f "${drivers_dir}/x64/nvapi64.dll" ] || [ -f "${drivers_dir}/nvapi/x64/nvapi64.dll" ] || [ -f "${drivers_dir}/dxvk-nvapi/x64/nvapi64.dll" ] && nvapi_ok=1
 
     if [ "$dxvk_ok" -eq 1 ]; then
         echo -e "  ${GREEN}[✓]${RESET} DXVK (DirectX 9/10/11 -> Vulkan): Listo"

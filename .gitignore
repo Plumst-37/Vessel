@@ -29,6 +29,9 @@ Subir Github/
 *.vessel_orig
 perfil_hardware.cfg
 config/perfil_hardware.cfg
+config/config_rendimiento.cfg
+config_rendimiento.cfg
+config/dxvk.conf
 .smart_perf_listo
 .winver_configurados
 __pycache__/
