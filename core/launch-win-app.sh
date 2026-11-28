@@ -772,6 +772,9 @@ if [ "${USE_NATIVE_WEB_APP:-0}" -ne 1 ] && [ "$IS_PROGRAM" -ne 1 ] && [ "${PE_CA
     done
 fi
 
+# Limpieza rápida de archivos temporales antiguos en el prefijo para evitar degradación
+find "${WINEPREFIX}/drive_c/users/${USER}/AppData/Local/Temp" -mindepth 1 -mtime +1 -delete 2>/dev/null || true
+
 # 7.1 Auto-verificación e integración modular de DXVK y VKD3D en el prefijo activo (con caché)
 if [ "$RENDERER_IN_USE" != "WineD3D (OpenGL Compatibilidad)" ]; then
     if [ -d "${WINEPREFIX}/drive_c/windows/system32" ]; then
@@ -1877,7 +1880,7 @@ aplicar_perfil_aislado_juego
 # y activa el override nativo (n,b) en Wine para que carguen de forma transparente.
 # Filtra estrictamente librerías de sistema, runtime CRT y forwarders api-ms-win.
 # ==============================================================================
-DLL_EXCLUIDAS_CORE="^(ntdll|kernel32|kernelbase|user32|gdi32|gdiplus|advapi32|rpcrt4|ws2_32|wsock32|iphlpapi|shell32|shlwapi|shcore|ole32|oleaut32|combase|comctl32|comdlg32|version|imm32|winmm|crypt32|cryptbase|secur32|bcrypt|ncrypt|sspicli|wldp|uxtheme|dwmapi|setupapi|cfgmgr32|winhttp|wininet|urlmon|mpr|netapi32|dnsapi|normaliz|imagehlp|dbghelp|psapi|api-ms-win-.*|ext-ms-win-.*|ucrtbase|vcruntime.*|msvcp.*|msvcr.*|concrt.*|vcomp.*|msvcrt|dxgi|d3d11|d3d12|d3d10.*|d3d9|d3d8|ddraw|vulkan-1|winevulkan|opengl32|glu32|winegstreamer|xaudio2_.*|x3daudio.*|orig_socialclub|launc)$"
+DLL_EXCLUIDAS_CORE="^(ntdll|kernel32|kernelbase|user32|gdi32|gdiplus|advapi32|rpcrt4|ws2_32|wsock32|iphlpapi|shell32|shlwapi|shcore|ole32|oleaut32|combase|comctl32|comdlg32|imm32|crypt32|cryptbase|secur32|bcrypt|ncrypt|sspicli|wldp|uxtheme|dwmapi|setupapi|cfgmgr32|winhttp|wininet|urlmon|mpr|netapi32|dnsapi|normaliz|imagehlp|dbghelp|psapi|api-ms-win-.*|ext-ms-win-.*|ucrtbase|vcruntime.*|msvcp.*|msvcr.*|concrt.*|vcomp.*|msvcrt|dxgi|d3d11|d3d12|d3d10.*|d3d9|d3d8|ddraw|vulkan-1|winevulkan|opengl32|glu32|winegstreamer|xaudio2_.*|x3daudio.*|orig_socialclub|launc)$"
 MODS_ACTIVADOS=()
 declare -A VISTAS_DLL=()
 
@@ -1947,7 +1950,7 @@ else
     echo "    - Consumo RAM / CPU: Ultra-Liviano (WINEDEBUG silenciado, Pipelines dinámicos)"
     echo "    - Fidelidad 3D & Shaders: Filtrado Anisotrópico 16x | D3D8to9 Vulkan | NVAPI: ${NVAPI_ACTIVO}"
     echo "    - Fsync/Esync: $([ "$WINEFSYNC" = "1" ] && echo "Fsync Activo" || echo "Esync Activo")"
-    echo "    - Límite de FPS: ${LIMITE_FPS:-60} FPS"
+    echo "    - Límite de FPS: ${LIMITE_FPS:-Ilimitado (Máximo FPS)}"
     fsr_banner="Desactivado"
     if [ "$ACTIVAR_FSR_FINAL" -eq 1 ]; then
         fsr_banner="Activo [Modo: ${MODO_FSR_FINAL}, Nitidez: ${FSR_STRENGTH:-2}]"

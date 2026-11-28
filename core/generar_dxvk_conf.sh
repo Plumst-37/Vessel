@@ -52,8 +52,11 @@ fi
 
 # Calibración de recursos reales de hardware
 NPROCS=$(nproc 2>/dev/null || echo "${CPU_CORES:-4}")
-if [ "$NPROCS" -gt 4 ]; then
-    REAL_THREADS=$((NPROCS - 1))
+if [ "$NPROCS" -gt 8 ]; then
+    REAL_THREADS=$((NPROCS / 2))
+    [ "$REAL_THREADS" -gt 8 ] && REAL_THREADS=8
+elif [ "$NPROCS" -gt 4 ]; then
+    REAL_THREADS=3
 elif [ "$NPROCS" -gt 2 ]; then
     REAL_THREADS=$((NPROCS - 1))
 else
@@ -106,8 +109,8 @@ case "$LIMITE_FPS" in
     *) FPS_VAL="0" ;;
 esac
 
-# Calibración de sincronización y latencia (VSync y Buffers)
-VSYNC_ENABLED="${VSYNC_MODE:-1}"
+# Calibración de sincronización y latencia (VSync desactivado por defecto para >60 FPS)
+VSYNC_ENABLED="${VSYNC_MODE:-0}"
 if [ "$VSYNC_ENABLED" = "0" ]; then
     TEAR_FREE="False"
     SYNC_INT="0"
