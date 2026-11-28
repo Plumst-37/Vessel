@@ -134,7 +134,9 @@ if os.path.exists(user_reg):
 
             # 6. Argumentos óptimos para GoldSrc clásico (omitir en NextClient moderno con next_lib.dll para evitar bucle de CPU en Updater GUI)
             if [ -f "${TARGET_DIR}/next_lib.dll" ] || [ -f "${TARGET_DIR}/next_engine_mini.dll" ]; then
-                echo "[+] NextClient detectado: conservando argumentos nativos del lanzador."
+                echo "[+] NextClient detectado: desactivando Fsync/Esync y conservando argumentos nativos del lanzador."
+                export WINEFSYNC=0
+                export WINEESYNC=0
             else
                 goldsrc_game="cstrike"
                 if [ -d "${TARGET_DIR}/cstrike" ]; then
