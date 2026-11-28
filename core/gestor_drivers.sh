@@ -89,21 +89,34 @@ cargar_gpu_env() {
         local has_intel_arc=0
         local is_hybrid=0
 
-        # Contar adaptadores gráficos disponibles en bus PCI
-        local vga_count
-        vga_count=$(lspci 2>/dev/null | grep -Ei "vga|3d controller|display" | wc -l)
-        [ "$vga_count" -gt 1 ] && is_hybrid=1
+        # Contar adaptadores gráficos sin invocar lspci 5 veces (usa datos cacheados o sysfs)
+        local drm_cards=0
+        for _card in /sys/class/drm/card[0-9]; do
+            [ -d "$_card" ] && drm_cards=$((drm_cards + 1))
+        done
+        [ "$drm_cards" -gt 1 ] && is_hybrid=1
 
-        if lspci 2>/dev/null | grep -Ei "vga|3d" | grep -qi "nvidia" || [ -d "/proc/driver/nvidia" ]; then
-            has_nvidia=1
-        fi
-
-        if lspci 2>/dev/null | grep -Ei "vga|3d" | grep -qiE "amd|radeon|advanced micro devices"; then
-            has_amd=1
-        fi
-
-        if lspci 2>/dev/null | grep -Ei "vga|3d" | grep -qi "intel" && lspci 2>/dev/null | grep -Ei "vga|3d" | grep -qiE "arc|dg[1-2]|alchemist|battlemage"; then
-            has_intel_arc=1
+        if [ "${VESSEL_HW_LOADED:-0}" = "1" ]; then
+            [ "${HAS_NVIDIA:-false}" = true ] || [ -d "/proc/driver/nvidia" ] && has_nvidia=1
+            [ "${HAS_AMD_DEDICATED:-false}" = true ] && has_amd=1
+            if [ "${HAS_INTEL:-false}" = true ] && echo "${DETECTED_GPU:-}" | grep -qiE "arc|dg[1-2]|alchemist|battlemage"; then
+                has_intel_arc=1
+            fi
+        else
+            local lspci_vga
+            lspci_vga=$(lspci 2>/dev/null | grep -Ei "vga|3d controller|display" || true)
+            local vga_count
+            vga_count=$(echo "$lspci_vga" | grep -c . || true)
+            [ "$vga_count" -gt 1 ] && is_hybrid=1
+            if echo "$lspci_vga" | grep -qi "nvidia" || [ -d "/proc/driver/nvidia" ]; then
+                has_nvidia=1
+            fi
+            if echo "$lspci_vga" | grep -qiE "amd|radeon|advanced micro devices"; then
+                has_amd=1
+            fi
+            if echo "$lspci_vga" | grep -qi "intel" && echo "$lspci_vga" | grep -qiE "arc|dg[1-2]|alchemist|battlemage"; then
+                has_intel_arc=1
+            fi
         fi
 
         # Inyectar variables de alto rendimiento si se forzó o si es sistema híbrido
